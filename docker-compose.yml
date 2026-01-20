@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    volumes:
+      # This maps your current folder (.) to the container folder (/app)
+      # This enables Live/Hot Reloading
+      - .:/app
+      # This prevents the container's node_modules from being overwritten by your local ones
+      - /app/node_modules
+    environment:
+      # Ensures Expo listens on all network interfaces inside the container
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=localhost
+
+# Gemini AI - Rivindu - I Got This.
