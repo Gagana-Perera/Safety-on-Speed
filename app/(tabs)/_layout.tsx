@@ -1,35 +1,14 @@
 import { Tabs } from "expo-router";
 import React from "react";
 
-const Start = ({ route, preventDefault }) => {
-  if (UserActivation) {
-    if (route.key === "extra") {
-      preventDefault();
-      return (
-        <Tabs>
-          <Tabs.Screen name="index" />
-        </Tabs>
-      );
-    }
-  }
-};
-
 export default function _layout() {
   return (
-    <Tabs>
-      <Start />
+    <Tabs initialRouteName="index">
       <Tabs.Screen
         name="extra"
         options={{
           title: "Extra",
         }}
-        // listeners={() => {
-        //   (e) => {
-        //     tDefault();
-        //     navigate("/map");
-        //     // navigation.navigate('Home');
-        //   };
-        // }}
       ></Tabs.Screen>
       <Tabs.Screen
         name="map"
