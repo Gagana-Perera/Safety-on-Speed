@@ -1,97 +1,60 @@
-import { Text, ImageBackground, Image } from 'react-native'
-import { Tabs } from 'expo-router'
-import { images } from '@/constants/images'
-import { icons } from '@/constants/icons'
+import { Tabs } from "expo-router";
+import React from "react";
 
-const TabIcon = ({ focused, icon, title }: any ) => {
-    if (focused) {
-        return (
-        )
+const Start = ({ route, preventDefault }) => {
+  if (UserActivation) {
+    if (route.key === "extra") {
+      preventDefault();
+      return (
+        <Tabs>
+          <Tabs.Screen name="index" />
+        </Tabs>
+      );
     }
-}
+  }
+};
 
-const _layout = () => {
+export default function _layout() {
   return (
-    <Tabs
-    screenOptions={{
-        tabBarShowLabel: false,
-        tabBarIconStyle: {
-            width: '100%',
-            height: '100%',
-            justifyContent: 'center',
-            alignItems: 'center'
-        },
-        tabBarStyle: {
-            backgroundColor: '#0F0D23',
-            borderRadius: 50,
-            marginHorizontal: 20,
-            marginBottom: 36,
-            height: 52,
-            position: 'absolute',
-            overflow: 'hidden',
-            borderWidth: 1,
-            borderColor: '#0F0D23'
-        }
-    }}
-    >
-        <Tabs.Screen
+    <Tabs>
+      <Start />
+      <Tabs.Screen
+        name="extra"
+        options={{
+          title: "Extra",
+        }}
+        // listeners={() => {
+        //   (e) => {
+        //     tDefault();
+        //     navigate("/map");
+        //     // navigation.navigate('Home');
+        //   };
+        // }}
+      ></Tabs.Screen>
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+        }}
+      ></Tabs.Screen>
+      <Tabs.Screen
         name="index"
         options={{
-            title: "Home",
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-                <TabIcon 
-                focused= {focused}
-                icon={icons.home}
-                title="Home"
-                />
-            )
+          title: "Home",
         }}
-        />
-        <Tabs.Screen
-        name="search"
+      ></Tabs.Screen>
+      <Tabs.Screen
+        name="news"
         options={{
-            title: "Search",
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-                <TabIcon 
-                focused= {focused}
-                icon={icons.search}
-                title="Search"
-                />
-            )
+          title: "News",
         }}
-        />
-        <Tabs.Screen
-        name="saved"
-        options={{
-            title: "Saved",
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-                <TabIcon 
-                focused= {focused}
-                icon={icons.save}
-                title="Saved"
-                />
-            )
-        }}
-        />
-        <Tabs.Screen
+      ></Tabs.Screen>
+      <Tabs.Screen
         name="profile"
         options={{
-            title: "Profile",
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-                <TabIcon 
-                focused= {focused}
-                icon={icons.person}
-                title="Profile"
-                />
-            )
+          title: "Profile",
         }}
-        />
+      ></Tabs.Screen>
     </Tabs>
-  )
+  );
 }
-
-export default _layout
