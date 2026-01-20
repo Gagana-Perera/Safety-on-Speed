@@ -1,10 +1,10 @@
 import React from "react";
 import { Text, View } from "react-native";
 
-export default function Index() {
+export default function News() {
   return (
     <View>
-      <Text>RNF is the code</Text>
+      <Text>N</Text>
     </View>
   );
 }
