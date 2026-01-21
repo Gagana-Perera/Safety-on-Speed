@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { Image, ImageBackground } from "react-native";
 
+import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
 const IconC = ({ focused, icon, title }: any) => {
@@ -67,7 +68,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              //icon={officialdoc.logo}
+              icon={icons.home}
               //title= "Extra" 
             />
           ),
@@ -82,7 +83,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              //icon={officialdoc.logo}
+              icon={icons.home}
               //title= "Map" 
             />
           ),
@@ -110,7 +111,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              //icon={officialdoc.logo}
+              icon={icons.forum}
               //title= "News" 
             />
           ),
@@ -125,7 +126,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              //icon={officialdoc.logo}
+              icon={icons.person}
               //title= "Profile" 
             />
           ),
