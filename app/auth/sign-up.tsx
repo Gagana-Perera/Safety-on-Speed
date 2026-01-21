@@ -1,9 +1,9 @@
 import { supabase } from '@/lib/superbase';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Text, TextInput, View } from 'react-native';
+import { Alert, Button, Text, TextInput, View } from 'react-native';
 
-export default function signUp() {
+export default function SignUp() {
 
     const router = useRouter();
     const [firstName, setFirstName] = useState('');
@@ -12,29 +12,29 @@ export default function signUp() {
     const [birth, setBirth] = useState('');
     const [email, setEmail] = useState('');
     const [confirmEmail, setConfirmEmail] = useState('');
-    const [passsword, setPassword] = useState('');
+    const [password, setPassword] = useState('');
     const [confirmPasssword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false)
 
-    async function signUp() {
-        setLoading(true);
-        const {error} = await supabase.auth.signUp({ firstName, lastName, nic, birth, email, confirmEmail, passsword, confirmPasssword });
+    async function signUpAcc() {
+        //setLoading(true);
+        const {error} = await supabase.auth.signUp({ email, password, options: { data: { firstName, lastName, nic, birth, confirmEmail , confirmPasssword }} });
 
         if (error) Alert.alert(error.message);
-        setLoading(false);
+        //setLoading(false);
     }
 
   return (
     <View>
-        <Text>First Name</Text>
-        <TextInput
+        {/* <Text className="text-2xl color-amber-950">First Name</Text>
+        <TextInput 
             value={firstName}
             onChangeText={setFirstName}
             placeholder="email@gmail.com"
-            className=""
+            className="bg-red-500"
         />
 
-        <Text>First Name</Text>
+        <Text>Last Name</Text>
         <TextInput
             value={lastName}
             onChangeText={setLastName}
@@ -56,43 +56,50 @@ export default function signUp() {
             onChangeText={}
             placeholder="email@gmail.com"
             className=""
-        />
+        /> */}
 
         <Text>Email</Text>
         <TextInput
-            value={}
-            onChangeText={}
+            value={email}
+            onChangeText={setEmail}
             placeholder="email@gmail.com"
             className=""
         />
 
-        <Text>Confirm Email</Text>
+        {/* <Text>Confirm Email</Text>
         <TextInput
             value={}
             onChangeText={}
             placeholder="email@gmail.com"
             className=""
-        />
+        /> */}
 
         <Text>Password</Text>
         <TextInput
-            value={}
-            onChangeText={}
+            value={password}
+            onChangeText={setPassword}
             placeholder="email@gmail.com"
             className=""
         />
 
-        <Text>Confirm Password</Text>
+        {/* <Text>Confirm Password</Text>
         <TextInput
             value={}
             onChangeText={}
             placeholder="email@gmail.com"
             className=""
+        /> */}
+
+        <Button
+            onPress={signUpAcc}
+            disabled={loading}
+            title='a'
+            //text={loading ? 'Creating account...' : 'Create account'}
         />
 
-        <Link 
+        {/* <Link 
             className=''
-        > Sign In</Link>
+        > Sign In</Link> */}
     </View>
   )
 }
