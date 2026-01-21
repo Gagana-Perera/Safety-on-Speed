@@ -11,44 +11,38 @@ const IconC = ({ focused, icon, title }: any) => {
         //source={}
         className=""
       >
-        {icon === officialdoc.logo ? (
-           <Image 
-            source={icon} 
-            className="size-12 rounded-full mt-10" 
-          />
-        ) : (
+        {icon === officialdoc.logo ? ( 
           <Image 
-            source={icon} 
-            className="size-12" 
+              source={icon} 
+              className="size-12 mt-10 rounded-full"
+          />) : (
+            <Image 
+              source={icon} 
+              className="size-12 mt-14"
           />
-        )}
-        <Text className="">{title}</Text>
+          )}
+        <Text className="pl-2">{title}</Text>
         
       </ImageBackground>
     );
-  } 
-  // else if (focused && title == "Home") {
-  //   return (
-  //     <ImageBackground
-  //       //source={}
-  //       className=""
-  //     >
-  //       <Image 
-  //         source={icon} 
-  //         className="size-12 " 
-  //       />
-  //       <Text className="">{title}</Text>
-  //     </ImageBackground>
-  //   )
-  // } 
-  else {
+  } else {
     return (
       <ImageBackground
         //source={}
         className=""
       >
-        <Image source={icon} className="" />
-        <Text className="">{title}</Text>
+        {icon === officialdoc.logo ? ( 
+          <Image 
+              source={icon} 
+              className="size-12 mt-10 rounded-full"
+          />) : (
+            <Image 
+              source={icon} 
+              className="size-12 mt-14"
+          />
+          )}
+        <Text className="pl-2">{title}</Text>
+        
       </ImageBackground>
     );
   }
@@ -61,7 +55,7 @@ export default function _layout() {
         name="extra"
         options={{
           title: "Extra",
-          //tabBarShowLabel: false,
+          tabBarShowLabel: false,
           headerShown: false,
         }}
       ></Tabs.Screen>
@@ -69,8 +63,14 @@ export default function _layout() {
         name="map"
         options={{
           title: "Map",
-          //tabBarShowLabel: false,
+          tabBarShowLabel: false,
           headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              icon={officialdoc.logo}
+              title= "Map" />
+          ),
         }}
       ></Tabs.Screen>
       <Tabs.Screen
@@ -90,7 +90,7 @@ export default function _layout() {
         name="news"
         options={{
           title: "News",
-          //tabBarShowLabel: false,
+          tabBarShowLabel: false,
           headerShown: false,
         }}
       ></Tabs.Screen>
@@ -98,7 +98,7 @@ export default function _layout() {
         name="profile"
         options={{
           title: "Profile",
-          //tabBarShowLabel: false,
+          tabBarShowLabel: false,
           headerShown: false,
         }}
       ></Tabs.Screen>
