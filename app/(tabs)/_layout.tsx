@@ -11,18 +11,19 @@ const IconC = ({ focused, icon, title }: any) => {
         //source={}
         className=""
       >
-        if (title == Home) {
-          <Image 
-          source={icon} 
-          className="size-12 rounded-full mt-10" 
-        />
-        } else {
-          <Image 
-          source={icon} 
-          className="size-12" 
+        {icon === officialdoc.logo ? (
+           <Image 
+            source={icon} 
+            className="size-12 rounded-full mt-10" 
           />
-        }
+        ) : (
+          <Image 
+            source={icon} 
+            className="size-12" 
+          />
+        )}
         <Text className="">{title}</Text>
+        
       </ImageBackground>
     );
   } 
@@ -81,8 +82,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              icon={officialdoc.logo}
-              title="Home"/>
+              icon={officialdoc.logo}/>
           ),
         }}
       ></Tabs.Screen>
