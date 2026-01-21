@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Image, ImageBackground, Text } from "react-native";
+import { Image, ImageBackground } from "react-native";
 
 import { officialdoc } from "@/constants/officialdoc";
 
@@ -14,14 +14,14 @@ const IconC = ({ focused, icon, title }: any) => {
         {icon === officialdoc.logo ? ( 
           <Image 
               source={icon} 
-              className="size-12 mt-10 rounded-full"
+              className="size-12 mt-14 rounded-full"
           />) : (
             <Image 
               source={icon} 
               className="size-12 mt-14"
           />
           )}
-        <Text className="pl-2">{title}</Text>
+        {/* <Text className="pl-2 text-xs">{title}</Text> */}
         
       </ImageBackground>
     );
@@ -34,14 +34,14 @@ const IconC = ({ focused, icon, title }: any) => {
         {icon === officialdoc.logo ? ( 
           <Image 
               source={icon} 
-              className="size-12 mt-10 rounded-full"
+              className="size-12 mt-14 rounded-full"
           />) : (
             <Image 
               source={icon} 
               className="size-12 mt-14"
           />
           )}
-        <Text className="pl-2">{title}</Text>
+        {/* <Text className="pl-2 text-xl">{title}</Text> */}
         
       </ImageBackground>
     );
@@ -50,13 +50,27 @@ const IconC = ({ focused, icon, title }: any) => {
 
 export default function _layout() {
   return (
-    <Tabs initialRouteName="index">
+    <Tabs 
+      initialRouteName="index"
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: "#002747"
+        }
+      }}
+    >
       <Tabs.Screen
         name="extra"
         options={{
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              //icon={officialdoc.logo}
+              //title= "Extra" 
+            />
+          ),
         }}
       ></Tabs.Screen>
       <Tabs.Screen
@@ -68,8 +82,9 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC 
               focused={focused} 
-              icon={officialdoc.logo}
-              title= "Map" />
+              //icon={officialdoc.logo}
+              //title= "Map" 
+            />
           ),
         }}
       ></Tabs.Screen>
@@ -92,6 +107,13 @@ export default function _layout() {
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              //icon={officialdoc.logo}
+              //title= "News" 
+            />
+          ),
         }}
       ></Tabs.Screen>
       <Tabs.Screen
@@ -100,6 +122,13 @@ export default function _layout() {
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              //icon={officialdoc.logo}
+              //title= "Profile" 
+            />
+          ),
         }}
       ></Tabs.Screen>
     </Tabs>
