@@ -18,9 +18,14 @@ export default function SignUp() {
 
     async function signUpAcc() {
         //setLoading(true);
-        const {error} = await supabase.auth.signUp({ email, password, options: { data: { firstName, lastName, nic, birth, confirmEmail , confirmPasssword }} });
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { firstName: firstName, lastName: lastName, nic: nic, birth: birth, confirmEmail: confirmEmail , confirmPasssword: confirmPasssword }} });
 
-        if (error) Alert.alert(error.message);
+        if (authError) {Alert.alert(authError.message)};
+        if (authData.user) {await supabase.from('login').insert([{
+                id:authData.user.id,
+                email: email,
+                password: password
+            }])
         //setLoading(false);
     }
 
@@ -93,7 +98,7 @@ export default function SignUp() {
         <Button
             onPress={signUpAcc}
             disabled={loading}
-            title='a'
+            title='aaaaaa'
             //text={loading ? 'Creating account...' : 'Create account'}
         />
 
