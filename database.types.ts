@@ -14,21 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
-      login: {
+      userpeople: {
         Row: {
-          email: string | null
+          birth: string | null
+          confirmEmail: string | null
+          email: string
+          firstName: string | null
           id: string
-          password: string | null
+          lastName: string | null
+          nic: string | null
+          password: string
         }
         Insert: {
-          email?: string | null
-          id?: string
-          password?: string | null
+          birth?: string | null
+          confirmEmail?: string | null
+          email: string
+          firstName?: string | null
+          id: string
+          lastName?: string | null
+          nic?: string | null
+          password: string
         }
         Update: {
-          email?: string | null
+          birth?: string | null
+          confirmEmail?: string | null
+          email?: string
+          firstName?: string | null
           id?: string
-          password?: string | null
+          lastName?: string | null
+          nic?: string | null
+          password?: string
         }
         Relationships: []
       }
