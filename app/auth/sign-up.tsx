@@ -18,15 +18,27 @@ export default function SignUp() {
 
     async function signUpAcc() {
         //setLoading(true);
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { firstName: firstName, lastName: lastName, nic: nic, birth: birth, confirmEmail: confirmEmail , confirmPasssword: confirmPasssword }} });
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password, 
+            // options: { data: { firstName: firstName, lastName: lastName, nic: nic, birth: birth, confirmEmail: confirmEmail , confirmPasssword: confirmPasssword }} 
+        });
 
-        if (authError) {Alert.alert(authError.message)};
-        if (authData.user) {await supabase.from('login').insert([{
+        if (authError) {
+            // Alert.alert(authError.message)
+            console.log("auth error" + authError.message)
+        };
+        if (authData.user) {
+            const { error: dbError } = await supabase.from('login').insert([{
                 id:authData.user.id,
                 email: email,
                 password: password
             }])
         //setLoading(false);
+            if (dbError) {
+                console.log("dbError" + dbError.message);
+                Alert.alert(dbError.message);
+                }
+        }
+        
     }
 
   return (
@@ -106,5 +118,5 @@ export default function SignUp() {
             className=''
         > Sign In</Link> */}
     </View>
-  )
-}
+        )
+    }
