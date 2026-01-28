@@ -106,7 +106,7 @@ export const useSignUpLogic = () => {
                 console.log("dbError" + dbError.message);
                 Alert.alert("Database Error", dbError.message);
             } else {
-                router.replace("/auth/otp");
+                router.replace("/(tabs)/profile");
             }
         }
         setLoading(false);

@@ -13,10 +13,8 @@ export const useCaptcha = (onTokenReceived: (token: string) => void) => {
     const onCaptchaMessage = (event: WebViewMessageEvent) => {
         if (event && event.nativeEvent.data) {
             const data = event.nativeEvent.data;
-            // Ignore internal HCaptcha events
             if (['cancel', 'error', 'expired'].includes(data)) return;
             
-            // Pass the valid token back to the callback
             onTokenReceived(data);
         }
     };

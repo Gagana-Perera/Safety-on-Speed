@@ -1,8 +1,7 @@
+import { useOTP } from '@/hooks/otp-db';
+import { useSignUpLogic } from '@/hooks/signup-db';
 import React from 'react';
 import { Button, Text, TextInput, View } from 'react-native';
-
-
-import { useSignUpLogic } from '@/hooks/signup-db';
 
 
 export default function SignUp() {
@@ -17,19 +16,10 @@ export default function SignUp() {
         password, setPassword,
         loading,
         phone, setPhone,
-        // otp, setOtp,
-        // isPhoneVerified,
-        // isModalVisible, setModalVisible,
-        // otpStep, setOtpStep,
-        // captchaRef,
-        // hCaptchasiteKey,
-        // handleSendOTP,
-        // onCaptchaSuccess,
-        // handleVerifyOTP,
         signUpAcc
     } = useSignUpLogic();
 
-    // const {} = useOTP();
+    const { otpPhone, setOtpPhone } = useOTP();
 
   return (
     <View>
@@ -69,8 +59,8 @@ export default function SignUp() {
         <View>
             <Text>Contact No</Text>
             <TextInput
-                value={phone}
-                onChangeText={setPhone}
+                value={phone && otpPhone}
+                onChangeText={setPhone || setOtpPhone}
                 placeholder="+94770000000"
                 className=""
                 // editable={!isPhoneVerified}

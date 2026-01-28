@@ -6,7 +6,7 @@ import Captcha from './captcha';
 
 export default function Otp() {
     const {
-        // phone,
+        otpPhone, setOtpPhone,
         otp, setOtp,
         otpStep, setOtpStep,
         sendOtp,

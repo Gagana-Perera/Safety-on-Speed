@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 
 export const useOTP = () => {
-    const [phone, setPhone] = useState('+94');
+    const [otpPhone, setOtpPhone] = useState('+94');
     const [otp, setOtp] = useState('');
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
     const [otpStep, setOtpStep] = useState(1);
@@ -12,7 +12,7 @@ export const useOTP = () => {
     const sendOtp = async (captchaToken: string) => {
         setLoading(true);
         const { error } = await supabase.auth.signInWithOtp({
-            phone: phone,
+            phone: otpPhone,
             options: { captchaToken }
         });
         setLoading(false);
@@ -27,7 +27,7 @@ export const useOTP = () => {
     const verifyOtp = async () => {
         setLoading(true);
         const { error } = await supabase.auth.verifyOtp({
-            phone,
+            phone:otpPhone,
             token: otp,
             type: 'sms',
         });
@@ -42,7 +42,7 @@ export const useOTP = () => {
     };
 
     return {
-        phone, setPhone,
+        otpPhone, setOtpPhone,
         otp, setOtp,
         isPhoneVerified,
         otpStep, setOtpStep,
