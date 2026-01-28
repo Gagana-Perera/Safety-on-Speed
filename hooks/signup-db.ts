@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/superbase'; // Ensure this path is correct
+import { supabase } from '@/lib/superbase';
 // import Hcaptcha from '@hcaptcha/react-native-hcaptcha';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -7,9 +7,8 @@ import { Alert } from 'react-native';
 export const useSignUpLogic = () => {
     const router = useRouter();
     // const captchaRef = useRef<Hcaptcha>(null);
-    // const hCaptchasiteKey = process.env.HCAPTCHA_SITE_KEY || 'YOUR_SITE_KEY_HERE';
+    // const hCaptchasiteKey = process.env.HCAPTCHA_SITE_KEY';
 
-    // State Variables
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [nic, setNic] = useState('');
@@ -19,7 +18,6 @@ export const useSignUpLogic = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     
-    // OTP & Phone State
     const [phone, setPhone] = useState('+94');
     // const [otp, setOtp] = useState('');
     // const [isPhoneVerified, setIsPhoneVerified] = useState(false);
@@ -75,7 +73,6 @@ export const useSignUpLogic = () => {
             return;
         }
 
-        // 1. Sign up with Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({ 
             email, 
             password, 
@@ -92,7 +89,6 @@ export const useSignUpLogic = () => {
             return;
         }
 
-        // 2. Insert into Database Table
         if (authData.user) {
             const { error: dbError } = await supabase.from('userpeople').insert([{
                 id: authData.user.id,
@@ -102,8 +98,6 @@ export const useSignUpLogic = () => {
                 birth,
                 confirmEmail,
                 email,
-                // Note: Storing passwords in plain text is insecure. Supabase Auth handles this safely.
-                // I have left it here as per your request, but consider removing it from the DB insert.
                 password: password, 
                 phone
             }]);
@@ -112,7 +106,6 @@ export const useSignUpLogic = () => {
                 console.log("dbError" + dbError.message);
                 Alert.alert("Database Error", dbError.message);
             } else {
-                // Success
                 router.replace("/auth/otp");
             }
         }
