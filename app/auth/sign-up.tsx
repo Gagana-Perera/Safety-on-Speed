@@ -1,109 +1,35 @@
-import { supabase } from '@/lib/superbase';
-import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
-import { Alert, Button, Modal, Text, TextInput, View } from 'react-native';
+import React from 'react';
+import { Button, Text, TextInput, View } from 'react-native';
 
-import Hcaptcha from '@hcaptcha/react-native-hcaptcha';
+
+import { useSignUpLogic } from '@/hooks/signup-db';
+
 
 export default function SignUp() {
 
-    const router = useRouter();
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [nic, setNic] = useState('');
-    const [birth, setBirth] = useState('');
-    const [email, setEmail] = useState('');
-    const [confirmEmail, setConfirmEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false)
+    const {
+        firstName, setFirstName,
+        lastName, setLastName,
+        nic, setNic,
+        birth, setBirth,
+        email, setEmail,
+        confirmEmail, setConfirmEmail,
+        password, setPassword,
+        loading,
+        phone, setPhone,
+        // otp, setOtp,
+        // isPhoneVerified,
+        // isModalVisible, setModalVisible,
+        // otpStep, setOtpStep,
+        // captchaRef,
+        // hCaptchasiteKey,
+        // handleSendOTP,
+        // onCaptchaSuccess,
+        // handleVerifyOTP,
+        signUpAcc
+    } = useSignUpLogic();
 
-    const [phone, setPhone] = useState('');
-    const [otp, setOtp] = useState('');
-    const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-    const [isModalVisible, setModalVisible] = useState(false);
-    const [otpStep, setOtpStep] = useState(1);
-    //const captchaRef = useRef(null);
-    const captchaRef = useRef<Hcaptcha>(null);
-
-    const handleSendOTP = () => {
-        captchaRef.current?.show(); 
-    };
-
-    const onCaptchaSuccess = async (event) => {
-        if (event && event.nativeEvent.data) {
-            if (['cancel', 'error', 'expired'].includes(event.nativeEvent.data)) return;
-            
-            const captchaToken = event.nativeEvent.data;
-            const { error } = await supabase.auth.signInWithOtp({
-                phone: phone,
-                options: { captchaToken }
-            });
-
-            if (error) {
-                Alert.alert("Error sending OTP", error.message);
-            } else {
-                setOtpStep(2); // Move to OTP input view
-            }
-        }
-    };
-
-    const handleVerifyOTP = async () => {
-        const { error } = await supabase.auth.verifyOtp({
-            phone,
-            token: otp,
-            type: 'sms',
-        });
-
-        if (error) {
-            Alert.alert("Error", "Invalid OTP. " + error.message);
-        } else {
-            Alert.alert("Success", "Phone verified successfully!");
-            setIsPhoneVerified(true);
-            setModalVisible(false); // Close Modal
-        }
-    };
-
-    async function signUpAcc() {
-        setLoading(true);
-        
-
-        if (email !== confirmEmail) {
-            Alert.alert( "Email and Confirm Email Should Be Both Equal" )
-            setLoading(true)
-            
-        } else {
-            const { data: authData, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { firstName: firstName, lastName: lastName, nic: nic, birth: birth, confirmEmail: confirmEmail, phone:phone }} });
-
-            if (authError) {
-                Alert.alert(authError.message)
-                //console.log("auth error" + authError.message)
-            };
-            if (authData.user && email === confirmEmail  && isPhoneVerified) {
-                    const { error: dbError } = await supabase.from('userpeople').insert([{
-                    id:authData.user.id,
-
-                    firstName:firstName,
-                    lastName: lastName, 
-                    nic: nic, 
-                    birth: birth, 
-                    confirmEmail: confirmEmail,
-
-                    email: email,
-                    password: password,
-
-                    phone: phone
-                }])
-
-
-                if (dbError) {
-                    console.log("dbError" + dbError.message);
-                    Alert.alert(dbError.message);
-                }   
-            }
-            setLoading(false);
-        }
-        
-    }
+    // const {} = useOTP();
 
   return (
     <View>
@@ -140,13 +66,26 @@ export default function SignUp() {
             className=""
         />
 
-        <Text>Contact No</Text>
-        <TextInput
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="PHONE NO"
-            className=""
-        />
+        <View>
+            <Text>Contact No</Text>
+            <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+94770000000"
+                className=""
+                // editable={!isPhoneVerified}
+                keyboardType="phone-pad"
+                maxLength={12}
+            />
+            {/* <Button 
+                title={isPhoneVerified ? "Verified ✅" : "Verify Phone"} 
+                color={isPhoneVerified ? "green" : "blue"}
+                onPress={() => setModalVisible(true)} 
+                disabled={isPhoneVerified || phone.length < 12}
+            /> */}
+        </View>
+
+        
 
         <Text>Email</Text>
         <TextInput
@@ -172,12 +111,13 @@ export default function SignUp() {
             placeholder="password"
             className=""
         />
-
     
 
         <Button
             onPress={signUpAcc}
-            disabled={loading}
+            disabled={loading 
+                // || !isPhoneVerified
+            }
             title='Submit'
             //text={loading ? 'Creating account...' : 'Create account'}
         />
@@ -186,47 +126,6 @@ export default function SignUp() {
             className=''
         > Sign In</Link> */}
 
-        <Modal animationType="slide" transparent={true} visible={isModalVisible} onRequestClose={() => setModalVisible(true)}>
-                <View>
-                    <View>
-                        <Text>
-                            {otpStep === 1 ? "Verify Phone Number" : "Enter Verification Code"}
-                        </Text>
-
-                        {otpStep === 1 ? (
-                            <>
-                                <Text>We will send an OTP to {phone}</Text>
-                                <View>
-                                    <Button title="Cancel" color="red" onPress={() => setModalVisible(false)} />
-                                    <Button title="Send OTP" onPress={handleSendOTP} />
-                                </View>
-                                
-                                <Hcaptcha
-                                    ref={captchaRef}
-                                    siteKey="HCAPTCHA_SITE_KEY"
-                                    baseUrl="http://localhost"
-                                    languageCode="en"
-                                    onMessage={onCaptchaSuccess}
-                                />
-                            </>
-                        ) : (
-                            <>
-                                <TextInput 
-                                    placeholder="Enter 6-digit OTP" 
-                                    value={otp} 
-                                    onChangeText={setOtp} 
-                                    keyboardType="numeric"
-                                />
-                                <View>
-                                    <Button title="Back" color="gray" onPress={() => setOtpStep(1)} />
-                                    <Button title="Verify" onPress={handleVerifyOTP} />
-                                </View>
-                            </>
-                        )}
-                    </View>
-                </View>
-            </Modal>
-        
     </View>
         )
     }
