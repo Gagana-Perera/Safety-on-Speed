@@ -14,39 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      userpeople: {
-        Row: {
-          birth: string | null
-          confirmEmail: string | null
-          email: string
-          firstName: string | null
-          id: string
-          lastName: string | null
-          nic: string | null
-          password: string
-        }
-        Insert: {
-          birth?: string | null
-          confirmEmail?: string | null
-          email: string
-          firstName?: string | null
-          id: string
-          lastName?: string | null
-          nic?: string | null
-          password: string
-        }
-        Update: {
-          birth?: string | null
-          confirmEmail?: string | null
-          email?: string
-          firstName?: string | null
-          id?: string
-          lastName?: string | null
-          nic?: string | null
-          password?: string
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never

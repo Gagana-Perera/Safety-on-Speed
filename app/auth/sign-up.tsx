@@ -1,5 +1,5 @@
-import { useOTP } from '@/hooks/otp-db';
 import { useSignUpLogic } from '@/hooks/signup-db';
+import { Link, Stack } from 'expo-router';
 import React from 'react';
 import { Button, Text, TextInput, View } from 'react-native';
 
@@ -19,10 +19,10 @@ export default function SignUp() {
         signUpAcc
     } = useSignUpLogic();
 
-    const { otpPhone, setOtpPhone } = useOTP();
-
   return (
     <View>
+        <Stack.Screen options={{ headerShown: false }} />
+
         <Text className="">First Name</Text>
         <TextInput 
             value={firstName}
@@ -59,20 +59,14 @@ export default function SignUp() {
         <View>
             <Text>Contact No</Text>
             <TextInput
-                value={phone && otpPhone}
-                onChangeText={setPhone || setOtpPhone}
+                value={phone}
+                onChangeText={setPhone}
                 placeholder="+94770000000"
                 className=""
                 // editable={!isPhoneVerified}
                 keyboardType="phone-pad"
                 maxLength={12}
             />
-            {/* <Button 
-                title={isPhoneVerified ? "Verified ✅" : "Verify Phone"} 
-                color={isPhoneVerified ? "green" : "blue"}
-                onPress={() => setModalVisible(true)} 
-                disabled={isPhoneVerified || phone.length < 12}
-            /> */}
         </View>
 
         
@@ -109,12 +103,10 @@ export default function SignUp() {
                 // || !isPhoneVerified
             }
             title='Submit'
-            //text={loading ? 'Creating account...' : 'Create account'}
+            
         />
 
-        {/* <Link 
-            className=''
-        > Sign In</Link> */}
+        <Link className='' href={'/auth/login'}>Login</Link>
 
     </View>
         )
