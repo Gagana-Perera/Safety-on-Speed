@@ -1,28 +1,39 @@
-import { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
-import { Redirect } from "expo-router";
 import { supabase } from "@/lib/superbase";
+import { Redirect } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 
 export default function SessionGate() {
-    const [loading, setLoading] = useState(true);
-    const [loggedIn, setLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
 
-    useEffect(() => {
-        async function checkSession() {
-            const { data } = await supabase.auth.getSession();
-            setLoggedIn(!!data.session);
-            setLoading(false);
-        }
-        checkSession();
-    }, []);
+  useEffect(() => {
+    async function checkSession() {
+      const { data } = await supabase.auth.getSession();
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" />
-            </View>
-        );
+      if (data.session) {
+        setLoggedIn(true);
+      } else {
+        setLoggedIn(false);
+      }
+
+      setLoading(false);
     }
 
-    return loggedIn ? <Redirect href="/(tabs)" /> : <Redirect href="/auth/login" />;
+    checkSession();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return loggedIn ? (
+    <Redirect href="/(tabs)" />
+  ) : (
+    <Redirect href="/auth/login" />
+  );
 }
