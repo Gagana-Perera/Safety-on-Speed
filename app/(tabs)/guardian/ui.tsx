@@ -58,8 +58,11 @@ export default function AddGuardian() {
 
             {/*--- UI for Add Contact 1 --- */}
 
-            <View>
-              <Text className="text-[#D9F5FF] text-xl mt-8 px-8">Contact 1</Text>
+            <View className="">
+              <View className="flex-row justify-between items-center px-8">
+                <Text className="text-[#D9F5FF] text-xl mt-8 ">Contact 1</Text>
+                <Image source={icons.deleteButton} className="w-6 h-6 pt-1" />
+              </View>
               <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
               <TextInput
                 value={contact1Name}
@@ -99,7 +102,10 @@ export default function AddGuardian() {
 
             {showContact2 && isContact1Valid && (
               <View>
-                <Text className="text-[#D9F5FF] text-xl mt-8 px-8">Contact 2</Text>
+                <View className="flex-row justify-between items-center px-8">
+                  <Text className="text-[#D9F5FF] text-xl mt-8 ">Contact 2</Text>
+                  <Image source={icons.deleteButton} className="w-6 h-6 pt-1" />
+                </View>
                 <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
                 <TextInput
                   value={contact2Name}
@@ -119,13 +125,13 @@ export default function AddGuardian() {
                     className="bg-white/5 p-3 my-2 rounded-md text-white px-3 flex-1"
                   /></View>
 
-                {!showContact3 &&  (
+                {!showContact3 && (
                   <Pressable
-                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start  " 
+                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start  "
                     onPress={() => {
-                    if (!isContact2Valid) alert("Contact 2 invalid. Please fill in Contact 2 name and phone number correctly.");
-                    else setShowContact3(true)
-                  }}
+                      if (!isContact2Valid) alert("Contact 2 invalid. Please fill in Contact 2 name and phone number correctly.");
+                      else setShowContact3(true)
+                    }}
                   >
                     <Image source={icons.addButton} />
                     <Text className="text-white text-center px-2 py-1 font-bold px-8">
@@ -142,7 +148,10 @@ export default function AddGuardian() {
             {showContact3 && (
 
               <View>
-                <Text className="text-[#D9F5FF] text-xl mt-8 px-8">Contact 3</Text>
+                <View className="flex-row justify-between items-center px-8">
+                  <Text className="text-[#D9F5FF] text-xl mt-8 ">Contact 3</Text>
+                  <Image source={icons.deleteButton} className="w-6 h-6 pt-1" />
+                </View>
                 <Text className="text-[#D9F5FF] text-base mt-5 px-8 ">Name</Text>
                 <TextInput
                   value={contact3Name}
@@ -163,11 +172,11 @@ export default function AddGuardian() {
                   /></View>
                 {!showContact4 && (
                   <Pressable
-                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start " 
-                     onPress={() => {
-                    if (!isContact3Valid) alert("Contact 3 invalid. Please fill in Contact 3 name and phone number correctly.");
-                    else setShowContact4(true)
-                  }}
+                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start "
+                    onPress={() => {
+                      if (!isContact3Valid) alert("Contact 3 invalid. Please fill in Contact 3 name and phone number correctly.");
+                      else setShowContact4(true)
+                    }}
                   >
                     <Image source={icons.addButton} />
                     <Text className="text-white text-center px-2 py-1 font-bold px-8">
@@ -182,7 +191,10 @@ export default function AddGuardian() {
             {showContact4 && (
 
               <View>
-                <Text className="text-[#D9F5FF] text-xl mt-8 px-8" >Contact 4</Text>
+                <View className="flex-row justify-between items-center px-8">
+                  <Text className="text-[#D9F5FF] text-xl mt-8 ">Contact 4</Text>
+                  <Image source={icons.deleteButton} className="w-6 h-6 pt-1" />
+                </View>
                 <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
                 <TextInput
                   value={contact4Name}
@@ -192,22 +204,22 @@ export default function AddGuardian() {
                   className="bg-white/5 p-3 my-2 rounded-md text-white px-3 mx-8"
                 />
                 <Text className="text-[#D9F5FF] text-base mt-5 px-8">Phone Number</Text>
-                  <View className="flex-row mx-8 gap-2 ">
-                    <Text className="text-[#D9F5FF] bg-white/5 p-3 my-2 rounded-md">+ 94  |</Text>
-                    <TextInput
-                      value={contact4Phone}
-                      onChangeText={setContact4Phone}
-                      placeholder="Guardian 4 Phone Number"
-                      keyboardType="phone-pad"
-                      className="bg-white/5 p-3 my-2 rounded-md text-white px-3 flex-1"
-                    /></View>
+                <View className="flex-row mx-8 gap-2 ">
+                  <Text className="text-[#D9F5FF] bg-white/5 p-3 my-2 rounded-md">+ 94  |</Text>
+                  <TextInput
+                    value={contact4Phone}
+                    onChangeText={setContact4Phone}
+                    placeholder="Guardian 4 Phone Number"
+                    keyboardType="phone-pad"
+                    className="bg-white/5 p-3 my-2 rounded-md text-white px-3 flex-1"
+                  /></View>
                 {!showContact5 && isContact4Valid && (
                   <Pressable
-                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start  " 
+                    className="my-2 font-bold items-center flex-row mx-8 position-relative flex self-start  "
                     onPress={() => {
-                    if (!isContact4Valid) alert("Contact 4 invalid. Please fill in Contact 4 name and phone number correctly.");
-                    else setShowContact5(true)
-                  }}
+                      if (!isContact4Valid) alert("Contact 4 invalid. Please fill in Contact 4 name and phone number correctly.");
+                      else setShowContact5(true)
+                    }}
                   >
                     <Image source={icons.addButton} />
                     <Text className="text-white text-center px-2 py-1 font-bold">
@@ -222,7 +234,10 @@ export default function AddGuardian() {
             <View>
               {showContact5 && (
                 <View>
-                  <Text className="text-[#D9F5FF] text-xl mt-8 px-8" >Contact 5</Text>
+                  <View className="flex-row justify-between items-center px-8">
+                    <Text className="text-[#D9F5FF] text-xl mt-8 ">Contact 5</Text>
+                    <Image source={icons.deleteButton} className="w-6 h-6 pt-1" />
+                  </View>
                   <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
                   <TextInput
                     value={contact5Name}
@@ -250,13 +265,15 @@ export default function AddGuardian() {
             </View>
 
           </ScrollView></KeyboardAvoidingView></View>
-    
-        <View className="bg-[#002747]">
-          <Pressable 
-            className="bg-[#011C33] px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3"
-            onPress={()=> isAllContactsValid ? (alert("All contacts are valid")):(alert("Please ensure all contacts are valid before confirming."))}>
-            <Text className="text-[#DCDDE0]">Confirm All Contacts</Text>
-          </Pressable></View>
+
+      <View className="bg-[#002747]">
+        <Pressable
+          className="bg-[#011C33] px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3"
+          onPress={() => isAllContactsValid ? (alert("All contacts are valid")) : (alert("Please ensure all contacts are valid before confirming."))}>
+          <Text className="text-[#DCDDE0]">Confirm All Contacts</Text>
+        </Pressable>
+      </View>
+
     </>
   );
 }

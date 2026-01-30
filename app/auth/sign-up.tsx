@@ -107,4 +107,4 @@ export default function SignUp() {
         > Sign In</Link> */}
     </View>
   )
-}
+}}
