@@ -7,7 +7,7 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <Text>RNF is the code</Text>
-       <Link href={'/guardian/guardian'}>Add Guardians</Link>
+       <Link href={'/guardian/ui'}>Add Guardians</Link>
     </View>
   );
 }
