@@ -8,6 +8,7 @@ export default function Index() {
     <View style={styles.container}>
       <Text>RNF is the code</Text>
        <Link href={'/guardian/ui'}>Add Guardians</Link>
+       <Link href={'/guardian/newui'}>New Guardian</Link>
     </View>
   );
 }
