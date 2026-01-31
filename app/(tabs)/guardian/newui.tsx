@@ -131,7 +131,7 @@ export default function AddGuardian() {
           onPress={() =>
             isAllContactsValid
               ? alert("All contacts are valid")
-              : alert(
+              : alert(  
                   "Please ensure all contacts are valid before confirming."
                 )
           }
