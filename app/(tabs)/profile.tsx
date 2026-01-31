@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   SafeAreaView,
   ScrollView,
@@ -21,14 +22,24 @@ export default function Example() {
     locPermissions: false,
   });
 
+  // Show a confirmation alert before user log out.
+  const handleSignOut = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: () => console.log("User Logged Out"), //Replace with my Log out logic.
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f6" }}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Profile</Text>
-        </View>
-
         <ScrollView>
+          {/* ------------- User Profile Section ------------- */}
+
           <View style={styles.profile}>
             <Image
               source={{
@@ -56,10 +67,13 @@ export default function Example() {
             </TouchableOpacity>
           </View>
 
+          {/* ------------- Preferences Section ------------- */}
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Preferences</Text>
 
             <View style={styles.sectionBody}>
+              {/* Language Selection Row */}
               <View style={[styles.rowWrapper, styles.rowFirst]}>
                 <TouchableOpacity
                   onPress={() => {
@@ -83,6 +97,8 @@ export default function Example() {
                 </TouchableOpacity>
               </View>
 
+              {/* Dark Mode Toggle */}
+
               <View style={styles.rowWrapper}>
                 <View style={styles.row}>
                   <View
@@ -101,6 +117,8 @@ export default function Example() {
                   />
                 </View>
               </View>
+
+              {/* Location Row */}
 
               <View style={styles.rowWrapper}>
                 <TouchableOpacity
@@ -126,12 +144,16 @@ export default function Example() {
               </View>
             </View>
 
+            {/* ------------- Notification & Permission Section ------------- */}
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Notifications & Permissions
               </Text>
 
               <View style={styles.sectionBody}>
+                {/* Email Notifications */}
+
                 <View style={[styles.rowWrapper, styles.rowFirst]}>
                   <View style={styles.row}>
                     <View
@@ -152,6 +174,8 @@ export default function Example() {
                     />
                   </View>
                 </View>
+
+                {/* Push Notifications */}
 
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
@@ -174,6 +198,8 @@ export default function Example() {
                   </View>
                 </View>
 
+                {/* Alert Notifications */}
+
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
@@ -194,6 +220,8 @@ export default function Example() {
                     />
                   </View>
                 </View>
+
+                {/* Data Permission */}
 
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
@@ -217,6 +245,8 @@ export default function Example() {
                     />
                   </View>
                 </View>
+
+                {/* Live Location Permission */}
 
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
@@ -243,6 +273,15 @@ export default function Example() {
               </View>
             </View>
           </View>
+
+          {/* -------------------- LOGOUT BUTTON -------------------- */}
+
+          <View style={styles.logoutContainer}>
+            <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+              <Feather name="log-out" size={20} color="#fff" />
+              <Text style={styles.logoutBtnText}>Log Out</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -258,24 +297,12 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexBasis: 0,
   },
-  /** Header */
-  header: {
-    paddingHorizontal: 24,
-    marginBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#fff",
-    textAlign: "center",
-  },
   /** Profile */
   profile: {
     padding: 16,
     flexDirection: "column",
     alignItems: "center",
-    backgroundColor: "#0071A3",
-    borderTopWidth: 1,
+    backgroundColor: "#002857",
     borderBottomWidth: 1,
     borderColor: "#e3e3e3",
   },
@@ -303,7 +330,7 @@ const styles = StyleSheet.create({
     fontFamily: "Arial",
     fontSize: 16,
     fontWeight: "400",
-    color: "#000",
+    color: "#fff",
   },
   profileAction: {
     marginTop: 12,
@@ -379,5 +406,35 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#8B8B8B",
     marginRight: 4,
+  },
+
+  /* Log Out */
+
+  logoutContainer: {
+    paddingHorizontal: 14,
+    marginTop: 10, // Space after the last setting row
+    marginBottom: 10, // Space at the very bottom of the scroll
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF3B30",
+    borderRadius: 12,
+    paddingVertical: 15,
+    borderWidth: 1,
+    borderColor: "#ffe5e5",
+    // Modern Shadow
+    shadowColor: "#FF3B30",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  logoutBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginLeft: 10,
   },
 });
