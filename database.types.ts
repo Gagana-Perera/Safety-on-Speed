@@ -14,24 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      login: {
+      guardians: {
         Row: {
           created_at: string
-          email: string
+          g1_name: string | null
+          g1_phone: string | null
+          g1_verified: boolean | null
+          g2_name: string | null
+          g2_phone: string | null
+          g2_verified: boolean | null
+          g3_name: string | null
+          g3_phone: string | null
+          g3_verified: boolean | null
+          g4_name: string | null
+          g4_phone: string | null
+          g4_verified: boolean | null
+          g5_name: string | null
+          g5_phone: string | null
+          g5_verified: boolean | null
           id: number
-          password: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
-          email: string
+          g1_name?: string | null
+          g1_phone?: string | null
+          g1_verified?: boolean | null
+          g2_name?: string | null
+          g2_phone?: string | null
+          g2_verified?: boolean | null
+          g3_name?: string | null
+          g3_phone?: string | null
+          g3_verified?: boolean | null
+          g4_name?: string | null
+          g4_phone?: string | null
+          g4_verified?: boolean | null
+          g5_name?: string | null
+          g5_phone?: string | null
+          g5_verified?: boolean | null
           id?: number
-          password: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
-          email?: string
+          g1_name?: string | null
+          g1_phone?: string | null
+          g1_verified?: boolean | null
+          g2_name?: string | null
+          g2_phone?: string | null
+          g2_verified?: boolean | null
+          g3_name?: string | null
+          g3_phone?: string | null
+          g3_verified?: boolean | null
+          g4_name?: string | null
+          g4_phone?: string | null
+          g4_verified?: boolean | null
+          g5_name?: string | null
+          g5_phone?: string | null
+          g5_verified?: boolean | null
           id?: number
-          password?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -173,4 +215,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-  

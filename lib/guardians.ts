@@ -14,8 +14,8 @@ export async function saveGuardians( userId: string, contacts:{ name:string; pho
         .insert(row);
         if (error){
             console.error("Failed to save guardians:", error);
-            throw error;
+        throw error;
         }
     };
-}
+
 
