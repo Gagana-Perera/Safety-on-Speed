@@ -231,9 +231,30 @@ export default function Example() {
                       <Feather color="#fff" name="file-text" size={20} />
                     </View>
 
-                    <Text style={styles.rowLabel}>
-                      Personal Data Permission
-                    </Text>
+                    <Text style={styles.rowLabel}>Personal Data Access</Text>
+
+                    <View style={styles.rowSpacer} />
+
+                    <Switch
+                      onValueChange={(dataPermission) =>
+                        setForm({ ...form, dataPermission })
+                      }
+                      value={form.dataPermission}
+                    />
+                  </View>
+                </View>
+
+                {/* Camera and Audio Permission */}
+
+                <View style={styles.rowWrapper}>
+                  <View style={styles.row}>
+                    <View
+                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                    >
+                      <Feather color="#fff" name="camera" size={20} />
+                    </View>
+
+                    <Text style={styles.rowLabel}>Camera & Audio Access</Text>
 
                     <View style={styles.rowSpacer} />
 
@@ -256,9 +277,7 @@ export default function Example() {
                       <Feather color="#fff" name="map-pin" size={20} />
                     </View>
 
-                    <Text style={styles.rowLabel}>
-                      Live Location Permission
-                    </Text>
+                    <Text style={styles.rowLabel}>Live Location Access</Text>
 
                     <View style={styles.rowSpacer} />
 
@@ -419,7 +438,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#1DB954",
     borderRadius: 12,
     paddingVertical: 15,
     borderWidth: 1,
