@@ -1,18 +1,10 @@
-/*import React from "react";
-import { Text, View } from "react-native";
-
-export default function Extra() {
-  return (
-    <View>
-      <Text>Extra</Text>
-    </View>
-  );
-}
-*/
-
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   Text,
@@ -20,19 +12,29 @@ import {
   View,
 } from "react-native";
 
+// Import the background logic from your service file
+import {
+  getNearbyPlaces,
+  getPlaceMobileNumber,
+} from "../../services/GooglePlacesService";
+
 // 1. Define the interface for our emergency services
 interface ServiceItem {
   id: string;
   name: string;
+  phone: string;
   icon: keyof typeof Ionicons.glyphMap;
   hasMap: boolean;
   category: "hotline" | "place";
+  searchKey?: string;
 }
 
+// 2. Define the services data
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
     name: "119",
+    phone: "119",
     icon: "shield-checkmark-outline",
     hasMap: false,
     category: "hotline",
@@ -40,6 +42,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "2",
     name: "Ambulance service",
+    phone: "1990",
     icon: "car-sport-outline",
     hasMap: false,
     category: "hotline",
@@ -47,6 +50,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "3",
     name: "Fire & Rescue",
+    phone: "110",
     icon: "flame-outline",
     hasMap: false,
     category: "hotline",
@@ -54,6 +58,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "4",
     name: "Women & Child Bureau",
+    phone: "1938",
     icon: "heart-outline",
     hasMap: false,
     category: "hotline",
@@ -61,20 +66,101 @@ const SERVICES: ServiceItem[] = [
   {
     id: "5",
     name: "Hospital",
+    phone: "",
     icon: "add-circle-outline",
     hasMap: true,
     category: "place",
+    searchKey: "hospital",
   },
   {
     id: "6",
     name: "Police Station",
+    phone: "",
     icon: "shield-outline",
     hasMap: true,
     category: "place",
+    searchKey: "police",
   },
 ];
 
 export default function EmergencyServices() {
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  // Colombo Coordinates (Replace with expo-location hooks for live tracking later)
+  const userLat = 6.9271;
+  const userLng = 79.8612;
+
+  // Function to handle the Call Button (The Traffic Controller)
+  const handleCallAction = async (item: ServiceItem) => {
+    // ROUTE A: Fixed Hotlines (Instantly dial)
+    if (item.category === "hotline") {
+      makePhoneCall(item.phone);
+      return;
+    }
+
+    // ROUTE B: Dynamic Places (Ask Google for the number)
+    setLoadingId(item.id);
+    try {
+      const placeId = await getNearbyPlaces(
+        userLat,
+        userLng,
+        item.searchKey || "",
+      );
+
+      if (!placeId) {
+        Alert.alert("Not Found", `No nearby ${item.name} found in your area.`);
+        return;
+      }
+
+      const phoneNumber = await getPlaceMobileNumber(placeId);
+
+      if (phoneNumber) {
+        makePhoneCall(phoneNumber);
+      } else {
+        Alert.alert(
+          "Not Available",
+          "This location does not have a public number listed.",
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        "API Error",
+        "Please check your internet connection or API Key.",
+      );
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  // Function to handle Map redirection
+  const handleMapAction = (item: ServiceItem) => {
+    const scheme = Platform.select({
+      ios: "maps:0,0?q=",
+      android: "geo:0,0?q=",
+    });
+    const latLng = `${userLat},${userLng}`;
+    const label = `Nearest ${item.name}`;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`,
+    });
+
+    if (url) Linking.openURL(url);
+  };
+
+  // Generic dialer helper
+  const makePhoneCall = (phoneNumber: string) => {
+    const url =
+      Platform.OS === "ios" ? `telprompt:${phoneNumber}` : `tel:${phoneNumber}`;
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "Device does not support phone calls.");
+      }
+    });
+  };
+
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}
@@ -92,17 +178,30 @@ export default function EmergencyServices() {
           </Text>
         </View>
 
-        {/* Right Section: Buttons */}
+        {/* Right Section: Interactive Buttons */}
         <View className="flex-1 pl-2 space-y-2 justify-center">
-          <TouchableOpacity className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20">
-            <Ionicons name="call" size={12} color="white" />
-            <Text className="text-white text-[10px] ml-1 font-bold uppercase">
-              Call
-            </Text>
+          <TouchableOpacity
+            onPress={() => handleCallAction(item)}
+            disabled={loadingId === item.id}
+            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
+          >
+            {loadingId === item.id ? (
+              <ActivityIndicator size="small" color="#8FD3FF" />
+            ) : (
+              <>
+                <Ionicons name="call" size={12} color="white" />
+                <Text className="text-white text-[10px] ml-1 font-bold uppercase">
+                  Call
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {item.hasMap && (
-            <TouchableOpacity className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1">
+            <TouchableOpacity
+              onPress={() => handleMapAction(item)}
+              className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1"
+            >
               <Ionicons name="location" size={12} color="#8FD3FF" />
               <Text className="text-[#8FD3FF] text-[10px] ml-1 uppercase">
                 Map
@@ -117,7 +216,7 @@ export default function EmergencyServices() {
   return (
     <SafeAreaView className="flex-1 bg-[#031B2E]">
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        {/* Header Section */}
+        {/* Navigation Header */}
         <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-white/5">
           <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
           <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
@@ -135,7 +234,7 @@ export default function EmergencyServices() {
           </Text>
         </View>
 
-        {/* Section: Hotlines */}
+        {/* Section: Fixed Hotlines */}
         <View className="mb-6">
           <Text className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">
             Emergency Hotlines
@@ -146,7 +245,7 @@ export default function EmergencyServices() {
           </View>
         </View>
 
-        {/* Section: Safe Places */}
+        {/* Section: Dynamic Places */}
         <View className="mb-10">
           <Text className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">
             Nearby safe places
