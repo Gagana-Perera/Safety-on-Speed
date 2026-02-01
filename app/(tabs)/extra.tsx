@@ -1,18 +1,8 @@
-/*import React from "react";
-import { Text, View } from "react-native";
-
-export default function Extra() {
-  return (
-    <View>
-      <Text>Extra</Text>
-    </View>
-  );
-}
-*/
-
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
+  Alert,
+  Linking,
   SafeAreaView,
   ScrollView,
   Text,
@@ -24,15 +14,18 @@ import {
 interface ServiceItem {
   id: string;
   name: string;
+  phone: string;
   icon: keyof typeof Ionicons.glyphMap;
   hasMap: boolean;
   category: "hotline" | "place";
 }
 
+// 2. Define the services data with phone numbers
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
     name: "119",
+    phone: "119",
     icon: "shield-checkmark-outline",
     hasMap: false,
     category: "hotline",
@@ -40,6 +33,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "2",
     name: "Ambulance service",
+    phone: "1990",
     icon: "car-sport-outline",
     hasMap: false,
     category: "hotline",
@@ -47,6 +41,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "3",
     name: "Fire & Rescue",
+    phone: "110",
     icon: "flame-outline",
     hasMap: false,
     category: "hotline",
@@ -54,6 +49,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "4",
     name: "Women & Child Bureau",
+    phone: "1938",
     icon: "heart-outline",
     hasMap: false,
     category: "hotline",
@@ -61,6 +57,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "5",
     name: "Hospital",
+    phone: "911",
     icon: "add-circle-outline",
     hasMap: true,
     category: "place",
@@ -68,6 +65,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "6",
     name: "Police Station",
+    phone: "118",
     icon: "shield-outline",
     hasMap: true,
     category: "place",
@@ -75,6 +73,21 @@ const SERVICES: ServiceItem[] = [
 ];
 
 export default function EmergencyServices() {
+  // 3. Helper function to trigger the call using Expo-friendly Linking
+  const makePhoneCall = (phoneNumber: string) => {
+    const url = `tel:${phoneNumber}`;
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          Alert.alert("Error", "Phone calls are not supported on this device");
+        }
+      })
+      .catch((err) => console.error("An error occurred", err));
+  };
+
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}
@@ -94,7 +107,10 @@ export default function EmergencyServices() {
 
         {/* Right Section: Buttons */}
         <View className="flex-1 pl-2 space-y-2 justify-center">
-          <TouchableOpacity className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20">
+          <TouchableOpacity
+            onPress={() => makePhoneCall(item.phone)}
+            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
+          >
             <Ionicons name="call" size={12} color="white" />
             <Text className="text-white text-[10px] ml-1 font-bold uppercase">
               Call
