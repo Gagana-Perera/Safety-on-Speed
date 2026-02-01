@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-export default function Example() {
+export default function Profile() {
   const [form, setForm] = useState({
     darkMode: false,
     emailNotifications: false,
@@ -38,6 +38,7 @@ export default function Example() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f6" }}>
       <View style={styles.container}>
         <ScrollView>
+
           {/* ------------- User Profile Section ------------- */}
 
           <View style={styles.profile}>
@@ -82,7 +83,7 @@ export default function Example() {
                   style={styles.row}
                 >
                   <View
-                    style={[styles.rowIcon, { backgroundColor: "#fe9400" }]}
+                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                   >
                     <Feather color="#fff" name="globe" size={20} />
                   </View>
@@ -102,7 +103,7 @@ export default function Example() {
               <View style={styles.rowWrapper}>
                 <View style={styles.row}>
                   <View
-                    style={[styles.rowIcon, { backgroundColor: "#007AFF" }]}
+                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                   >
                     <Feather color="#fff" name="moon" size={20} />
                   </View>
@@ -128,7 +129,7 @@ export default function Example() {
                   style={styles.row}
                 >
                   <View
-                    style={[styles.rowIcon, { backgroundColor: "#32c759" }]}
+                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                   >
                     <Feather color="#fff" name="navigation" size={20} />
                   </View>
@@ -157,7 +158,7 @@ export default function Example() {
                 <View style={[styles.rowWrapper, styles.rowFirst]}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="at-sign" size={20} />
                     </View>
@@ -180,7 +181,7 @@ export default function Example() {
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="bell" size={20} />
                     </View>
@@ -203,7 +204,7 @@ export default function Example() {
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="alert-triangle" size={20} />
                     </View>
@@ -226,7 +227,7 @@ export default function Example() {
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="file-text" size={20} />
                     </View>
@@ -249,7 +250,7 @@ export default function Example() {
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="camera" size={20} />
                     </View>
@@ -272,7 +273,7 @@ export default function Example() {
                 <View style={styles.rowWrapper}>
                   <View style={styles.row}>
                     <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
+                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
                     >
                       <Feather color="#fff" name="map-pin" size={20} />
                     </View>
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
   },
   /** Profile */
   profile: {
-    padding: 16,
+    padding: 50,
     flexDirection: "column",
     alignItems: "center",
     backgroundColor: "#002857",
@@ -326,8 +327,8 @@ const styles = StyleSheet.create({
     borderColor: "#e3e3e3",
   },
   profileAvatar: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     borderRadius: 9999,
   },
   profileName: {
@@ -338,14 +339,14 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   profileNumber: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 15,
     fontFamily: "Verdana",
     fontWeight: "600",
     color: "#fff",
   },
   profileEmail: {
-    marginTop: 6,
+    marginTop: 8,
     fontFamily: "Arial",
     fontSize: 16,
     fontWeight: "400",
