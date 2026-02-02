@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
+import BackButton from '../backButton';
 import {
   Alert,
   Image,
@@ -38,8 +39,9 @@ export default function Profile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f6" }}>
       <View style={styles.container}>
+        {/* Back Button */}
+        <BackButton color="#fff" size={24} />
         <ScrollView>
-
           {/* ------------- User Profile Section ------------- */}
 
           <View style={styles.profile}>
