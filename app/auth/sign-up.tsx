@@ -47,28 +47,30 @@ export default function SignUp() {
         <TextInput 
             value={firstName}
             onChangeText={setFirstName}
-            placeholder="email@gmail.com"
-            className="bg-red-500"
+            placeholder="First Name"
+            className=""
         />
 
         <Text>Last Name</Text>
         <TextInput
             value={lastName}
             onChangeText={setLastName}
-            placeholder="email@gmail.com"
+            placeholder="Last Name"
             className=""
         />
 
         <Text>NIC</Text>
         <TextInput
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
+            value={nic}
+            onChangeText={setNic}
+            placeholder="NIC NO"
             className=""
         />
+        
 
         <Text>Date of Birth</Text>
         <TextInput
+<<<<<<< HEAD
             value={}
             onChangeText={}
             placeholder="email@gmail.com"
@@ -84,6 +86,55 @@ export default function SignUp() {
       />
 
       {/* <Text>Confirm Email</Text>
+=======
+            value={birth}
+            onChangeText={setBirth}
+            placeholder="YYYY/MM/DD"
+            className=""
+        />
+
+        <View>
+            <Text>Contact No</Text>
+            <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+94770000000"
+                className=""
+                // editable={!isPhoneVerified}
+                keyboardType="phone-pad"
+                maxLength={12}
+            />
+        </View>
+
+        
+
+      <Text>Email</Text>
+      <TextInput
+        value={email}
+        onChangeText={setEmail}
+        placeholder="email@gmail.com"
+        className=""
+      />
+
+      {/* <Text>Confirm Email</Text>
+        <TextInput
+            value={confirmEmail}
+            onChangeText={setConfirmEmail}
+            placeholder="Confirm email@gmail.com"
+            className=""
+        />
+
+
+      <Text>Password</Text>
+      <TextInput
+        value={password}
+        onChangeText={setPassword}
+        placeholder="email@gmail.com"
+        className=""
+      />
+
+      {/* <Text>Confirm Password</Text>
+>>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
         <TextInput
             value={}
             onChangeText={}
@@ -91,6 +142,7 @@ export default function SignUp() {
             className=""
         /> */}
 
+<<<<<<< HEAD
       <Text>Password</Text>
       <TextInput
         value={password}
@@ -114,6 +166,15 @@ export default function SignUp() {
         //text={loading ? 'Creating account...' : 'Create account'}
       />
 
+=======
+      <Button
+        onPress={signUpAcc}
+        disabled={loading}
+        title="aaaaaa"
+        //text={loading ? 'Creating account...' : 'Create account'}
+      />
+
+>>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
       {/* <Link 
             className=''
         > Sign In</Link> */}
