@@ -339,14 +339,14 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   profileNumber: {
-    marginTop: 8,
+    marginTop: 2,
     fontSize: 15,
     fontFamily: "Verdana",
     fontWeight: "600",
     color: "#fff",
   },
   profileEmail: {
-    marginTop: 8,
+    marginTop: 2,
     fontFamily: "Arial",
     fontSize: 16,
     fontWeight: "400",
