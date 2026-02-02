@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Button, Text, TextInput, View } from "react-native";
+import { Button, View } from "react-native";
 
 export default function SignUp() {
   const router = useRouter();
@@ -70,23 +70,6 @@ export default function SignUp() {
 
         <Text>Date of Birth</Text>
         <TextInput
-<<<<<<< HEAD
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
-            className=""
-        /> */}
-
-      <Text>Email</Text>
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="email@gmail.com"
-        className=""
-      />
-
-      {/* <Text>Confirm Email</Text>
-=======
             value={birth}
             onChangeText={setBirth}
             placeholder="YYYY/MM/DD"
@@ -134,24 +117,6 @@ export default function SignUp() {
       />
 
       {/* <Text>Confirm Password</Text>
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
-        <TextInput
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
-            className=""
-        /> */}
-
-<<<<<<< HEAD
-      <Text>Password</Text>
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        placeholder="email@gmail.com"
-        className=""
-      />
-
-      {/* <Text>Confirm Password</Text>
         <TextInput
             value={}
             onChangeText={}
@@ -166,15 +131,6 @@ export default function SignUp() {
         //text={loading ? 'Creating account...' : 'Create account'}
       />
 
-=======
-      <Button
-        onPress={signUpAcc}
-        disabled={loading}
-        title="aaaaaa"
-        //text={loading ? 'Creating account...' : 'Create account'}
-      />
-
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
       {/* <Link 
             className=''
         > Sign In</Link> */}

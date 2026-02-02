@@ -1,15 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-<<<<<<< HEAD
   ActivityIndicator,
   Alert,
   Linking,
   Platform,
-=======
-  Alert,
-  Linking,
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
   SafeAreaView,
   ScrollView,
   Text,
@@ -34,11 +29,7 @@ interface ServiceItem {
   searchKey?: string;
 }
 
-<<<<<<< HEAD
 // 2. Define the services data
-=======
-// 2. Define the services data with phone numbers
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
@@ -75,11 +66,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "5",
     name: "Hospital",
-<<<<<<< HEAD
     phone: "",
-=======
-    phone: "911",
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
     icon: "add-circle-outline",
     hasMap: true,
     category: "place",
@@ -88,11 +75,7 @@ const SERVICES: ServiceItem[] = [
   {
     id: "6",
     name: "Police Station",
-<<<<<<< HEAD
     phone: "",
-=======
-    phone: "118",
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
     icon: "shield-outline",
     hasMap: true,
     category: "place",
@@ -101,7 +84,6 @@ const SERVICES: ServiceItem[] = [
 ];
 
 export default function EmergencyServices() {
-<<<<<<< HEAD
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   // Colombo Coordinates (Replace with expo-location hooks for live tracking later)
@@ -177,21 +159,6 @@ export default function EmergencyServices() {
         Alert.alert("Error", "Device does not support phone calls.");
       }
     });
-=======
-  // 3. Helper function to trigger the call using Expo-friendly Linking
-  const makePhoneCall = (phoneNumber: string) => {
-    const url = `tel:${phoneNumber}`;
-
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(url);
-        } else {
-          Alert.alert("Error", "Phone calls are not supported on this device");
-        }
-      })
-      .catch((err) => console.error("An error occurred", err));
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
   };
 
   const renderCard = (item: ServiceItem) => (
@@ -214,7 +181,6 @@ export default function EmergencyServices() {
         {/* Right Section: Interactive Buttons */}
         <View className="flex-1 pl-2 space-y-2 justify-center">
           <TouchableOpacity
-<<<<<<< HEAD
             onPress={() => handleCallAction(item)}
             disabled={loadingId === item.id}
             className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
@@ -229,15 +195,6 @@ export default function EmergencyServices() {
                 </Text>
               </>
             )}
-=======
-            onPress={() => makePhoneCall(item.phone)}
-            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
-          >
-            <Ionicons name="call" size={12} color="white" />
-            <Text className="text-white text-[10px] ml-1 font-bold uppercase">
-              Call
-            </Text>
->>>>>>> e4bb3df293758e7fc55768b3ec0f00794156e660
           </TouchableOpacity>
 
           {item.hasMap && (
