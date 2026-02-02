@@ -19,6 +19,7 @@ export default function Profile() {
     pushNotifications: false,
     alertNotifications: false,
     dataPermission: false,
+    camPermission: false,
     locPermissions: false,
   });
 
@@ -260,10 +261,10 @@ export default function Profile() {
                     <View style={styles.rowSpacer} />
 
                     <Switch
-                      onValueChange={(dataPermission) =>
-                        setForm({ ...form, dataPermission })
+                      onValueChange={(camPermission) =>
+                        setForm({ ...form,camPermission })
                       }
-                      value={form.dataPermission}
+                      value={form.camPermission}
                     />
                   </View>
                 </View>
