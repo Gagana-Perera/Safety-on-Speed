@@ -47,25 +47,26 @@ export default function SignUp() {
         <TextInput 
             value={firstName}
             onChangeText={setFirstName}
-            placeholder="email@gmail.com"
-            className="bg-red-500"
+            placeholder="First Name"
+            className=""
         />
 
         <Text>Last Name</Text>
         <TextInput
             value={lastName}
             onChangeText={setLastName}
-            placeholder="email@gmail.com"
+            placeholder="Last Name"
             className=""
         />
 
         <Text>NIC</Text>
         <TextInput
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
+            value={nic}
+            onChangeText={setNic}
+            placeholder="NIC NO"
             className=""
         />
+        
 
         <Text>Date of Birth</Text>
         <TextInput

@@ -28,6 +28,7 @@ interface ServiceItem {
   searchKey?: string;
 }
 
+// 2. Define the services data
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
