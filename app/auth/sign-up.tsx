@@ -1,29 +1,49 @@
-import { useSignUpLogic } from '@/hooks/signup-db';
-import { Link, Stack } from 'expo-router';
-import React from 'react';
-import { Button, Text, TextInput, View } from 'react-native';
-
+import { supabase } from "@/lib/superbase";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { Button, Text, TextInput, View } from "react-native";
 
 export default function SignUp() {
+  const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [nic, setNic] = useState("");
+  const [birth, setBirth] = useState("");
+  const [email, setEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPasssword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-    const {
-        firstName, setFirstName,
-        lastName, setLastName,
-        nic, setNic,
-        birth, setBirth,
-        email, setEmail,
-        confirmEmail, setConfirmEmail,
-        password, setPassword,
-        loading,
-        phone, setPhone,
-        signUpAcc
-    } = useSignUpLogic();
+  async function signUpAcc() {
+    //setLoading(true);
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          firstName: firstName,
+          lastName: lastName,
+          nic: nic,
+          birth: birth,
+          confirmEmail: confirmEmail,
+          confirmPasssword: confirmPasssword,
+        },
+      },
+    });
+
+    /*if (authError) {Alert.alert(authError.message)};
+        if (authData.user) {await supabase.from('login').insert([{
+                id:authData.user.id,
+                email: email,
+                password: password
+            }])*/
+    //setLoading(false);
+  }
 
   return (
     <View>
-        <Stack.Screen options={{ headerShown: false }} />
-
-        <Text className="">First Name</Text>
+      {/* <Text className="text-2xl color-amber-950">First Name</Text>
         <TextInput 
             value={firstName}
             onChangeText={setFirstName}
@@ -50,64 +70,54 @@ export default function SignUp() {
 
         <Text>Date of Birth</Text>
         <TextInput
-            value={birth}
-            onChangeText={setBirth}
-            placeholder="YYYY/MM/DD"
-            className=""
-        />
-
-        <View>
-            <Text>Contact No</Text>
-            <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+94770000000"
-                className=""
-                // editable={!isPhoneVerified}
-                keyboardType="phone-pad"
-                maxLength={12}
-            />
-        </View>
-
-        
-
-        <Text>Email</Text>
-        <TextInput
-            value={email}
-            onChangeText={setEmail}
+            value={}
+            onChangeText={}
             placeholder="email@gmail.com"
             className=""
-        />
+        /> */}
 
-        <Text>Confirm Email</Text>
+      <Text>Email</Text>
+      <TextInput
+        value={email}
+        onChangeText={setEmail}
+        placeholder="email@gmail.com"
+        className=""
+      />
+
+      {/* <Text>Confirm Email</Text>
         <TextInput
-            value={confirmEmail}
-            onChangeText={setConfirmEmail}
-            placeholder="Confirm email@gmail.com"
+            value={}
+            onChangeText={}
+            placeholder="email@gmail.com"
             className=""
-        />
+        /> */}
 
+      <Text>Password</Text>
+      <TextInput
+        value={password}
+        onChangeText={setPassword}
+        placeholder="email@gmail.com"
+        className=""
+      />
 
-        <Text>Password</Text>
+      {/* <Text>Confirm Password</Text>
         <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="password"
+            value={}
+            onChangeText={}
+            placeholder="email@gmail.com"
             className=""
-        />
-    
+        /> */}
 
-        <Button
-            onPress={signUpAcc}
-            disabled={loading 
-                // || !isPhoneVerified
-            }
-            title='Submit'
-            
-        />
+      <Button
+        onPress={signUpAcc}
+        disabled={loading}
+        title="aaaaaa"
+        //text={loading ? 'Creating account...' : 'Create account'}
+      />
 
-        <Link className='' href={'/auth/login'}>Login</Link>
-
+      {/* <Link 
+            className=''
+        > Sign In</Link> */}
     </View>
-        )
-    }
+  );
+}
