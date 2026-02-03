@@ -1,4 +1,4 @@
-const GOOGLE_API_KEY: string = "AIzaSyDh2IUZ-vFtUXhx93gQo040VoMchN-57qY";
+const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
 
 /**
  * Finds the unique Place ID for the absolute closest service.
