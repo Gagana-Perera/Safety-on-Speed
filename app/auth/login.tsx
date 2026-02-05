@@ -1,228 +1,166 @@
 import { loginUser } from "@/lib/auth";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  Keyboard,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  StyleSheet,
+  ScrollView,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
 export default function Login() {
   const router = useRouter();
+  const passwordInputRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // 👁️ show/hide
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    if (!email.trim() || !password) {
-      alert("Please enter email and password");
+    if (loading) {
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      Alert.alert("Missing info", "Please enter email and password.");
       return;
     }
 
     setLoading(true);
     try {
-      await loginUser(email.trim(), password);
+      await loginUser(trimmedEmail, password);
       router.replace("/(tabs)");
     } catch (error: any) {
-      alert("Login failed: " + (error?.message ?? "Unknown error"));
+      Alert.alert(
+        "Login failed",
+        error?.message ?? "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <KeyboardAvoidingView
+      className="flex-1 bg-primary"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+    >
+      <ScrollView
+        className="flex-1"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ flexGrow: 1 }}
       >
-        {/* Top Row */}
-        <View style={styles.topRow}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
-          </Pressable>
-
-          <Text style={styles.brand}>Safety on Speed</Text>
-          <View style={{ width: 42 }} />
-        </View>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Sign in</Text>
-          <Text style={styles.subtitle}>Welcome, user.</Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.form}>
-          <Text style={styles.label}>User Name</Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor="rgba(255,255,255,0.55)"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-          />
-          <View style={styles.underline} />
-
-          <Text style={[styles.label, { marginTop: 30 }]}>Password</Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="rgba(255,255,255,0.55)"
-            secureTextEntry
-            style={styles.input}
-          />
-          <View style={styles.underline} />
-
+        <View className="flex-1 px-6 pt-14">
+          {/* Back button */}
           <Pressable
-            onPress={handleLogin}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.signInBtn,
-              pressed && { opacity: 0.85 },
-              loading && { opacity: 0.6 },
-            ]}
+            onPress={() => router.back()}
+            className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-5 py-3 self-start"
           >
-            <Text style={styles.signInText}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Text>
+            <Text className="text-white text-2xl mr-3">←</Text>
+            <Text className="text-white/80 text-3xl font-light">Back</Text>
           </Pressable>
 
-          {/* Links */}
-          <View style={styles.links}>
-            <Text style={styles.linkText}>
-              Don’t have an account?{" "}
-              <Text
-                style={styles.linkStrong}
-                onPress={() => alert("Signup page not added yet")}
-              >
-                Sign up.
+            {/* Title */}
+            <View className="mt-20 items-center">
+              <Text className="text-white text-6xl font-light">Sign in</Text>
+              <Text className="text-white/70 text-2xl mt-4 font-light">
+                Welcome, user.
               </Text>
-            </Text>
+            </View>
 
-            <Text style={[styles.linkText, { marginTop: 10 }]}>
-              Forgot Password ?{" "}
-              <Text
-                style={styles.linkStrong}
-                onPress={() => alert("Forgot password page not added yet")}
-              >
-                Try another way
+            {/* Inputs */}
+            <View className="mt-20">
+              <Text className="text-white/90 text-4xl font-light mb-5">
+                Email
               </Text>
-            </Text>
+
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email"
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoCorrect={false}
+                className="text-white text-lg px-2 py-2"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => passwordInputRef.current?.focus()}
+              />
+              <View className="h-[3px] bg-white/40 rounded-full mt-2" />
+
+              <Text className="text-white/90 text-4xl font-light mb-5 mt-16">
+                Password
+              </Text>
+
+              {/* Password row: input + show/hide */}
+              <View className="flex-row items-center">
+                <TextInput
+                  ref={passwordInputRef}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  secureTextEntry={!showPassword}
+                  className="flex-1 text-white text-lg px-2 py-2"
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                />
+
+                <Pressable
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  className="px-3 py-2"
+                >
+                  <Text className="text-secondary text-lg underline">
+                    {showPassword ? "Hide" : "Show"}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View className="h-[3px] bg-white/40 rounded-full mt-2" />
+            </View>
+
+            {/* Bottom area */}
+            <View className="flex-1 justify-end pb-24">
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                className="self-center bg-black/25 border border-white/10 rounded-2xl px-10 py-4"
+              >
+                <Text className="text-white text-3xl font-light text-center">
+                  {loading ? "Signing in..." : "Sign in"}
+                </Text>
+              </Pressable>
+
+              <View className="items-center mt-10">
+                <Text className="text-secondary text-xl">
+                  Don’t have an account?{" "}
+                  <Text className="underline text-accent">Sign up.</Text>
+                </Text>
+
+                <Pressable
+                  onPress={() => router.push("/auth/forgot-password")}
+                  accessibilityRole="button"
+                >
+                  <Text className="text-secondary text-xl mt-5">
+                    Forgot Password ?{" "}
+                    <Text className="underline text-accent">
+                      Try another way
+                    </Text>
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+        </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#062A3A", // dark blue
-    paddingHorizontal: 22,
-    paddingTop: 44,
-  },
-
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backText: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 18,
-  },
-  brand: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 16,
-    letterSpacing: 0.5,
-  },
-
-  header: {
-    marginTop: 70,
-    alignItems: "center",
-  },
-  title: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 56,
-    fontWeight: "300",
-  },
-  subtitle: {
-    marginTop: 10,
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 22,
-    fontWeight: "300",
-  },
-
-  form: {
-    marginTop: 70,
-  },
-  label: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 30,
-    fontWeight: "300",
-    marginBottom: 16,
-  },
-  input: {
-    color: "white",
-    fontSize: 18,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  underline: {
-    height: 2,
-    backgroundColor: "rgba(255,255,255,0.45)",
-    borderRadius: 2,
-    marginTop: 6,
-  },
-
-  signInBtn: {
-    marginTop: 46,
-    alignSelf: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  signInText: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 22,
-    fontWeight: "300",
-  },
-
-  links: {
-    marginTop: 34,
-    alignItems: "center",
-  },
-  linkText: {
-    color: "rgba(140, 210, 255, 0.85)",
-    fontSize: 18,
-  },
-  linkStrong: {
-    textDecorationLine: "underline",
-    color: "rgba(140, 210, 255, 1)",
-  },
-});
