@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -39,6 +40,8 @@ import {
 type Coords = { latitude: number; longitude: number };
 
 export default function MapScreen() {
+  const params = useLocalSearchParams<{ placeId?: string | string[] }>();
+
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
   const mapRef = useRef<MapView | null>(null);
@@ -78,6 +81,8 @@ export default function MapScreen() {
     durationText: string;
     destination: Coords;
   } | null>(null);
+
+  const lastOpenedPlaceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -487,6 +492,27 @@ export default function MapScreen() {
     setActivePoiKey(null);
     moveToPlace(details);
   };
+
+  useEffect(() => {
+    const raw = params?.placeId;
+    const placeId = Array.isArray(raw) ? raw[0] : raw;
+    if (!placeId) return;
+    if (lastOpenedPlaceIdRef.current === placeId) return;
+
+    lastOpenedPlaceIdRef.current = placeId;
+    setInputFocused(false);
+    Keyboard.dismiss();
+    setSuggestions([]);
+
+    void (async () => {
+      const details = await selectPlaceById(placeId);
+      if (details) {
+        setNearbyPlaces([]);
+        setActivePoiKey(null);
+        moveToPlace(details);
+      }
+    })();
+  }, [params?.placeId]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>

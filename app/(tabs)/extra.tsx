@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -78,11 +79,13 @@ const SERVICES: ServiceItem[] = [
     icon: "shield-outline",
     hasMap: true,
     category: "place",
-    searchKey: "police",
+    searchKey: "police station",
   },
 ];
 
 export default function EmergencyServices() {
+  const router = useRouter();
+
   // NEW: Object state to track which specific button is loading
   const [loadingStatus, setLoadingStatus] = useState<{
     id: string;
@@ -154,6 +157,8 @@ export default function EmergencyServices() {
   };
 
   const handleMapAction = async (item: ServiceItem) => {
+    if (item.category === "hotline") return;
+
     setLoadingStatus({ id: item.id, type: "map" }); // Specifically set 'map' loading
     try {
       const placeId = await getNearbyPlaces(
@@ -163,8 +168,11 @@ export default function EmergencyServices() {
       );
 
       if (placeId) {
-        const url = `https://www.google.com/maps/search/?api=1&query=${item.searchKey}&query_place_id=${placeId}`;
-        await Linking.openURL(url);
+        // Open inside our app Map tab and load details for this placeId.
+        router.push({
+          pathname: "/(tabs)/map",
+          params: { placeId },
+        });
       } else {
         Alert.alert(
           "Error",
@@ -172,7 +180,7 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
-      Alert.alert("Error", "Could not open map.");
+      Alert.alert("Error", "Could not open in-app map.");
     } finally {
       setLoadingStatus(null);
     }
