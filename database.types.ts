@@ -77,6 +77,7 @@ export type Database = {
         }
         Relationships: []
       }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never

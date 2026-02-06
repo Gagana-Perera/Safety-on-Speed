@@ -5,4 +5,6 @@
     "source.sortMembers": "explicit"
   },
   "typescript.tsdk": "node_modules\\typescript\\lib"
+  "editor.inlineSuggest.suppressSuggestions": true,
+  "editor.inlineSuggest.triggerCommandOnProviderChange": true
 }
