@@ -1,4 +1,3 @@
-import { icons } from "@/constants/icons";
 import { loginUser } from "@/lib/auth";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -64,9 +63,9 @@ export default function Login() {
           {/* Brand */}
           <View className="items-center">
             <Image
-              source={icons.home}
+              source={require("../../assets/oc/logo.jpg")}
               resizeMode="contain"
-              className="h-20 w-20 mb-4 opacity-80"
+              className="h-24 w-24 mb-4 opacity-80"
             />
             <Text className="text-white/70 text-xl tracking-[4px]">
               Safety On Speed
