@@ -147,10 +147,15 @@ export default function Login() {
             </Pressable>
 
             <View className="items-center mt-10">
-              <Text className="text-secondary text-xl">
-                Don’t have an account?{" "}
-                <Text className="underline text-accent">Sign up.</Text>
-              </Text>
+              <Pressable
+                onPress={() => router.push("/auth/sign-up")}
+                accessibilityRole="button"
+              >
+                <Text className="text-secondary text-xl">
+                  Don’t have an account?{" "}
+                  <Text className="underline text-accent">Sign up.</Text>
+                </Text>
+              </Pressable>
 
               <Pressable
                 onPress={() => router.push("/auth/forgot-password")}
