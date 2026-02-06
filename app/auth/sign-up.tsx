@@ -32,45 +32,41 @@ export default function SignUp() {
       },
     });
 
-    if (authError) {
-      Alert.alert(authError.message);
-    }
-    if (authData.user) {
-      await supabase.from("login").insert([
-        {
-          id: authData.user.id,
-          email: email,
-          password: password,
-        },
-      ]);
-      //setLoading(false);
-    }
+    /*if (authError) {Alert.alert(authError.message)};
+        if (authData.user) {await supabase.from('login').insert([{
+                id:authData.user.id,
+                email: email,
+                password: password
+            }])*/
+    //setLoading(false);
+  }
 
-    return (
-      <View>
-        {/* <Text className="text-2xl color-amber-950">First Name</Text>
+  return (
+    <View>
+      {/* <Text className="text-2xl color-amber-950">First Name</Text>
         <TextInput 
             value={firstName}
             onChangeText={setFirstName}
-            placeholder="email@gmail.com"
-            className="bg-red-500"
+            placeholder="First Name"
+            className=""
         />
 
         <Text>Last Name</Text>
         <TextInput
             value={lastName}
             onChangeText={setLastName}
-            placeholder="email@gmail.com"
+            placeholder="Last Name"
             className=""
         />
 
         <Text>NIC</Text>
         <TextInput
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
+            value={nic}
+            onChangeText={setNic}
+            placeholder="NIC NO"
             className=""
         />
+        
 
         <Text>Date of Birth</Text>
         <TextInput
@@ -80,31 +76,15 @@ export default function SignUp() {
             className=""
         /> */}
 
-        <Text>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="email@gmail.com"
-          className=""
-        />
+      <Text>Email</Text>
+      <TextInput
+        value={email}
+        onChangeText={setEmail}
+        placeholder="email@gmail.com"
+        className=""
+      />
 
-        {/* <Text>Confirm Email</Text>
-        <TextInput
-            value={}
-            onChangeText={}
-            placeholder="email@gmail.com"
-            className=""
-        /> */}
-
-        <Text>Password</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="email@gmail.com"
-          className=""
-        />
-
-        {/* <Text>Confirm Password</Text>
+      {/* <Text>Confirm Email</Text>
         <TextInput
             value={}
             onChangeText={}
@@ -112,17 +92,32 @@ export default function SignUp() {
             className=""
         /> */}
 
-        <Button
-          onPress={signUpAcc}
-          disabled={loading}
-          title="aaaaaa"
-          //text={loading ? 'Creating account...' : 'Create account'}
-        />
+      <Text>Password</Text>
+      <TextInput
+        value={password}
+        onChangeText={setPassword}
+        placeholder="email@gmail.com"
+        className=""
+      />
 
-        {/* <Link 
+      {/* <Text>Confirm Password</Text>
+        <TextInput
+            value={}
+            onChangeText={}
+            placeholder="email@gmail.com"
+            className=""
+        /> */}
+
+      <Button
+        onPress={signUpAcc}
+        disabled={loading}
+        title="aaaaaa"
+        //text={loading ? 'Creating account...' : 'Create account'}
+      />
+
+      {/* <Link 
             className=''
         > Sign In</Link> */}
-      </View>
-    );
-  }
+    </View>
+  );
 }
