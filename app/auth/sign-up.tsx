@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Button, Text, TextInput, View } from "react-native";
+import { Alert, Button, Text, TextInput, View } from "react-native";
 
 export default function SignUp() {
   const router = useRouter();
