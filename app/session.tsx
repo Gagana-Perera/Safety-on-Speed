@@ -13,8 +13,10 @@ export default function SessionGate() {
 
       if (data.session) {
         setLoggedIn(true);
+        //TRUE
       } else {
         setLoggedIn(false);
+        //FALSE
       }
 
       setLoading(false);
@@ -32,7 +34,7 @@ export default function SessionGate() {
   }
 
   return loggedIn ? (
-    <Redirect href="/(tabs)" />
+    <Redirect href="/(tabs)/" />
   ) : (
     <Redirect href="/auth/login" />
   );

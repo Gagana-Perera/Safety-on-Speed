@@ -1,3 +1,4 @@
+import { icons } from "@/constants/icons";
 import { loginUser } from "@/lib/auth";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -63,9 +64,9 @@ export default function Login() {
           {/* Brand */}
           <View className="items-center">
             <Image
-              source={require("../../assets/oc/logo.jpg")}
+              source={icons.home}
               resizeMode="contain"
-              className="h-24 w-24 mb-4 opacity-80"
+              className="h-20 w-20 mb-4 opacity-80"
             />
             <Text className="text-white/70 text-xl tracking-[4px]">
               Safety On Speed
@@ -147,10 +148,15 @@ export default function Login() {
             </Pressable>
 
             <View className="items-center mt-10">
-              <Text className="text-secondary text-xl">
-                Don’t have an account?{" "}
-                <Text className="underline text-accent">Sign up.</Text>
-              </Text>
+              <Pressable
+                onPress={() => router.push("/auth/sign-up")}
+                accessibilityRole="button"
+              >
+                <Text className="text-secondary text-xl">
+                  Don’t have an account?{" "}
+                  <Text className="underline text-accent">Sign up.</Text>
+                </Text>
+              </Pressable>
 
               <Pressable
                 onPress={() => router.push("/auth/forgot-password")}
