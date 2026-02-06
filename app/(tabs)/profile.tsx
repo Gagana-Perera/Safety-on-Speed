@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
+import { useRouter } from "expo-router";
 import BackButton from '../backButton';
 import {
   Alert,
@@ -14,6 +15,9 @@ import {
 } from "react-native";
 
 export default function Profile() {
+
+  const router = useRouter();
+
   const [form, setForm] = useState({
     darkMode: false,
     emailNotifications: false,
@@ -60,7 +64,8 @@ export default function Profile() {
 
             <TouchableOpacity
               onPress={() => {
-                // handle onPress
+                // Add this line to navigate to the new screen
+                router.push("./editProfile");
               }}
             >
               <View style={styles.profileAction}>
