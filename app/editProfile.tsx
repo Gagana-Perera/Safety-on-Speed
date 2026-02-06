@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 // Assuming BackButton is in the same folder structure as your Profile component
-import BackButton from '../backButton'; 
+import BackButton from './backButton'; 
 
 export default function EditProfile() {
 
@@ -36,17 +36,7 @@ export default function EditProfile() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#002747" }}>
       <View style={styles.container}>
         
-        {/* Header */}
-        <View style={styles.header}>
-            <BackButton color="#fff" size={24} />
-            {/* 2. Wrap the BackButton in a TouchableOpacity to handle the goBack action */}
-            <TouchableOpacity onPress={() => router.back()}>
-                <BackButton color="#fff" size={24} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Edit Profile</Text>
-            {/* Empty view to balance the header title centering */}
-            <View style={{width: 24}} /> 
-        </View>
+        <BackButton color="#fff" size={24} />
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           
@@ -150,26 +140,15 @@ export default function EditProfile() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: "#002747",
+    paddingVertical: 24,
+    paddingHorizontal: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
   },
   scrollContent: {
     paddingBottom: 40,
-  },
-  /** Header */
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#003560", // Slightly lighter than background
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
   },
   /** Photo Section */
   profileImageContainer: {

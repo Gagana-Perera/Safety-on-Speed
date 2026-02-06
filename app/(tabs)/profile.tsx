@@ -65,7 +65,7 @@ export default function Profile() {
             <TouchableOpacity
               onPress={() => {
                 // Add this line to navigate to the new screen
-                router.push("./editProfile");
+                router.push("../editProfile");
               }}
             >
               <View style={styles.profileAction}>
