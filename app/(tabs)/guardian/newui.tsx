@@ -3,6 +3,15 @@ import { officialdoc } from "@/constants/officialdoc";
 import { icons } from "@/constants/icons";
 import { useState } from "react";
 import { Stack } from "expo-router";
+import { supabase } from "@/lib/superbase";
+import { saveGuardians } from "@/lib/guardians";
+
+const handleConfirm = async () =>{
+    if (!isAllContactsValid){
+        alert("Please ensure all contacts are valid before confirming.");
+        return;
+    }
+}
 
 type Contact = {
   name: string;
@@ -128,13 +137,8 @@ export default function AddGuardian() {
       <View className="bg-[#002747]">
         <Pressable
           className="bg-[#011C33] px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3"
-          onPress={() =>
-            isAllContactsValid
-              ? alert("All contacts are valid")
-              : alert(  
-                  "Please ensure all contacts are valid before confirming."
-                )
-          }
+          onPress={ handleConfirm}
+          
         >
           <Text className="text-[#DCDDE0]">Confirm All Contacts</Text>
         </Pressable>
