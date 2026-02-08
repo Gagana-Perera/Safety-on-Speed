@@ -20,7 +20,8 @@ export default function EditProfile() {
   const router = useRouter();
 
   const [form, setForm] = useState({
-    name: "Shenal Arosha",
+    firstName: "Shenal",
+    lastName: "Arosha",
     phone: "0711155893",
     email: "shenal@gmail.com",
     location: "Los Angeles, CA",
@@ -62,13 +63,27 @@ export default function EditProfile() {
             
             {/* Name Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>First Name</Text>
               <View style={styles.inputContainer}>
-                <Feather name="user" size={20} color="#b0b0b0" style={styles.inputIcon} />
+                <Feather name="user" size={20} color="#8FD3FF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  value={form.name}
-                  onChangeText={(text) => setForm({ ...form, name: text })}
+                  value={form.firstName}
+                  onChangeText={(text) => setForm({ ...form, firstName: text })}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#6b7280"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Last Name</Text>
+              <View style={styles.inputContainer}>
+                <Feather name="user" size={20} color="#8FD3FF" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  value={form.lastName}
+                  onChangeText={(text) => setForm({ ...form, lastName: text })}
                   placeholder="Enter your name"
                   placeholderTextColor="#6b7280"
                 />
@@ -79,7 +94,7 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
               <View style={styles.inputContainer}>
-                <Feather name="phone" size={20} color="#b0b0b0" style={styles.inputIcon} />
+                <Feather name="phone" size={20} color="#8FD3FF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={form.phone}
@@ -95,7 +110,7 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputContainer}>
-                <Feather name="mail" size={20} color="#b0b0b0" style={styles.inputIcon} />
+                <Feather name="mail" size={20} color="#8FD3FF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={form.email}
@@ -112,7 +127,7 @@ export default function EditProfile() {
              <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
               <View style={styles.inputContainer}>
-                <Feather name="map-pin" size={20} color="#b0b0b0" style={styles.inputIcon} />
+                <Feather name="map-pin" size={20} color="#8FD3FF" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={form.location}
@@ -197,11 +212,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#003560",
+    backgroundColor: "#1E3C5A",
     borderRadius: 12,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#004578",
   },
   inputIcon: {
     marginRight: 10,
@@ -218,7 +231,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   saveBtn: {
-    backgroundColor: "#007bff",
+    backgroundColor: "#1E3C5A",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
