@@ -28,20 +28,19 @@ export default function Profile() {
     locPermissions: false,
   });
 
-  // Show a confirmation alert before user log out.
   const handleSignOut = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => console.log("User Logged Out"), //Replace with my Log out logic.
+        onPress: () => console.log("User Logged Out"),
       },
     ]);
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f6" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B253A" }}>
       <View style={styles.container}>
         {/* Back Button */}
         <BackButton color="#fff" size={24} />
@@ -64,13 +63,11 @@ export default function Profile() {
 
             <TouchableOpacity
               onPress={() => {
-                // Add this line to navigate to the new screen
                 router.push("../editProfile");
               }}
             >
               <View style={styles.profileAction}>
                 <Text style={styles.profileActionText}>Edit Profile</Text>
-
                 <Feather color="#fff" name="edit" size={16} />
               </View>
             </TouchableOpacity>
@@ -81,224 +78,176 @@ export default function Profile() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Preferences</Text>
 
-            <View style={styles.sectionBody}>
-              {/* Language Selection Row */}
-              <View style={[styles.rowWrapper, styles.rowFirst]}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // handle onPress
-                  }}
-                  style={styles.row}
-                >
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                  >
-                    <Feather color="#fff" name="globe" size={20} />
-                  </View>
-
-                  <Text style={styles.rowLabel}>Language</Text>
-
-                  <View style={styles.rowSpacer} />
-
-                  <Text style={styles.rowValue}>English</Text>
-
-                  <Feather color="#C6C6C6" name="chevron-right" size={20} />
-                </TouchableOpacity>
+            {/* Language Selection Row */}
+            <TouchableOpacity
+              onPress={() => {
+                // handle onPress
+              }}
+              style={styles.row}
+            >
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="globe" size={20} />
               </View>
 
-              {/* Dark Mode Toggle */}
+              <Text style={styles.rowLabel}>Language</Text>
 
-              <View style={styles.rowWrapper}>
-                <View style={styles.row}>
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                  >
-                    <Feather color="#fff" name="moon" size={20} />
-                  </View>
+              <View style={styles.rowSpacer} />
 
-                  <Text style={styles.rowLabel}>Dark Mode</Text>
+              <Text style={styles.rowValue}>English</Text>
 
-                  <View style={styles.rowSpacer} />
+              <Feather color="#C6C6C6" name="chevron-right" size={20} />
+            </TouchableOpacity>
 
-                  <Switch
-                    onValueChange={(darkMode) => setForm({ ...form, darkMode })}
-                    value={form.darkMode}
-                  />
-                </View>
+            {/* Dark Mode Toggle */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="moon" size={20} />
               </View>
 
-              {/* Location Row */}
+              <Text style={styles.rowLabel}>Dark Mode</Text>
 
-              <View style={styles.rowWrapper}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // handle onPress
-                  }}
-                  style={styles.row}
-                >
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                  >
-                    <Feather color="#fff" name="navigation" size={20} />
-                  </View>
+              <View style={styles.rowSpacer} />
 
-                  <Text style={styles.rowLabel}>Location</Text>
-
-                  <View style={styles.rowSpacer} />
-
-                  <Text style={styles.rowValue}>Los Angeles, CA</Text>
-
-                  <Feather color="#C6C6C6" name="chevron-right" size={20} />
-                </TouchableOpacity>
-              </View>
+              <Switch
+                onValueChange={(darkMode) => setForm({ ...form, darkMode })}
+                value={form.darkMode}
+              />
             </View>
 
-            {/* ------------- Notification & Permission Section ------------- */}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Notifications & Permissions
-              </Text>
-
-              <View style={styles.sectionBody}>
-                {/* Email Notifications */}
-
-                <View style={[styles.rowWrapper, styles.rowFirst]}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="at-sign" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Email Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(emailNotifications) =>
-                        setForm({ ...form, emailNotifications })
-                      }
-                      value={form.emailNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Push Notifications */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="bell" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Push Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(pushNotifications) =>
-                        setForm({ ...form, pushNotifications })
-                      }
-                      value={form.pushNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Alert Notifications */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="alert-triangle" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Alert Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(alertNotifications) =>
-                        setForm({ ...form, alertNotifications })
-                      }
-                      value={form.alertNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Data Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="file-text" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Personal Data Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(dataPermission) =>
-                        setForm({ ...form, dataPermission })
-                      }
-                      value={form.dataPermission}
-                    />
-                  </View>
-                </View>
-
-                {/* Camera and Audio Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="camera" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Camera & Audio Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(camPermission) =>
-                        setForm({ ...form,camPermission })
-                      }
-                      value={form.camPermission}
-                    />
-                  </View>
-                </View>
-
-                {/* Live Location Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#5FC9F1" }]}
-                    >
-                      <Feather color="#fff" name="map-pin" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Live Location Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(locPermissions) =>
-                        setForm({ ...form, locPermissions })
-                      }
-                      value={form.locPermissions}
-                    />
-                  </View>
-                </View>
+            {/* Location Row */}
+            <TouchableOpacity
+              onPress={() => {
+                // handle onPress
+              }}
+              style={styles.row}
+            >
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="navigation" size={20} />
               </View>
+
+              <Text style={styles.rowLabel}>Location</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Text style={styles.rowValue}>Los Angeles, CA</Text>
+
+              <Feather color="#C6C6C6" name="chevron-right" size={20} />
+            </TouchableOpacity>
+          </View>
+
+          {/* ------------- Notification & Permission Section ------------- */}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Notifications & Permissions
+            </Text>
+
+            {/* Email Notifications */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="at-sign" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Email Notifications</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(emailNotifications) =>
+                  setForm({ ...form, emailNotifications })
+                }
+                value={form.emailNotifications}
+              />
+            </View>
+
+            {/* Push Notifications */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="bell" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Push Notifications</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(pushNotifications) =>
+                  setForm({ ...form, pushNotifications })
+                }
+                value={form.pushNotifications}
+              />
+            </View>
+
+            {/* Alert Notifications */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="alert-triangle" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Alert Notifications</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(alertNotifications) =>
+                  setForm({ ...form, alertNotifications })
+                }
+                value={form.alertNotifications}
+              />
+            </View>
+
+            {/* Data Permission */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="file-text" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Personal Data Access</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(dataPermission) =>
+                  setForm({ ...form, dataPermission })
+                }
+                value={form.dataPermission}
+              />
+            </View>
+
+            {/* Camera and Audio Permission */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="camera" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Camera & Audio Access</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(camPermission) =>
+                  setForm({ ...form, camPermission })
+                }
+                value={form.camPermission}
+              />
+            </View>
+
+            {/* Live Location Permission */}
+            <View style={styles.row}>
+              <View style={styles.rowIcon}>
+                <Feather color="#8FD3FF" name="map-pin" size={20} />
+              </View>
+
+              <Text style={styles.rowLabel}>Live Location Access</Text>
+
+              <View style={styles.rowSpacer} />
+
+              <Switch
+                onValueChange={(locPermissions) =>
+                  setForm({ ...form, locPermissions })
+                }
+                value={form.locPermissions}
+              />
             </View>
           </View>
 
@@ -320,44 +269,41 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: "#002747",
     paddingVertical: 24,
-    paddingHorizontal: 0,
+    paddingHorizontal: 16,
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
   },
   /** Profile */
   profile: {
-    padding: 50,
+    padding: 24,
+    borderRadius: 16,
     flexDirection: "column",
     alignItems: "center",
-    backgroundColor: "#002857",
-    borderBottomWidth: 1,
-    borderColor: "#e3e3e3",
+    backgroundColor: "#1E3C5A",
+    marginBottom: 16,
   },
   profileAvatar: {
-    width: 80,
-    height: 80,
+    width: 90,
+    height: 90,
     borderRadius: 9999,
   },
   profileName: {
     marginTop: 12,
-    fontFamily: "Arial",
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: "bold",
     color: "#fff",
   },
   profileNumber: {
     marginTop: 2,
     fontSize: 15,
-    fontFamily: "Verdana",
-    fontWeight: "600",
+    fontWeight: "bold",
     color: "#fff",
   },
   profileEmail: {
     marginTop: 2,
-    fontFamily: "Arial",
     fontSize: 16,
-    fontWeight: "400",
+    fontWeight: "bold",
     color: "#fff",
   },
   profileAction: {
@@ -367,7 +313,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007bff",
+    backgroundColor: "#305d7b",
     borderRadius: 12,
   },
   profileActionText: {
@@ -378,38 +324,26 @@ const styles = StyleSheet.create({
   },
   /** Section */
   section: {
-    paddingTop: 12,
+    marginBottom: 16,
+    backgroundColor: "#1E3C5A",
+    borderRadius: 16,
+    padding: 16,
   },
   sectionTitle: {
-    marginVertical: 8,
-    marginHorizontal: 24,
+    marginBottom: 12,
     fontSize: 14,
     fontWeight: "600",
     color: "#a7a7a7",
     textTransform: "uppercase",
     letterSpacing: 1.2,
   },
-  sectionBody: {
-    paddingLeft: 24,
-    backgroundColor: "#002747",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e3e3e3",
-  },
   /** Row */
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingRight: 16,
+    paddingRight: 0,
     height: 50,
-  },
-  rowWrapper: {
-    borderTopWidth: 1,
-    borderColor: "#e3e3e3",
-  },
-  rowFirst: {
-    borderTopWidth: 0,
   },
   rowIcon: {
     width: 30,
@@ -435,29 +369,18 @@ const styles = StyleSheet.create({
     color: "#8B8B8B",
     marginRight: 4,
   },
-
   /* Log Out */
-
   logoutContainer: {
-    paddingHorizontal: 14,
-    marginTop: 10, // Space after the last setting row
-    marginBottom: 10, // Space at the very bottom of the scroll
+    marginTop: 10,
+    marginBottom: 24,
   },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1DB954",
-    borderRadius: 12,
+    backgroundColor: "#1E3C5A",
+    borderRadius: 16,
     paddingVertical: 15,
-    borderWidth: 1,
-    borderColor: "#ffe5e5",
-    // Modern Shadow
-    shadowColor: "#FF3B30",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 2,
   },
   logoutBtnText: {
     fontSize: 16,
