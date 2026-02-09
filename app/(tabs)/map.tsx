@@ -111,6 +111,42 @@ export default function MapScreen() {
     }
   };
 
+  const openGoogleMapsDirections = async (destination: Coords) => {
+    const dest = `${destination.latitude},${destination.longitude}`;
+
+    // Prefer opening the Google Maps app when possible.
+    const androidAppUrl = `google.navigation:q=${encodeURIComponent(dest)}&mode=d`;
+    const iosAppUrl = `comgooglemaps://?daddr=${encodeURIComponent(dest)}&directionsmode=driving`;
+
+    const originQuery = hasLocation
+      ? `&origin=${encodeURIComponent(`${coords.latitude},${coords.longitude}`)}`
+      : "";
+    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}${originQuery}&travelmode=driving`;
+
+    try {
+      if (Platform.OS === "android") {
+        const can = await Linking.canOpenURL(androidAppUrl);
+        if (can) {
+          await Linking.openURL(androidAppUrl);
+          return;
+        }
+      }
+
+      if (Platform.OS === "ios") {
+        const can = await Linking.canOpenURL(iosAppUrl);
+        if (can) {
+          await Linking.openURL(iosAppUrl);
+          return;
+        }
+      }
+
+      await Linking.openURL(webUrl);
+    } catch (e) {
+      console.error("[Route] openGoogleMapsDirections error:", e);
+      Alert.alert("Could not open Google Maps", "Please try again.");
+    }
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -999,7 +1035,7 @@ export default function MapScreen() {
               <TouchableOpacity
                 style={[styles.sheetActionBtn, styles.actionBlue]}
                 onPress={() =>
-                  void fetchDirections({
+                  void openGoogleMapsDirections({
                     latitude: selectedPlace.latitude,
                     longitude: selectedPlace.longitude,
                   })
