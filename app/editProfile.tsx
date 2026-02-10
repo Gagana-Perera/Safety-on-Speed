@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import {
   View,
@@ -9,29 +9,103 @@ import {
   Image,
   TextInput,
   TouchableOpacity,
+  ActivityIndicator,
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 // Assuming BackButton is in the same folder structure as your Profile component
 import BackButton from './backButton'; 
 
+import { supabase } from "../lib/superbase"; 
+import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
+
 export default function EditProfile() {
 
   const router = useRouter();
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState({
-    firstName: "Shenal",
-    lastName: "Arosha",
-    phone: "0711155893",
-    email: "shenal@gmail.com",
-    location: "Los Angeles, CA",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
+    location: "",
   });
 
-  const handleSave = () => {
-    // Add your API update logic here
-    Alert.alert("Profile Saved", "Your profile details have been updated successfully.");
-    console.log(form);
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const profile = await getUserProfile(user.id);
+          
+          if (profile) {
+            // Logic to split "Full Name" into First/Last for your inputs
+            const fullName = profile.full_name || "";
+            const nameParts = fullName.split(" ");
+            const first = nameParts[0] || "";
+            const last = nameParts.slice(1).join(" ") || "";
+
+            setForm({
+              firstName: first,
+              lastName: last,
+              phone: profile.phone_number || "",
+              email: profile.email || user.email || "", // Fallback to auth email
+              location: profile.location || "", // Ensure 'location' column exists in Supabase
+            });
+          }
+        }
+      } catch (error) {
+        console.log("Error loading:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const handleSave = async () => {
+    if (saving) return; // Prevent double clicks
+    setSaving(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      // Combine First + Last name back into one string
+      const full_name = `${form.firstName} ${form.lastName}`.trim();
+
+      const updates = {
+        full_name,
+        phone_number: form.phone,
+        email: form.email,
+        location: form.location,
+        updated_at: new Date().toISOString(),
+      };
+
+      await updateUserProfile(user.id, updates);
+      
+      Alert.alert("Success", "Profile updated successfully!", [
+        { text: "OK", onPress: () => router.back() }
+      ]);
+
+    } catch (error) {
+      Alert.alert("Error", "Could not save profile.");
+      console.log(error);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#002747" }}>

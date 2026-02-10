@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { useRouter } from "expo-router";
+import React, { useState, useCallback } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
 import BackButton from '../backButton';
 import {
   Alert,
@@ -12,11 +12,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
+
+import { supabase } from "../../lib/superbase"; 
+import { getUserProfile, UserProfile } from "../../lib/profileService";
 
 export default function Profile() {
 
   const router = useRouter();
+
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({
     darkMode: false,
@@ -28,16 +35,59 @@ export default function Profile() {
     locPermissions: false,
   });
 
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      async function fetchProfile() {
+        try {
+          setLoading(true);
+          const { data: { user } } = await supabase.auth.getUser();
+
+          if (user && isActive) {
+            const data = await getUserProfile(user.id);
+            if (data) setProfile(data);
+          }
+        } catch (error) {
+          console.log('Error loading profile:', error);
+        } finally {
+          if (isActive) setLoading(false);
+        }
+      }
+
+      fetchProfile();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
+
   const handleSignOut = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => console.log("User Logged Out"),
+        onPress: async () => { 
+          // 1. Tell Supabase to sign out
+          await supabase.auth.signOut();
+          
+          // 2. Navigate user back to the Login screen
+          // (Make sure '/login' matches your actual login file path)
+          router.replace("/login"); 
+        },
       },
     ]);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0B253A" }}>
@@ -50,26 +100,29 @@ export default function Profile() {
           <View style={styles.profile}>
             <Image
               source={{
-                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
+                uri: profile?.avatar_url || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
               }}
               style={styles.profileAvatar}
             />
 
-            <Text style={styles.profileName}>Shenal Arosha</Text>
+            <Text style={styles.profileName}>
+                {profile?.full_name?.replace(/\s+/g, ' ').trim() || "New User"}
+            </Text>
 
-            <Text style={styles.profileNumber}>0711155893</Text>
+            <Text style={styles.profileNumber}>
+                {profile?.phone_number || "No Phone Number"}
+            </Text>
 
-            <Text style={styles.profileEmail}>shenal@gmail.com</Text>
+            <Text style={styles.profileEmail}>
+                {profile?.email || "No Email"}
+            </Text>
 
-            <TouchableOpacity
-              onPress={() => {
-                router.push("../editProfile");
-              }}
-            >
-              <View style={styles.profileAction}>
-                <Text style={styles.profileActionText}>Edit Profile</Text>
-                <Feather color="#fff" name="edit" size={16} />
-              </View>
+            <TouchableOpacity 
+              onPress={() => router.push("/editProfile")} 
+              style={{ backgroundColor: '#305d7b', padding: 10, borderRadius: 8, marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              >
+              <Text style={{ color: 'white', textAlign: 'center', fontWeight: "bold" }}>Edit Profile </Text>
+              <Feather name="edit" size={18} color="white" style={{ marginRight: 8 }} />
             </TouchableOpacity>
           </View>
 
