@@ -29,9 +29,9 @@ export default function Guardians() {
   useEffect(() => {
     const draft = getSignupDraft();
     if (
-      !draft.fullName ||
-      !draft.nickName ||
-      !draft.birthdate ||
+      !draft.firstName ||
+      !draft.surname ||
+      !draft.nicNumber ||
       !draft.phoneNumber ||
       !draft.email ||
       !draft.password
@@ -76,7 +76,7 @@ export default function Guardians() {
     if (selectedCount < 2) {
       Alert.alert(
         "Select at least two",
-        "Please choose two or more guardians to continue."
+        "Please choose two or more guardians to continue.",
       );
       return;
     }
