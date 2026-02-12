@@ -5,9 +5,9 @@ export type GuardianContact = {
 };
 
 export type SignupDraft = {
-  fullName: string;
-  nickName: string;
-  birthdate: string;
+  firstName: string;
+  surname: string;
+  nicNumber: string;
   phoneNumber: string;
   email: string;
   password: string;
