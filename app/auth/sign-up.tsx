@@ -1,74 +1,52 @@
-import { supabase } from "@/lib/superbase";
+import { setSignupDraft } from "@/lib/signup-draft";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 
 export default function SignUp() {
   const router = useRouter();
-  const passwordInputRef = useRef<TextInput>(null);
-  const confirmPasswordInputRef = useRef<TextInput>(null);
+  const surnameInputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<TextInput>(null);
+  const nicInputRef = useRef<TextInput>(null);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [nicNumber, setNicNumber] = useState("");
 
-  async function handleSignUp() {
-    if (loading) {
+  function handleNext() {
+    const trimmedFirstName = firstName.trim();
+    const trimmedSurname = surname.trim();
+    const trimmedPhoneNumber = phoneNumber.trim();
+    const trimmedNicNumber = nicNumber.trim();
+
+    if (
+      !trimmedFirstName ||
+      !trimmedSurname ||
+      !trimmedPhoneNumber ||
+      !trimmedNicNumber
+    ) {
+      Alert.alert("Missing info", "Please fill in all details.");
       return;
     }
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password || !confirmPassword) {
-      Alert.alert("Missing info", "Please fill in all fields.");
-      return;
-    }
+    setSignupDraft({
+      firstName: trimmedFirstName,
+      surname: trimmedSurname,
+      phoneNumber: trimmedPhoneNumber,
+      nicNumber: trimmedNicNumber,
+    });
 
-    if (password.length < 8) {
-      Alert.alert(
-        "Weak password",
-        "Please use at least 8 characters for your password."
-      );
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Password mismatch", "Passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-      });
-
-      if (error) {
-        Alert.alert("Sign up failed", error.message);
-        return;
-      }
-
-      Alert.alert(
-        "Check your email",
-        "We sent a confirmation link. After confirming, sign in."
-      );
-      router.replace("/auth/login");
-    } finally {
-      setLoading(false);
-    }
+    router.push("/auth/sign-up-password");
   }
 
   return (
@@ -84,129 +62,127 @@ export default function SignUp() {
         contentContainerStyle={{ flexGrow: 1 }}
       >
         <View className="flex-1 px-6 pt-12">
-          {/* Brand */}
-          <View className="items-center">
-            <Image
-              source={require("../../assets/oc/logo.jpg")}
-              resizeMode="contain"
-              className="h-24 w-24 mb-4 opacity-80"
-            />
-            <Text className="text-white/70 text-xl tracking-[4px]">
-              Safety On Speed
-            </Text>
+          {/* Header */}
+          <View className="flex-row items-center mb-8">
+            <Pressable
+              onPress={() => router.back()}
+              className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-4 py-2"
+            >
+              <Text className="text-white text-xl mr-2">{"<"}</Text>
+              <Text className="text-white text-xl font-light">Back</Text>
+            </Pressable>
           </View>
 
           {/* Title */}
-          <View className="mt-14 items-center">
-            <Text className="text-white text-6xl font-light">Sign up</Text>
-            <Text className="text-white/80 text-2xl mt-4 font-light">
-              Create your account.
+          <View className="items-center mb-10">
+            <Text className="text-white text-6xl font-light tracking-wider">
+              Sign up
             </Text>
           </View>
 
           {/* Inputs */}
-          <View className="mt-16">
-            <Text className="text-white/90 text-4xl font-light mb-4">
-              Email
-            </Text>
+          <View className="mt-4">
+            <View className="flex-row justify-between">
+              <View className="w-[48%]">
+                <Text className="text-white text-2xl font-light mb-2">
+                  First Name
+                </Text>
+                <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                  <TextInput
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    className="text-white text-lg"
+                    returnKeyType="next"
+                    onSubmitEditing={() => surnameInputRef.current?.focus()}
+                  />
+                </View>
+                <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-1" />
+              </View>
 
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor="rgba(255,255,255,0.55)"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                className="text-white text-xl"
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => passwordInputRef.current?.focus()}
-              />
-              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
+              <View className="w-[48%]">
+                <Text className="text-white text-2xl font-light mb-2">
+                  Surname
+                </Text>
+                <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                  <TextInput
+                    ref={surnameInputRef}
+                    value={surname}
+                    onChangeText={setSurname}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    className="text-white text-lg"
+                    returnKeyType="next"
+                    onSubmitEditing={() => phoneInputRef.current?.focus()}
+                  />
+                </View>
+                <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-1" />
+              </View>
             </View>
 
-            <Text className="text-white/90 text-4xl font-light mb-4 mt-12">
-              Password
-            </Text>
-
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <View className="flex-row items-center">
+            <View className="mt-8">
+              <Text className="text-white text-2xl font-light mb-2">
+                Phone Number
+              </Text>
+              <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
                 <TextInput
-                  ref={passwordInputRef}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.55)"
-                  secureTextEntry={!showPassword}
-                  className="flex-1 text-white text-xl"
+                  ref={phoneInputRef}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="text-white text-lg"
                   returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+                  onSubmitEditing={() => nicInputRef.current?.focus()}
                 />
-
-                <Pressable
-                  onPress={() => setShowPassword((prev) => !prev)}
-                  className="px-2 py-2"
-                >
-                  <Text className="text-secondary text-lg">
-                    {showPassword ? "Hide" : "Show"}
-                  </Text>
-                </Pressable>
               </View>
-              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
+              <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
             </View>
 
-            <Text className="text-white/90 text-4xl font-light mb-4 mt-12">
-              Confirm Password
-            </Text>
-
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <View className="flex-row items-center">
+            <View className="mt-8">
+              <Text className="text-white text-2xl font-light mb-2">
+                NIC Number
+              </Text>
+              <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
                 <TextInput
-                  ref={confirmPasswordInputRef}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm Password"
-                  placeholderTextColor="rgba(255,255,255,0.55)"
-                  secureTextEntry={!showConfirmPassword}
-                  className="flex-1 text-white text-xl"
+                  ref={nicInputRef}
+                  value={nicNumber}
+                  onChangeText={setNicNumber}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  className="text-white text-lg"
                   returnKeyType="done"
-                  onSubmitEditing={handleSignUp}
+                  onSubmitEditing={handleNext}
                 />
-
-                <Pressable
-                  onPress={() => setShowConfirmPassword((prev) => !prev)}
-                  className="px-2 py-2"
-                >
-                  <Text className="text-secondary text-lg">
-                    {showConfirmPassword ? "Hide" : "Show"}
-                  </Text>
-                </Pressable>
               </View>
-              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
+              <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
             </View>
           </View>
 
-          {/* Bottom area */}
-          <View className="flex-1 justify-end pb-24 mt-10">
+          {/* Next Button */}
+          <View className="flex-1 justify-end pb-10 mt-10">
             <Pressable
-              onPress={handleSignUp}
-              disabled={loading}
-              className="self-center bg-black/25 border border-white/10 rounded-2xl px-10 py-4"
+              onPress={handleNext}
+              className="self-end bg-black/40 border border-white/10 rounded-2xl px-12 py-3"
             >
-              <Text className="text-white text-3xl font-light text-center">
-                {loading ? "Creating..." : "Create account"}
-              </Text>
+              <Text className="text-white text-2xl font-light">Next</Text>
             </Pressable>
+            <View className="h-[1px] bg-white/20 w-3/4 self-center mt-12 mb-8" />
 
-            <View className="items-center mt-10">
+            {/* Pagination Dots (Visual only for now) */}
+            <View className="flex-row justify-center space-x-8 items-center">
+              <View className="w-16 h-16 rounded-full bg-white/90" />
+              <View className="w-16 h-16 rounded-full bg-white/80" />
+            </View>
+
+            <View className="items-center mt-8">
               <Pressable
                 onPress={() => router.push("/auth/login")}
                 accessibilityRole="button"
               >
-                <Text className="text-secondary text-xl">
+                <Text className="text-secondary text-lg">
                   Already have an account?{" "}
                   <Text className="underline text-accent">Sign in.</Text>
                 </Text>

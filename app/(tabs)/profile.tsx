@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -11,8 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { logoutUser } from "@/lib/auth";
 
 export default function Example() {
+  const router = useRouter();
   const [form, setForm] = useState({
     darkMode: false,
     emailNotifications: false,
@@ -22,6 +25,18 @@ export default function Example() {
     locPermissions: false,
   });
 
+  const handleConfirmSignOut = async () => {
+    try {
+      await logoutUser();
+      router.replace("/session");
+    } catch (error: any) {
+      Alert.alert(
+        "Log out failed",
+        error?.message ?? "Something went wrong. Please try again.",
+      );
+    }
+  };
+
   // Show a confirmation alert before user log out.
   const handleSignOut = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
@@ -29,7 +44,9 @@ export default function Example() {
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => console.log("User Logged Out"), //Replace with my Log out logic.
+        onPress: () => {
+          void handleConfirmSignOut();
+        },
       },
     ]);
   };
