@@ -120,7 +120,6 @@ export default function SignUpOtp() {
         // Let's try `email` first, but catch error.
         // WAIT: The previous fix explicitly said "Changed ... to 'magiclink' to correctly verify codes sent via signInWithOtp".
         // So I will use 'magiclink' as per the fix I just made in step 34.
-        type: "magiclink",
       });
 
       if (verifyError) throw verifyError;
