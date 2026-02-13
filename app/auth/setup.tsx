@@ -5,16 +5,16 @@ import { supabase } from "@/lib/superbase";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type Contact = {
@@ -68,21 +68,33 @@ export default function GuardianSetup() {
 
     setSaving(true);
     try {
+      console.log("Attempting to get user...");
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
 
+      if (userError) {
+        console.error("Error fetching user:", userError);
+        throw userError;
+      }
+
       if (!user) {
+        console.error("No user found after signup.");
         throw new Error("No authenticated user found.");
       }
 
+      console.log("User found:", user.id);
+      console.log("Saving guardians for user:", user.id, contacts);
+
       await saveGuardians(user.id, contacts);
 
+      console.log("Guardians saved successfully.");
       Alert.alert("Success", "Guardians saved successfully!");
       router.replace("/(tabs)");
     } catch (error: any) {
-      console.error("Error saving guardians:", error);
-      Alert.alert("Error", "Failed to save guardians. Please try again.");
+      console.error("Error in handleConfirm:", error);
+      Alert.alert("Error", `Failed to save: ${error.message}`);
     } finally {
       setSaving(false);
     }
