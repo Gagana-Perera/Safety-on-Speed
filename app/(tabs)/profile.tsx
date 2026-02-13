@@ -1,476 +1,326 @@
-import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image, 
+  TouchableOpacity, 
+  Switch, 
+  ScrollView, 
+  SafeAreaView, 
+  Alert 
 } from "react-native";
-import { logoutUser } from "@/lib/auth";
+import { useRouter } from "expo-router";
+import { Feather, MaterialIcons } from "@expo/vector-icons"; // Added MaterialIcons for more icons
+import { useTheme } from "../themeContext";
+import BackButton from '../backButton'; 
+import { supabase } from "../../lib/superbase"; 
 
-export default function Example() {
+export default function Profile() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    darkMode: false,
-    emailNotifications: false,
-    pushNotifications: false,
-    alertNotifications: false,
-    dataPermission: false,
-    locPermissions: false,
-  });
+  const { theme, isDark, toggleTheme } = useTheme();
 
-  const handleConfirmSignOut = async () => {
-    try {
-      await logoutUser();
-      router.replace("/session");
-    } catch (error: any) {
-      Alert.alert(
-        "Log out failed",
-        error?.message ?? "Something went wrong. Please try again.",
-      );
-    }
-  };
+  // --- STATE VARIABLES FOR TOGGLES ---
+  // Notifications
+  const [emailNotif, setEmailNotif] = useState(false);
+  const [pushNotif, setPushNotif] = useState(false);
+  const [AlertNotif, setAlertNotif] = useState(false);
+  
+  // Privacy & Permissions
+  const [personalDataAccess, setPersonalDataAccess] = useState(false);
+  const [cameraAccess, setCameraAccess] = useState(false);
+  const [liveLocation, setLiveLocation] = useState(false);
+  
+  // General
+  const [language, setLanguage] = useState("English");
+  const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
 
-  // Show a confirmation alert before user log out.
-  const handleSignOut = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
+  const handleLogout = async () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: () => {
-          void handleConfirmSignOut();
-        },
+      { 
+        text: "Sign Out", 
+        style: "destructive", 
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace("/auth/login");
+        } 
       },
     ]);
   };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f6" }}>
-      <View style={styles.container}>
-        <ScrollView>
-          {/* ------------- User Profile Section ------------- */}
-
-          <View style={styles.profile}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
-              }}
-              style={styles.profileAvatar}
-            />
-
-            <Text style={styles.profileName}>Shenal Arosha</Text>
-
-            <Text style={styles.profileNumber}>0711155893</Text>
-
-            <Text style={styles.profileEmail}>shenal@gmail.com</Text>
-
-            <TouchableOpacity
-              onPress={() => {
-                // handle onPress
-              }}
-            >
-              <View style={styles.profileAction}>
-                <Text style={styles.profileActionText}>Edit Profile</Text>
-
-                <Feather color="#fff" name="edit" size={16} />
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* ------------- Preferences Section ------------- */}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Preferences</Text>
-
-            <View style={styles.sectionBody}>
-              {/* Language Selection Row */}
-              <View style={[styles.rowWrapper, styles.rowFirst]}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // handle onPress
-                  }}
-                  style={styles.row}
-                >
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#fe9400" }]}
-                  >
-                    <Feather color="#fff" name="globe" size={20} />
-                  </View>
-
-                  <Text style={styles.rowLabel}>Language</Text>
-
-                  <View style={styles.rowSpacer} />
-
-                  <Text style={styles.rowValue}>English</Text>
-
-                  <Feather color="#C6C6C6" name="chevron-right" size={20} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Dark Mode Toggle */}
-
-              <View style={styles.rowWrapper}>
-                <View style={styles.row}>
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#007AFF" }]}
-                  >
-                    <Feather color="#fff" name="moon" size={20} />
-                  </View>
-
-                  <Text style={styles.rowLabel}>Dark Mode</Text>
-
-                  <View style={styles.rowSpacer} />
-
-                  <Switch
-                    onValueChange={(darkMode) => setForm({ ...form, darkMode })}
-                    value={form.darkMode}
-                  />
-                </View>
-              </View>
-
-              {/* Location Row */}
-
-              <View style={styles.rowWrapper}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // handle onPress
-                  }}
-                  style={styles.row}
-                >
-                  <View
-                    style={[styles.rowIcon, { backgroundColor: "#32c759" }]}
-                  >
-                    <Feather color="#fff" name="navigation" size={20} />
-                  </View>
-
-                  <Text style={styles.rowLabel}>Location</Text>
-
-                  <View style={styles.rowSpacer} />
-
-                  <Text style={styles.rowValue}>Los Angeles, CA</Text>
-
-                  <Feather color="#C6C6C6" name="chevron-right" size={20} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* ------------- Notification & Permission Section ------------- */}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Notifications & Permissions
-              </Text>
-
-              <View style={styles.sectionBody}>
-                {/* Email Notifications */}
-
-                <View style={[styles.rowWrapper, styles.rowFirst]}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="at-sign" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Email Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(emailNotifications) =>
-                        setForm({ ...form, emailNotifications })
-                      }
-                      value={form.emailNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Push Notifications */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="bell" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Push Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(pushNotifications) =>
-                        setForm({ ...form, pushNotifications })
-                      }
-                      value={form.pushNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Alert Notifications */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="alert-triangle" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Alert Notifications</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(alertNotifications) =>
-                        setForm({ ...form, alertNotifications })
-                      }
-                      value={form.alertNotifications}
-                    />
-                  </View>
-                </View>
-
-                {/* Data Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="file-text" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Personal Data Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(dataPermission) =>
-                        setForm({ ...form, dataPermission })
-                      }
-                      value={form.dataPermission}
-                    />
-                  </View>
-                </View>
-
-                {/* Camera and Audio Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="camera" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Camera & Audio Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(dataPermission) =>
-                        setForm({ ...form, dataPermission })
-                      }
-                      value={form.dataPermission}
-                    />
-                  </View>
-                </View>
-
-                {/* Live Location Permission */}
-
-                <View style={styles.rowWrapper}>
-                  <View style={styles.row}>
-                    <View
-                      style={[styles.rowIcon, { backgroundColor: "#38C959" }]}
-                    >
-                      <Feather color="#fff" name="map-pin" size={20} />
-                    </View>
-
-                    <Text style={styles.rowLabel}>Live Location Access</Text>
-
-                    <View style={styles.rowSpacer} />
-
-                    <Switch
-                      onValueChange={(locPermissions) =>
-                        setForm({ ...form, locPermissions })
-                      }
-                      value={form.locPermissions}
-                    />
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* -------------------- LOGOUT BUTTON -------------------- */}
-
-          <View style={styles.logoutContainer}>
-            <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
-              <Feather name="log-out" size={20} color="#fff" />
-              <Text style={styles.logoutBtnText}>Log Out</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+  // Reusable Row Component
+  const SettingRow = ({ icon, label, value, onValueChange, type = "switch", subText = "" }: any) => (
+    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+      <View style={styles.rowLeft}>
+        <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
+          <Feather name={icon} size={20} color={theme.text} />
+        </View>
+        <View>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
+          {subText ? <Text style={{ fontSize: 12, color: theme.icon }}>{subText}</Text> : null}
+        </View>
       </View>
+      
+      {/* Render Switch or Arrow based on type */}
+      {type === "switch" ? (
+        <Switch
+          value={value}
+          onValueChange={onValueChange}
+          trackColor={{ false: "#767577", true: "#34C759" }}
+          thumbColor={"#f4f3f4"}
+        />
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>{value}</Text>
+          <Feather name="chevron-right" size={20} color={theme.icon} />
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+
+      <ScrollView contentContainerStyle={styles.content}>
+
+        <View>
+          <BackButton color={theme.text} />
+        </View>
+        
+        {/* --- HEADER --- */}
+        <View style={styles.header}>
+          <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
+            <Image
+              source={{ uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80" }}
+              style={styles.avatar}
+            />
+            <TouchableOpacity 
+              style={styles.editBadge} 
+              onPress={() => router.push("/editProfile")}
+            >
+              <Feather name="edit-2" size={14} color="white" />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.name, { color: theme.text }]}>User Name</Text>
+          <Text style={[styles.email, { color: theme.text }]}>user@example.com</Text>
+        </View>
+
+        {/* --- 1. APPEARANCE --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>APPEARANCE</Text>
+          <SettingRow 
+            icon="moon" 
+            label="Dark Mode" 
+            value={isDark} 
+            onValueChange={toggleTheme} 
+          />
+        </View>
+
+        {/* --- 4. GENERAL (Language & Region) --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>GENERAL</Text>
+          
+          <TouchableOpacity onPress={() => Alert.alert("Change Language", "Language picker would open here")}>
+            <SettingRow 
+              icon="globe" 
+              label="Language" 
+              value={language} 
+              type="link" 
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => Alert.alert("Change Location", "Region picker would open here")}>
+            <SettingRow 
+              icon="map" 
+              label="Location" 
+              value={locationRegion} 
+              type="link" 
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* --- 2. NOTIFICATIONS --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>NOTIFICATIONS</Text>
+          
+          <SettingRow 
+            icon="mail" 
+            label="Email Notifications" 
+            subText="Receive daily summaries"
+            value={emailNotif} 
+            onValueChange={setEmailNotif} 
+          />
+          
+          <SettingRow 
+            icon="bell" 
+            label="Push Notification" 
+            subText="Security & Update alerts"
+            value={pushNotif} 
+            onValueChange={setPushNotif} 
+          />
+
+          <SettingRow 
+            icon="alert-triangle" 
+            label="Alert Notification" 
+            subText="Security & Update alerts"
+            value={AlertNotif} 
+            onValueChange={setAlertNotif} 
+          />
+        </View>
+
+        {/* --- 3. PRIVACY & DATA --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>PRIVACY & PERMISSIONS</Text>
+          
+          <SettingRow 
+            icon="database" 
+            label="Personal Data Access" 
+            subText="Allow to use data customization"
+            value={personalDataAccess} 
+            onValueChange={setPersonalDataAccess} 
+          />
+
+          <SettingRow 
+            icon="camera" 
+            label="Camera Access" 
+            subText="Allow app to use camera"
+            value={cameraAccess} 
+            onValueChange={setCameraAccess} 
+          />
+          
+          <SettingRow 
+            icon="map-pin" 
+            label="Live Location Access" 
+            subText="Share location in real-time"
+            value={liveLocation} 
+            onValueChange={setLiveLocation} 
+          />
+        </View>
+
+        {/* --- LOGOUT --- */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Feather name="log-out" size={20} color="#FF3B30" />
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.versionText, { color: theme.icon }]}>App Version 1.2.0</Text>
+
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#002747",
-    paddingVertical: 24,
-    paddingHorizontal: 0,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
+  content: {
+    padding: 20,
+    paddingBottom: 50,
   },
-  /** Profile */
-  profile: {
-    padding: 16,
-    flexDirection: "column",
+  /* Header */
+  header: {
     alignItems: "center",
-    backgroundColor: "#002857",
-    borderBottomWidth: 1,
-    borderColor: "#e3e3e3",
+    marginBottom: 25,
+    marginTop: 10,
   },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 9999,
+  avatarContainer: {
+    position: "relative",
+    borderWidth: 2,
+    borderRadius: 60,
+    padding: 2,
+    marginBottom: 12,
   },
-  profileName: {
-    marginTop: 12,
-    fontFamily: "Arial",
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#fff",
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-  profileNumber: {
-    marginTop: 6,
-    fontSize: 15,
-    fontFamily: "Verdana",
-    fontWeight: "600",
-    color: "#fff",
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#2563eb",
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "white",
   },
-  profileEmail: {
-    marginTop: 6,
-    fontFamily: "Arial",
-    fontSize: 16,
-    fontWeight: "400",
-    color: "#fff",
+  name: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 4,
   },
-  profileAction: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#007bff",
-    borderRadius: 12,
-  },
-  profileActionText: {
-    marginRight: 8,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  /** Section */
-  section: {
-    paddingTop: 12,
-  },
-  sectionTitle: {
-    marginVertical: 8,
-    marginHorizontal: 24,
+  email: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#a7a7a7",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
+    opacity: 0.6,
   },
-  sectionBody: {
-    paddingLeft: 24,
-    backgroundColor: "#002747",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e3e3e3",
-  },
-  /** Row */
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingRight: 16,
-    height: 50,
-  },
-  rowWrapper: {
-    borderTopWidth: 1,
-    borderColor: "#e3e3e3",
-  },
-  rowFirst: {
-    borderTopWidth: 0,
-  },
-  rowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  rowLabel: {
-    fontSize: 17,
-    fontWeight: "500",
-    color: "#fff",
-  },
-  rowSpacer: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-  },
-  rowValue: {
-    fontSize: 17,
-    fontWeight: "500",
-    color: "#8B8B8B",
-    marginRight: 4,
-  },
-
-  /* Log Out */
-
-  logoutContainer: {
-    paddingHorizontal: 14,
-    marginTop: 10, // Space after the last setting row
-    marginBottom: 10, // Space at the very bottom of the scroll
-  },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1DB954",
-    borderRadius: 12,
-    paddingVertical: 15,
-    borderWidth: 1,
-    borderColor: "#ffe5e5",
-    // Modern Shadow
-    shadowColor: "#FF3B30",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+  /* Sections */
+  sectionContainer: {
+    borderRadius: 16,
+    marginBottom: 20,
+    overflow: "hidden",
+    paddingVertical: 5,
+    // Shadow for depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
   },
-  logoutBtnText: {
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    marginLeft: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    opacity: 0.5,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14, // Taller rows for better touch targets
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  rowLabel: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#fff",
-    marginLeft: 10,
+    fontWeight: "600",
+  },
+  /* Logout */
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F0F0",
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  logoutText: {
+    color: "#FF3B30",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  versionText: {
+    textAlign: "center",
+    fontSize: 12,
+    opacity: 0.5,
+    marginBottom: 20,
   },
 });
