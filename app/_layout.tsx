@@ -1,26 +1,19 @@
-import { Redirect, Stack, usePathname } from "expo-router";
+import { Stack } from "expo-router";
 import "./global.css";
 import { ThemeProvider } from "./themeContext";
 
 export default function RootLayout() {
-  const pathname = usePathname();
-  const isRoot = pathname === "/";
-
   return (
     <ThemeProvider>
-      <Stack>
-        <Stack.Screen name="session" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/login" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="auth/forgot-password"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/setup" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="session" />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/forgot-password" />
+        <Stack.Screen name="auth/sign-up" />
+        <Stack.Screen name="auth/setup" />
+        <Stack.Screen name="auth/otp" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
-      {isRoot && <Redirect href="/session" />}
     </ThemeProvider>
   );
 }
