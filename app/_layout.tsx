@@ -12,14 +12,18 @@ export default function RootLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/guardians" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="auth/guardian-setup"
+        options={{ headerShown: false }}
+      />
       <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
 }
 
-{/*}
+{
+  /*}
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
@@ -37,4 +41,5 @@ export default function RootLayout() {
     </>
   );
 }
-  */}
+  */
+}
