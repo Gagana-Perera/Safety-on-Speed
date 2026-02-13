@@ -13,15 +13,16 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-// Assuming BackButton is in the same folder structure as your Profile component
+import { useTheme } from "./themeContext";
 import BackButton from './backButton'; 
-
 import { supabase } from "../lib/superbase"; 
 import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
 
 export default function EditProfile() {
-
   const router = useRouter();
+  
+  // Get the theme object
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,7 +43,6 @@ export default function EditProfile() {
           const profile = await getUserProfile(user.id);
           
           if (profile) {
-            // Logic to split "Full Name" into First/Last for your inputs
             const fullName = profile.full_name || "";
             const nameParts = fullName.split(" ");
             const first = nameParts[0] || "";
@@ -52,8 +52,8 @@ export default function EditProfile() {
               firstName: first,
               lastName: last,
               phone: profile.phone_number || "",
-              email: profile.email || user.email || "", // Fallback to auth email
-              location: profile.location || "", // Ensure 'location' column exists in Supabase
+              email: profile.email || user.email || "", 
+              location: profile.location || "", 
             });
           }
         }
@@ -67,14 +67,13 @@ export default function EditProfile() {
   }, []);
 
   const handleSave = async () => {
-    if (saving) return; // Prevent double clicks
+    if (saving) return; 
     setSaving(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      // Combine First + Last name back into one string
       const full_name = `${form.firstName} ${form.lastName}`.trim();
 
       const updates = {
@@ -101,17 +100,21 @@ export default function EditProfile() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#fff" />
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#002747" }}>
-      <View style={styles.container}>
+    // Apply dynamic background color
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         
-        <BackButton color="#fff" size={24} />
+        {/* Pass dynamic color to BackButton */}
+        <View style={{ margin: 20, marginTop: 10 }}>
+             <BackButton color={theme.text}/>
+        </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           
@@ -121,13 +124,14 @@ export default function EditProfile() {
               source={{
                 uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
               }}
-              style={styles.profileAvatar}
+              // Use theme.border for the avatar border
+              style={[styles.profileAvatar, { borderColor: theme.border }]}
             />
             <TouchableOpacity 
-              style={styles.cameraIconContainer} 
+              style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
               onPress={() => Alert.alert("Upload Photo", "Open gallery or camera logic here")}
             >
-              <Feather name="camera" size={18} color="#fff" />
+              <Feather name="camera" size={16} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.changePhotoText}>Change Profile Photo</Text>
           </View>
@@ -135,31 +139,32 @@ export default function EditProfile() {
           {/* Form Section */}
           <View style={styles.form}>
             
-            {/* Name Input */}
+            {/* First Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
-              <View style={styles.inputContainer}>
-                <Feather name="user" size={20} color="#8FD3FF" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={form.firstName}
                   onChangeText={(text) => setForm({ ...form, firstName: text })}
                   placeholder="Enter your name"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor="#9CA3AF"
                 />
               </View>
             </View>
 
+            {/* Last Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
-              <View style={styles.inputContainer}>
-                <Feather name="user" size={20} color="#8FD3FF" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={form.lastName}
                   onChangeText={(text) => setForm({ ...form, lastName: text })}
                   placeholder="Enter your name"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor="#9CA3AF"
                 />
               </View>
             </View>
@@ -167,14 +172,14 @@ export default function EditProfile() {
             {/* Phone Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
-              <View style={styles.inputContainer}>
-                <Feather name="phone" size={20} color="#8FD3FF" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="phone" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
                   placeholder="Enter phone number"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
                 />
               </View>
@@ -183,14 +188,14 @@ export default function EditProfile() {
             {/* Email Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputContainer}>
-                <Feather name="mail" size={20} color="#8FD3FF" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="mail" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
                   placeholder="Enter email"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
@@ -200,14 +205,14 @@ export default function EditProfile() {
              {/* Location Input */}
              <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
-              <View style={styles.inputContainer}>
-                <Feather name="map-pin" size={20} color="#8FD3FF" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={form.location}
                   onChangeText={(text) => setForm({ ...form, location: text })}
                   placeholder="City, Country"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor="#9CA3AF"
                 />
               </View>
             </View>
@@ -216,8 +221,13 @@ export default function EditProfile() {
 
           {/* Save Button */}
           <View style={styles.actionContainer}>
-            <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>Save Changes</Text>
+            {/* You can use a specific color like Blue (#2563eb) or use theme.card with a border */}
+            <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}>
+              {saving ? (
+                 <ActivityIndicator color="white" />
+              ) : (
+                 <Text style={styles.saveBtnText}>Save Changes</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -228,13 +238,14 @@ export default function EditProfile() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   container: {
-    backgroundColor: "#002747",
-    paddingVertical: 24,
-    paddingHorizontal: 0,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
+    paddingVertical: 12, // Reduced slightly to account for SafeAreaView
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 40,
@@ -242,29 +253,27 @@ const styles = StyleSheet.create({
   /** Photo Section */
   profileImageContainer: {
     alignItems: "center",
-    marginTop: 30,
+    marginTop: 20,
     marginBottom: 30,
   },
   profileAvatar: {
     width: 100,
     height: 100,
-    borderRadius: 9999,
+    borderRadius: 50,
     borderWidth: 2,
-    borderColor: "#fff",
   },
   cameraIconContainer: {
     position: "absolute",
     bottom: 25,
-    right: "36%", // Adjust based on avatar size to place it on the corner
-    backgroundColor: "#007bff",
+    right: "36%", 
+    backgroundColor: "#2563eb",
     padding: 8,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: "#002747",
   },
   changePhotoText: {
     marginTop: 10,
-    color: "#007bff",
+    color: "#2563eb",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -276,7 +285,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#a7a7a7",
     marginBottom: 8,
@@ -286,26 +295,24 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1E3C5A",
     borderRadius: 12,
     paddingHorizontal: 12,
+    height: 50,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    height: 50,
-    color: "#fff",
+    height: "100%",
     fontSize: 16,
   },
   /** Action Button */
   actionContainer: {
-    marginTop: 20,
+    marginTop: 10,
     paddingHorizontal: 24,
   },
   saveBtn: {
-    backgroundColor: "#1E3C5A",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",

@@ -1,79 +1,72 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
 
-// 1. Define what the Theme looks like
-type ThemeShape = {
-  background: string;
-  card: string;
-  text: string;
-  subText: string;
-  icon: string;
-  border: string;
+// Define Colors
+const LightTheme = {
+  mode: 'light',
+  background: '#FFFFFF',
+  text: '#000000',
+  card: '#F0F0F0',
+  border: '#E0E0E0',
+  icon: '#333333',
 };
 
-// 2. Define what data the Context holds
-interface ThemeContextType {
-  isDark: boolean;
-  toggleTheme: () => void;
-  theme: ThemeShape;
-}
+const DarkTheme = {
+  mode: 'dark',
+  background: '#002747',
+  text: '#FFFFFF',
+  card: '#1A3B54',
+  border: '#30363D',
+  icon: '#F0F0F0',
+};
 
-// 3. Create Context with a default value of undefined
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const ThemeContext = createContext({
+  theme: LightTheme,
+  isDark: false,
+  toggleTheme: () => {},
+});
 
-// 4. Define props for the Provider (typing 'children')
-interface ThemeProviderProps {
-  children: ReactNode;
-}
+export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+  const systemScheme = useColorScheme();
+  const [isDark, setIsDark] = useState(systemScheme === 'dark');
 
-export const ThemeProvider = ({ children }: ThemeProviderProps) => {
-  const [isDark, setIsDark] = useState(true);
-
+  // Load saved theme
   useEffect(() => {
     const loadTheme = async () => {
       try {
         const savedTheme = await AsyncStorage.getItem('userTheme');
-        if (savedTheme) {
+        if (savedTheme !== null) {
           setIsDark(savedTheme === 'dark');
         }
-      } catch (e) {
-        console.log("Failed to load theme");
+      } catch (error) {
+        console.log('Error loading theme:', error);
       }
     };
     loadTheme();
   }, []);
 
   const toggleTheme = async () => {
-    const newTheme = !isDark;
-    setIsDark(newTheme);
+    const newThemeStatus = !isDark;
+    setIsDark(newThemeStatus);
     try {
-      await AsyncStorage.setItem('userTheme', newTheme ? 'dark' : 'light');
-    } catch (e) {
-      console.log("Failed to save theme");
+      await AsyncStorage.setItem('userTheme', newThemeStatus ? 'dark' : 'light');
+    } catch (error) {
+      console.log('Error saving theme:', error);
     }
   };
 
-  const theme: ThemeShape = {
-    background: isDark ? '#002747' : '#F2F2F7',
-    card:       isDark ? '#1E3C5A' : '#FFFFFF',
-    text:       isDark ? '#FFFFFF' : '#000000',
-    subText:    isDark ? '#a7a7a7' : '#666666',
-    icon:       isDark ? '#8FD3FF' : '#007AFF',
-    border:     isDark ? '#305d7b' : '#E5E5EA',
-  };
+  const theme = isDark ? DarkTheme : LightTheme;
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme, theme }}>
+    <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
+      {/* CONTROL STATUS BAR HERE - This prevents the crash loop! */}
+      <StatusBar style={isDark ? "light" : "dark"} />
+      
       {children}
     </ThemeContext.Provider>
   );
 };
 
-// 5. Custom Hook with error handling
-export const useTheme = (): ThemeContextType => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
-};
+export const useTheme = () => useContext(ThemeContext);

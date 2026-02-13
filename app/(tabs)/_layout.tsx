@@ -4,6 +4,7 @@ import { Image, View } from "react-native";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
+import { useTheme } from "../themeContext";
 
 const IconC = ({ focused, icon, title }: any) => {
   return (
@@ -20,13 +21,22 @@ const IconC = ({ focused, icon, title }: any) => {
 };
 
 export default function _layout() {
+  // 2. Grab the theme
+  const { theme } = useTheme();
+
   return (
     <Tabs
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: "#002747",
+          // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
+          backgroundColor: theme.card, 
+          borderTopColor: theme.border,
         },
+        headerStyle: {
+            backgroundColor: theme.card,
+        },
+        headerTintColor: theme.text,
       }}
     >
       <Tabs.Screen
@@ -36,14 +46,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.home}
-              //title= "Extra"
-            />
+            <IconC focused={focused} icon={icons.home} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="map"
         options={{
@@ -51,14 +57,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.menu}
-              //title= "Map"
-            />
+            <IconC focused={focused} icon={icons.menu} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="index"
         options={{
@@ -69,7 +71,7 @@ export default function _layout() {
             <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="news"
         options={{
@@ -77,14 +79,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.forum}
-              //title= "News"
-            />
+            <IconC focused={focused} icon={icons.forum} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -92,14 +90,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.person}
-              //title= "Profile"
-            />
+            <IconC focused={focused} icon={icons.person} />
           ),
         }}
-      ></Tabs.Screen>
+      />
     </Tabs>
   );
 }

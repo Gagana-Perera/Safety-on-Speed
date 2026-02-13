@@ -1,19 +1,19 @@
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
+import { ThemeProvider } from "./themeContext";
 import "./global.css";
 
 export default function RootLayout() {
   return (
-    <Stack>
-      <Redirect href={"/session"} />
-      <Stack.Screen name="session" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/login" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="auth/forgot-password"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="editProfile" options={{ headerShown: false }} />
-    </Stack>
+    <ThemeProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="session" />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/forgot-password" />
+        <Stack.Screen name="auth/sign-up" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="editProfile" />
+      </Stack>
+    </ThemeProvider>
   );
 }
