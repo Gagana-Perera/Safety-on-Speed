@@ -615,7 +615,7 @@ export default function MapScreen() {
         moveToPlace(details);
       }
     })();
-  }, [params?.placeId]);
+  }, [params?.placeId, params?.t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
