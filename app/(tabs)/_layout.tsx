@@ -7,6 +7,7 @@ import type { SvgProps } from "react-native-svg";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
+import { useTheme } from "../themeContext";
 
 type IconSource = ComponentType<SvgProps> | ImageSourcePropType;
 
@@ -37,13 +38,22 @@ const IconC = ({ focused, icon }: IconCProps) => {
 };
 
 export default function _layout() {
+  // 2. Grab the theme
+  const { theme } = useTheme();
+
   return (
     <Tabs
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: "#002747",
+          // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
+          backgroundColor: theme.card, 
+          borderTopColor: theme.border,
         },
+        headerStyle: {
+            backgroundColor: theme.card,
+        },
+        headerTintColor: theme.text,
       }}
     >
       <Tabs.Screen
@@ -52,7 +62,7 @@ export default function _layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC
               focused={focused}
               icon={icons.home}
@@ -60,14 +70,14 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="map"
         options={{
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC
               focused={focused}
               icon={icons.menu}
@@ -75,25 +85,25 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="news"
         options={{
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC
               focused={focused}
               icon={icons.forum}
@@ -101,14 +111,14 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC
               focused={focused}
               icon={icons.person}
@@ -116,7 +126,7 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
     </Tabs>
   );
 }
