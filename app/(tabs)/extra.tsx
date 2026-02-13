@@ -169,9 +169,9 @@ export default function EmergencyServices() {
 
       if (placeId) {
         // Open inside our app Map tab and load details for this placeId.
-        router.push({
+        router.replace({
           pathname: "/(tabs)/map",
-          params: { placeId },
+          params: { placeId, t: Date.now().toString() },
         });
       } else {
         Alert.alert(
@@ -215,7 +215,9 @@ export default function EmergencyServices() {
           {/* Call Button */}
           <TouchableOpacity
             onPress={() => handleCallAction(item)}
-            disabled={loadingStatus?.id === item.id}
+            disabled={
+              loadingStatus?.id === item.id && loadingStatus?.type === "call"
+            }
             className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
           >
             {loadingStatus?.id === item.id && loadingStatus?.type === "call" ? (
@@ -234,7 +236,9 @@ export default function EmergencyServices() {
           {item.hasMap && (
             <TouchableOpacity
               onPress={() => handleMapAction(item)}
-              disabled={loadingStatus?.id === item.id}
+              disabled={
+                loadingStatus?.id === item.id && loadingStatus?.type === "map"
+              }
               className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1"
             >
               {loadingStatus?.id === item.id &&
