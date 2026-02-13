@@ -19,3 +19,15 @@ export async function loginUser(email: string, password: string) {
   // If login succeeds, return the logged user
   return data.user;
 }
+
+/**
+ * LOGOUT FUNCTION
+ * This signs out the current user from Supabase.
+ */
+export async function logoutUser() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw error;
+  }
+}

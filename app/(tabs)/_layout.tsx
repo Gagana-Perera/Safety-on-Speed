@@ -7,6 +7,20 @@ import { officialdoc } from "@/constants/officialdoc";
 import { useTheme } from "../themeContext";
 
 const IconC = ({ focused, icon, title }: any) => {
+  // SVGs imported via transformer are functions/components
+  if (typeof icon === "function") {
+    const IconComponent = icon;
+    return (
+      <View className="items-center justify-center">
+        <IconComponent
+          width={28}
+          height={28}
+          fill={focused ? "#A4E4FF" : "#FFFFFF"}
+        />
+      </View>
+    );
+  }
+
   return (
     <View className="items-center justify-center">
       <Image
@@ -45,8 +59,12 @@ export default function _layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC focused={focused} icon={icons.home} />
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <IconC
+              focused={focused}
+              icon={icons.home}
+              //title= "Extra"
+            />
           ),
         }}
       />
@@ -56,8 +74,12 @@ export default function _layout() {
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC focused={focused} icon={icons.menu} />
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <IconC
+              focused={focused}
+              icon={icons.menu}
+              //title= "Map"
+            />
           ),
         }}
       />
@@ -67,7 +89,7 @@ export default function _layout() {
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
             <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
@@ -78,8 +100,12 @@ export default function _layout() {
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC focused={focused} icon={icons.forum} />
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <IconC
+              focused={focused}
+              icon={icons.forum}
+              //title= "News"
+            />
           ),
         }}
       />
@@ -89,8 +115,12 @@ export default function _layout() {
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC focused={focused} icon={icons.person} />
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <IconC
+              focused={focused}
+              icon={icons.person}
+              //title= "Profile"
+            />
           ),
         }}
       />

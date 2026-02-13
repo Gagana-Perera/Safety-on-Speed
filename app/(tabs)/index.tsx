@@ -4,6 +4,11 @@ import { useTheme } from '../themeContext';
 
 export default function Home() {
   const { theme } = useTheme();
+import { Link } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import {Link} from "expo-router";
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

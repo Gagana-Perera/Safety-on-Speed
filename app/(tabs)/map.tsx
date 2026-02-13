@@ -1,21 +1,24 @@
+import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Keyboard,
   Linking,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { Feather } from "@expo/vector-icons";
 
 import MapView, {
   LatLng,
@@ -41,6 +44,7 @@ type Coords = { latitude: number; longitude: number };
 
 export default function MapScreen() {
   const params = useLocalSearchParams<{ placeId?: string | string[] }>();
+  const router = useRouter();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
@@ -83,6 +87,65 @@ export default function MapScreen() {
   } | null>(null);
 
   const lastOpenedPlaceIdRef = useRef<string | null>(null);
+
+  const makePhoneCall = async (phoneNumber: string) => {
+    const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
+    if (!cleaned) {
+      Alert.alert("Invalid number", "This place has an invalid phone number.");
+      return;
+    }
+
+    const url =
+      Platform.OS === "ios" ? `telprompt:${cleaned}` : `tel:${cleaned}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert("Call not supported", "This device cannot place calls.");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (e) {
+      console.error("[Call] openURL error:", e);
+      Alert.alert("Call failed", "Could not open the phone dialer.");
+    }
+  };
+
+  const openGoogleMapsDirections = async (destination: Coords) => {
+    const dest = `${destination.latitude},${destination.longitude}`;
+
+    // Prefer opening the Google Maps app when possible.
+    const androidAppUrl = `google.navigation:q=${encodeURIComponent(dest)}&mode=d`;
+    const iosAppUrl = `comgooglemaps://?daddr=${encodeURIComponent(dest)}&directionsmode=driving`;
+
+    const originQuery = hasLocation
+      ? `&origin=${encodeURIComponent(`${coords.latitude},${coords.longitude}`)}`
+      : "";
+    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}${originQuery}&travelmode=driving`;
+
+    try {
+      if (Platform.OS === "android") {
+        const can = await Linking.canOpenURL(androidAppUrl);
+        if (can) {
+          await Linking.openURL(androidAppUrl);
+          return;
+        }
+      }
+
+      if (Platform.OS === "ios") {
+        const can = await Linking.canOpenURL(iosAppUrl);
+        if (can) {
+          await Linking.openURL(iosAppUrl);
+          return;
+        }
+      }
+
+      await Linking.openURL(webUrl);
+    } catch (e) {
+      console.error("[Route] openGoogleMapsDirections error:", e);
+      Alert.alert("Could not open Google Maps", "Please try again.");
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -312,6 +375,51 @@ export default function MapScreen() {
     return R * c;
   };
 
+  const formatDistance = (meters: number): string => {
+    if (!Number.isFinite(meters) || meters <= 0) return "";
+    if (meters < 1000) return `${Math.round(meters)}m`;
+    return `${(meters / 1000).toFixed(1)}km`;
+  };
+
+  const getCategoryLabel = (types?: string[]): string => {
+    const list = Array.isArray(types) ? types : [];
+    if (list.includes("hospital")) return "Hospital";
+    if (list.includes("police")) return "Police";
+    if (list.includes("gas_station")) return "Fuel";
+    if (list.includes("pharmacy")) return "Pharmacy";
+    if (list.includes("restaurant")) return "Food";
+    return "Place";
+  };
+
+  const getSafetyNote = (types?: string[]): string | null => {
+    const list = Array.isArray(types) ? types : [];
+    if (list.includes("hospital")) {
+      return "Safe zone nearby. This hospital can help in emergencies.";
+    }
+    if (list.includes("police")) {
+      return "Safe zone nearby. This police station can assist you.";
+    }
+    return null;
+  };
+
+  const sharePlace = async (place: PlaceDetails) => {
+    const url =
+      place.googleMapsUrl ||
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        `${place.latitude},${place.longitude}`,
+      )}`;
+
+    const lines = [place.name];
+    if (place.address) lines.push(place.address);
+    lines.push(url);
+
+    try {
+      await Share.share({ message: lines.join("\n") });
+    } catch {
+      // ignore
+    }
+  };
+
   const ensureGoogleApiKey = (): string | null => {
     const key = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
     if (!key) {
@@ -331,26 +439,26 @@ export default function MapScreen() {
     const coordinates: LatLng[] = [];
 
     while (index < encoded.length) {
-      let result = 0;
-      let shift = 0;
       let b: number;
+      let shift = 0;
+      let result = 0;
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      const deltaLat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lat += deltaLat;
+      const dlat = result & 1 ? ~(result >> 1) : result >> 1;
+      lat += dlat;
 
-      result = 0;
       shift = 0;
+      result = 0;
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lng += deltaLng;
+      const dlng = result & 1 ? ~(result >> 1) : result >> 1;
+      lng += dlng;
 
       coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
     }
@@ -361,15 +469,17 @@ export default function MapScreen() {
   const fetchDirections = async (destination: Coords) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
+
     if (!hasLocation) {
-      Alert.alert("Location needed", "Enable location to get directions.");
+      Alert.alert("Location required", "Enable location to get directions.");
       return;
     }
 
+    setDirectionsLoading(true);
     try {
-      setDirectionsLoading(true);
       const origin = `${coords.latitude},${coords.longitude}`;
       const dest = `${destination.latitude},${destination.longitude}`;
+
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
         origin,
       )}&destination=${encodeURIComponent(dest)}&mode=driving&key=${encodeURIComponent(
@@ -379,72 +489,59 @@ export default function MapScreen() {
       const response = await fetch(url);
       const data = await response.json();
 
-      if (data.status !== "OK" || !data.routes?.length) {
-        Alert.alert(
-          "Directions error",
-          data.error_message || "No route found.",
-        );
+      if (!data || data.status !== "OK" || !Array.isArray(data.routes)) {
+        console.error("[Directions]", data?.status, data?.error_message);
+        Alert.alert("Directions unavailable", "Could not fetch a route.");
         return;
       }
 
-      const first = data.routes[0];
-      const leg = first.legs?.[0];
-      const points = first.overview_polyline?.points;
-      if (!leg || !points) {
-        Alert.alert("Directions error", "Route data missing.");
-        return;
-      }
+      const firstRoute = data.routes[0];
+      const encoded: string | undefined = firstRoute?.overview_polyline?.points;
+      const leg = Array.isArray(firstRoute?.legs) ? firstRoute.legs[0] : null;
 
-      const poly = decodePolyline(points);
+      const polyline = encoded ? decodePolyline(encoded) : [];
+
       setRoute({
-        polyline: poly,
-        distanceText: leg.distance?.text || "",
-        durationText: leg.duration?.text || "",
+        polyline,
+        distanceText: leg?.distance?.text || "",
+        durationText: leg?.duration?.text || "",
         destination,
       });
 
-      mapRef.current?.fitToCoordinates(
-        [
-          { latitude: coords.latitude, longitude: coords.longitude },
-          destination,
-          ...poly,
-        ],
-        {
-          edgePadding: { top: 140, right: 40, bottom: 240, left: 40 },
+      if (polyline.length) {
+        mapRef.current?.fitToCoordinates(polyline, {
+          edgePadding: { top: 160, right: 40, bottom: 240, left: 40 },
           animated: true,
-        },
-      );
+        });
+      }
     } catch (e) {
       console.error(e);
-      Alert.alert("Directions error", "Could not fetch directions.");
+      Alert.alert("Error", "Could not fetch directions.");
     } finally {
       setDirectionsLoading(false);
     }
   };
 
-  const POI_CATEGORIES: Array<{ key: string; label: string; keyword: string }> =
-    [
-      { key: "hospital", label: "Hospitals", keyword: "hospital" },
-      { key: "police", label: "Police", keyword: "police station" },
-      { key: "fuel", label: "Fuel", keyword: "gas station" },
-      { key: "pharmacy", label: "Pharmacy", keyword: "pharmacy" },
-      { key: "restaurant", label: "Food", keyword: "restaurant" },
-    ];
+  const POI_CATEGORIES = [
+    { key: "police", label: "Police", keyword: "police station" },
+    { key: "hospital", label: "Hospitals", keyword: "hospital" },
+    { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy" },
+    { key: "fuel", label: "Fuel", keyword: "gas station" },
+  ] as const;
 
-  const loadPoiCategory = async (catKey: string, keyword: string) => {
+  const loadPoiCategory = async (key: string, keyword: string) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
 
+    setActivePoiKey(key);
     setPoiLoading(true);
-    setActivePoiKey(catKey);
-    setPlaceError(null);
     try {
-      const base = hasLocation ? coords : displayCenter;
       const list = await searchNearbyPlaces(
-        base.latitude,
-        base.longitude,
+        mapRegion.latitude,
+        mapRegion.longitude,
         keyword,
       );
+
       setNearbyPlaces(list);
       setSelectedPlace(null);
       setRoute(null);
@@ -797,6 +894,8 @@ export default function MapScreen() {
 
         {selectedPlace && (
           <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+
             {(placeLoading || directionsLoading) && (
               <View style={styles.sheetLoadingRow}>
                 <ActivityIndicator size="small" color="#2F6FED" />
@@ -821,28 +920,69 @@ export default function MapScreen() {
                   const url = getPlacePhotoUrl(item.photoReference, 900);
                   if (!url) return null;
                   return (
-                    <Image
+                    <ExpoImage
                       source={{ uri: url }}
                       style={styles.sheetPhoto}
-                      resizeMode="cover"
                       onError={(e) => {
-                        console.error(
-                          "[Place Photo] load error:",
-                          url,
-                          e?.nativeEvent,
-                        );
+                        console.error("[Place Photo] load error:", url, e);
                       }}
+                      contentFit="cover"
                     />
                   );
                 }}
               />
-            ) : null}
+            ) : (
+              <Text style={styles.sheetPhotosEmpty}>
+                No photos available for this place.
+              </Text>
+            )}
 
-            <Text style={styles.sheetTitle} numberOfLines={1}>
-              {selectedPlace.name}
-            </Text>
+            <View style={styles.sheetHeaderRow}>
+              <View style={styles.sheetHeaderIcon}>
+                <Feather
+                  name={
+                    getCategoryLabel(selectedPlace.types) === "Hospital"
+                      ? "plus"
+                      : getCategoryLabel(selectedPlace.types) === "Police"
+                        ? "shield"
+                        : "map-pin"
+                  }
+                  size={18}
+                  color="#0B253A"
+                />
+              </View>
+
+              <View style={styles.sheetHeaderText}>
+                <Text style={styles.sheetTitle} numberOfLines={1}>
+                  {selectedPlace.name}
+                </Text>
+
+                <Text style={styles.sheetSubtitle} numberOfLines={1}>
+                  {getCategoryLabel(selectedPlace.types)}
+                  {hasLocation
+                    ? ` • ${formatDistance(
+                        distanceMeters(coords, {
+                          latitude: selectedPlace.latitude,
+                          longitude: selectedPlace.longitude,
+                        }),
+                      )} away`
+                    : ""}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedPlace(null);
+                  setRoute(null);
+                }}
+                style={styles.sheetClose}
+              >
+                <Feather name="x" size={18} color="#0B253A" />
+              </TouchableOpacity>
+            </View>
+
             {selectedPlace.address ? (
-              <Text style={styles.sheetSubtitle} numberOfLines={2}>
+              <Text style={styles.sheetAddress} numberOfLines={2}>
                 {selectedPlace.address}
               </Text>
             ) : null}
@@ -866,13 +1006,6 @@ export default function MapScreen() {
                   {selectedPlace.isOpenNow ? "Open now" : "Closed"}
                 </Text>
               ) : null}
-              {typeof selectedPlace.priceLevel === "number" ? (
-                <Text style={styles.sheetMetaPill}>
-                  {"$".repeat(
-                    Math.max(1, Math.min(4, selectedPlace.priceLevel)),
-                  )}
-                </Text>
-              ) : null}
             </View>
 
             {route ? (
@@ -881,57 +1014,76 @@ export default function MapScreen() {
               </Text>
             ) : null}
 
-            <View style={styles.sheetRow}>
+            <View style={styles.sheetActionsRow}>
               <TouchableOpacity
-                style={styles.sheetButtonPrimary}
+                style={[styles.sheetActionBtn, styles.actionNeutral]}
+                onPress={() => {
+                  if (!selectedPlace.phoneNumber) {
+                    Alert.alert(
+                      "No phone number",
+                      "This place doesn't have a phone number listed.",
+                    );
+                    return;
+                  }
+                  void makePhoneCall(selectedPlace.phoneNumber);
+                }}
+              >
+                <Feather name="phone" size={16} color="#0B253A" />
+                <Text style={styles.sheetActionText}>Call</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.sheetActionBtn, styles.actionBlue]}
                 onPress={() =>
-                  void fetchDirections({
+                  void openGoogleMapsDirections({
                     latitude: selectedPlace.latitude,
                     longitude: selectedPlace.longitude,
                   })
                 }
               >
-                <Text style={styles.sheetButtonPrimaryText}>Directions</Text>
+                <Feather name="navigation" size={16} color="#0B253A" />
+                <Text style={styles.sheetActionText}>Route</Text>
               </TouchableOpacity>
 
-              {selectedPlace.phoneNumber ? (
-                <TouchableOpacity
-                  style={styles.sheetButton}
-                  onPress={() =>
-                    void Linking.openURL(
-                      `tel:${selectedPlace.phoneNumber?.replace(/\s+/g, "")}`,
-                    )
-                  }
-                >
-                  <Text style={styles.sheetButtonText}>Call</Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {selectedPlace.website ? (
-                <TouchableOpacity
-                  style={styles.sheetButton}
-                  onPress={() => void Linking.openURL(selectedPlace.website!)}
-                >
-                  <Text style={styles.sheetButtonText}>Website</Text>
-                </TouchableOpacity>
-              ) : null}
-
               <TouchableOpacity
-                style={styles.sheetButton}
-                onPress={() => setRoute(null)}
-              >
-                <Text style={styles.sheetButtonText}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.sheetButton}
+                style={[styles.sheetActionBtn, styles.actionRed]}
                 onPress={() => {
-                  setSelectedPlace(null);
-                  setRoute(null);
+                  Alert.alert("Emergency", "Open Emergency Services?", [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Open",
+                      style: "default",
+                      onPress: () => router.push("/(tabs)/extra"),
+                    },
+                  ]);
                 }}
               >
-                <Text style={styles.sheetButtonText}>Close</Text>
+                <Feather name="alert-triangle" size={16} color="#0B253A" />
+                <Text style={styles.sheetActionText}>SOS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.sheetActionBtn, styles.actionGreen]}
+                onPress={() => void sharePlace(selectedPlace)}
+              >
+                <Feather name="share-2" size={16} color="#0B253A" />
+                <Text style={styles.sheetActionText}>Share</Text>
               </TouchableOpacity>
             </View>
+
+            {getSafetyNote(selectedPlace.types) ? (
+              <View style={styles.sheetSafetyCard}>
+                <View style={styles.sheetSafetyIcon}>
+                  <Feather name="shield" size={16} color="#0B253A" />
+                </View>
+                <View style={styles.sheetSafetyTextWrap}>
+                  <Text style={styles.sheetSafetyTitle}>Safe zone nearby.</Text>
+                  <Text style={styles.sheetSafetyText} numberOfLines={2}>
+                    {getSafetyNote(selectedPlace.types)}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         )}
       </View>
@@ -1084,6 +1236,44 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+    marginBottom: 10,
+  },
+  sheetHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sheetHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sheetClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetAddress: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "rgba(11,37,58,0.75)",
+  },
   sheetLoadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1104,6 +1294,12 @@ const styles = StyleSheet.create({
   sheetPhotosRow: {
     gap: 10,
     paddingBottom: 10,
+  },
+  sheetPhotosEmpty: {
+    paddingBottom: 10,
+    color: "rgba(0,0,0,0.55)",
+    fontSize: 12,
+    fontWeight: "600",
   },
   sheetPhoto: {
     width: 120,
@@ -1149,35 +1345,71 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239,68,68,0.12)",
     color: "#991B1B",
   },
-  sheetRow: {
+  sheetActionsRow: {
     marginTop: 12,
     flexDirection: "row",
     gap: 10,
   },
-  sheetButtonPrimary: {
+  sheetActionBtn: {
     flex: 1,
-    backgroundColor: "#2F6FED",
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
   },
-  sheetButtonPrimaryText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sheetButton: {
-    backgroundColor: "rgba(0,0,0,0.06)",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sheetButtonText: {
+  sheetActionText: {
     color: "#0B253A",
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 13,
+  },
+  actionNeutral: {
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  actionBlue: {
+    backgroundColor: "rgba(47,111,237,0.14)",
+  },
+  actionRed: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+  },
+  actionGreen: {
+    backgroundColor: "rgba(16,185,129,0.16)",
+  },
+  sheetSafetyCard: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(254,148,0,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(254,148,0,0.18)",
+  },
+  sheetSafetyIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetSafetyTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sheetSafetyTitle: {
+    color: "#0B253A",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  sheetSafetyText: {
+    marginTop: 2,
+    color: "rgba(11,37,58,0.75)",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
