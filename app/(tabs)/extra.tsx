@@ -128,19 +128,22 @@ export default function EmergencyServices() {
       return;
     }
 
-    setLoadingStatus({ id: item.id, type: "call" }); // Specifically set 'call' loading
+    console.log(`[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    setLoadingStatus({ id: item.id, type: "call" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
         return;
       }
 
       const phoneNumber = await getPlaceMobileNumber(placeId);
+      console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
         makePhoneCall(phoneNumber);
       } else {
@@ -150,6 +153,7 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
+      console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
     } finally {
       setLoadingStatus(null);
@@ -159,16 +163,19 @@ export default function EmergencyServices() {
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
-    setLoadingStatus({ id: item.id, type: "map" }); // Specifically set 'map' loading
+    console.log(`[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    setLoadingStatus({ id: item.id, type: "map" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Map] PlaceId result:`, placeId);
 
       if (placeId) {
         // Open inside our app Map tab and load details for this placeId.
+        console.log(`[Map] Navigating to map with placeId:`, placeId);
         router.replace({
           pathname: "/(tabs)/map",
           params: { placeId, t: Date.now().toString() },
@@ -180,6 +187,7 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
+      console.error("[Map] Error:", error);
       Alert.alert("Error", "Could not open in-app map.");
     } finally {
       setLoadingStatus(null);
