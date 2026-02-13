@@ -7,8 +7,6 @@ export default function Home() {
 import { Link } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import {Link} from "expo-router";
-
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -46,41 +44,7 @@ import {Link} from "expo-router";
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 60, // Space for status bar
-  },
-  header: {
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 18,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    // Shadow for iOS/Android
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  cardText: {
-    fontSize: 14,
-    lineHeight: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

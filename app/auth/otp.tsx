@@ -3,14 +3,14 @@ import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 const OTP_LENGTH = 8;
@@ -152,25 +152,10 @@ export default function SignUpOtp() {
         // Don't stop flow?
       }
 
-      // 4. Save Guardians
-      if (draft.guardians && draft.guardians.length > 0) {
-        const guardiansPayload = draft.guardians.map((g) => ({
-          user_id: user.id,
-          name: g.name,
-          phone_number: g.phone,
-        }));
-
-        const { error: guardianError } = await supabase
-          .from("guardians")
-          .insert(guardiansPayload);
-        if (guardianError) {
-          console.error("Guardian save error:", guardianError);
-        }
-      }
-
+      // 4. Redirect to Guardian Setup
       clearSignupDraft();
       Alert.alert("Success", "Account created successfully!");
-      router.replace("/session"); // or /(tabs)
+      router.replace("/auth/guardian-setup");
     } catch (error: any) {
       Alert.alert("Verification Failed", error.message);
     } finally {
