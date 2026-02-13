@@ -2,19 +2,19 @@ import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableWithoutFeedback,
-  View,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 
 type Step = "request" | "verify";
 
@@ -58,13 +58,13 @@ export default function ForgotPassword() {
       setOtp("");
       Alert.alert(
         "OTP sent",
-        "Check your email for the 6-digit code to continue."
+        "Check your email for the 8-digit code to continue.",
       );
       otpInputRef.current?.focus();
     } catch (error: any) {
       Alert.alert(
         "Couldn't send code",
-        error?.message ?? "Please try again in a moment."
+        error?.message ?? "Please try again in a moment.",
       );
     } finally {
       setLoading(false);
@@ -83,14 +83,14 @@ export default function ForgotPassword() {
     }
 
     if (otp.length !== OTP_LENGTH) {
-      Alert.alert("Invalid code", "Please enter the 6-digit code we sent.");
+      Alert.alert("Invalid code", "Please enter the 8-digit code we sent.");
       return;
     }
 
     if (!newPassword || newPassword.length < 8) {
       Alert.alert(
         "Weak password",
-        "Please use at least 8 characters for your new password."
+        "Please use at least 8 characters for your new password.",
       );
       return;
     }
@@ -105,7 +105,7 @@ export default function ForgotPassword() {
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: trimmedEmail,
         token: otp,
-        type: "email",
+        type: "magiclink",
       });
 
       if (verifyError) {
@@ -124,13 +124,13 @@ export default function ForgotPassword() {
 
       Alert.alert(
         "Password updated",
-        "You can now sign in with your new password."
+        "You can now sign in with your new password.",
       );
       router.replace("/auth/login");
     } catch (error: any) {
       Alert.alert(
         "Verification failed",
-        error?.message ?? "Please check the code and try again."
+        error?.message ?? "Please check the code and try again.",
       );
     } finally {
       setLoading(false);
@@ -217,7 +217,7 @@ export default function ForgotPassword() {
               />
               <View className="h-[3px] bg-white/40 rounded-full mt-2" />
               <Text className="text-white/60 text-lg mt-4 font-light">
-                We'll email a 6-digit code to this address.
+                We'll email a 8-digit code to this address.
               </Text>
             </View>
 
