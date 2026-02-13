@@ -1,35 +1,38 @@
 import { Tabs } from "expo-router";
+import type { ComponentType } from "react";
 import React from "react";
+import type { ImageSourcePropType } from "react-native";
 import { Image, View } from "react-native";
+import type { SvgProps } from "react-native-svg";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 import { useTheme } from "../themeContext";
 
-const IconC = ({ focused, icon, title }: any) => {
-  // SVGs imported via transformer are functions/components
-  if (typeof icon === "function") {
-    const IconComponent = icon;
-    return (
-      <View className="items-center justify-center">
-        <IconComponent
-          width={28}
-          height={28}
-          fill={focused ? "#A4E4FF" : "#FFFFFF"}
-        />
-      </View>
-    );
-  }
+type IconSource = ComponentType<SvgProps> | ImageSourcePropType;
+
+type IconCProps = {
+  focused: boolean;
+  icon: IconSource;
+  title?: string;
+};
+
+const IconC = ({ focused, icon }: IconCProps) => {
+  const isSvg = typeof icon === "function";
+  const isLogo = !isSvg && icon === officialdoc.logo;
+  const size = isLogo ? 40 : 28;
+  const SvgIcon = isSvg ? (icon as ComponentType<SvgProps>) : null;
 
   return (
     <View className="items-center justify-center">
-      <Image
-        source={icon}
-        className={
-          icon === officialdoc.logo ? "size-10 rounded-full" : "size-7"
-        }
-        style={{ opacity: focused ? 1 : 0.8 }}
-      />
+      {SvgIcon ? (
+        <SvgIcon width={size} height={size} opacity={focused ? 1 : 0.8} />
+      ) : (
+        <Image
+          source={icon as ImageSourcePropType}
+          style={{ width: size, height: size, opacity: focused ? 1 : 0.8 }}
+        />
+      )}
     </View>
   );
 };
