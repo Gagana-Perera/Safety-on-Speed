@@ -1,4 +1,5 @@
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
+import { ThemeProvider } from "./themeContext";
 import "./global.css";
 
 export default function RootLayout() {

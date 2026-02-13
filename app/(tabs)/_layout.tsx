@@ -4,6 +4,7 @@ import { Image, View } from "react-native";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
+import { useTheme } from "../themeContext";
 
 const IconC = ({ focused, icon, title }: any) => {
   // SVGs imported via transformer are functions/components
@@ -34,18 +35,22 @@ const IconC = ({ focused, icon, title }: any) => {
 };
 
 export default function _layout() {
+  // 2. Grab the theme
+  const { theme } = useTheme();
+
   return (
     <Tabs
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: "#002747",
-          borderTopWidth: 0,
-          height: 60,
-          paddingTop: 10,
+          // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
+          backgroundColor: theme.card, 
+          borderTopColor: theme.border,
         },
-        tabBarActiveTintColor: "#A4E4FF",
-        tabBarInactiveTintColor: "#FFFFFF",
+        headerStyle: {
+            backgroundColor: theme.card,
+        },
+        headerTintColor: theme.text,
       }}
     >
       <Tabs.Screen
@@ -62,7 +67,7 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="map"
         options={{
@@ -77,7 +82,7 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="index"
         options={{
@@ -88,7 +93,7 @@ export default function _layout() {
             <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="news"
         options={{
@@ -103,7 +108,7 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -118,7 +123,7 @@ export default function _layout() {
             />
           ),
         }}
-      ></Tabs.Screen>
+      />
     </Tabs>
   );
 }
