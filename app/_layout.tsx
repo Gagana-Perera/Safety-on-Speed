@@ -1,41 +1,23 @@
-import { Stack } from "expo-router";
-import "./global.css";
-import { ThemeProvider } from "./themeContext";
-
-export default function RootLayout() {
-  return (
-    <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="session" />
-        <Stack.Screen name="auth/login" />
-        <Stack.Screen name="auth/forgot-password" />
-        <Stack.Screen name="auth/sign-up" />
-        <Stack.Screen name="auth/setup" />
-        <Stack.Screen name="auth/otp" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </ThemeProvider>
-  );
-}
-
-{
-  /*}
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { Redirect, Stack } from "expo-router";
 import "./global.css";
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="light" translucent />
-
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
+    <Stack>
+      <Redirect href={"/session"} />
+      <Stack.Screen name="session" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="auth/forgot-password"
+        options={{ headerShown: false }}
       />
-    </>
+      <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="auth/guardian-setup"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
   );
-}
-  */
 }
