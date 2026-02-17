@@ -1289,7 +1289,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#8FD3FF",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1299,7 +1299,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: "#8FD3FF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1318,7 +1318,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   poiChip: {
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "#8FD3FF",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
