@@ -1,6 +1,5 @@
 import { Stack } from "expo-router";
 import "./global.css";
-import { ThemeProvider } from "./themeContext";
 
 export default function RootLayout() {
   return (
@@ -37,8 +36,13 @@ export default function RootLayout() {
           headerShown: false,
         }}
       />
-    </>
+      <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="auth/guardian-setup"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
   );
-}
-  */
 }

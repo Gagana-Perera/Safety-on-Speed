@@ -5,34 +5,49 @@ import { ActivityIndicator, Image, View } from "react-native";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
-import { useTheme } from "../themeContext";
 
 const IconC = ({ focused, icon, title }: any) => {
-  // SVGs imported via transformer are functions/components
-  if (typeof icon === "function") {
-    const IconComponent = icon;
+  if (focused) {
     return (
-      <View className="items-center justify-center">
-        <IconComponent
-          width={28}
-          height={28}
-          fill={focused ? "#A4E4FF" : "#FFFFFF"}
-        />
-      </View>
+      <ImageBackground
+        //source={}
+        className=""
+      >
+        {icon === officialdoc.logo ? ( 
+          <Image 
+              source={icon} 
+              className="size-12 mt-14 rounded-full"
+          />) : (
+            <Image 
+              source={icon} 
+              className="size-12 mt-14"
+          />
+          )}
+        {/* <Text className="pl-2 text-xs">{title}</Text> */}
+        
+      </ImageBackground>
+    );
+  } else {
+    return (
+      <ImageBackground
+        //source={}
+        className=""
+      >
+        {icon === officialdoc.logo ? ( 
+          <Image 
+              source={icon} 
+              className="size-12 mt-14 rounded-full"
+          />) : (
+            <Image 
+              source={icon} 
+              className="size-12 mt-14"
+          />
+          )}
+        {/* <Text className="pl-2 text-xl">{title}</Text> */}
+        
+      </ImageBackground>
     );
   }
-
-  return (
-    <View className="items-center justify-center">
-      <Image
-        source={icon}
-        className={
-          icon === officialdoc.logo ? "size-10 rounded-full" : "size-7"
-        }
-        style={{ opacity: focused ? 1 : 0.8 }}
-      />
-    </View>
-  );
 };
 
 export default function _layout() {
@@ -76,7 +91,7 @@ export default function _layout() {
   }
 
   return (
-    <Tabs
+    <Tabs 
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
@@ -96,71 +111,73 @@ export default function _layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <IconC
-              focused={focused}
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
               icon={icons.home}
-              //title= "Extra"
+              //title= "Extra" 
             />
           ),
         }}
-      />
+      ></Tabs.Screen>
       <Tabs.Screen
         name="map"
         options={{
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <IconC
-              focused={focused}
-              icon={icons.menu}
-              //title= "Map"
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              icon={icons.home}
+              //title= "Map" 
             />
           ),
         }}
-      />
+      ></Tabs.Screen>
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <IconC focused={focused} icon={officialdoc.logo} />
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
+              icon={officialdoc.logo}/>
           ),
         }}
-      />
+      ></Tabs.Screen>
       <Tabs.Screen
         name="news"
         options={{
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <IconC
-              focused={focused}
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
               icon={icons.forum}
-              //title= "News"
+              //title= "News" 
             />
           ),
         }}
-      />
+      ></Tabs.Screen>
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <IconC
-              focused={focused}
+          tabBarIcon: ({ focused }) => (
+            <IconC 
+              focused={focused} 
               icon={icons.person}
-              //title= "Profile"
+              //title= "Profile" 
             />
           ),
         }}
-      />
+      ></Tabs.Screen>
     </Tabs>
   );
 }

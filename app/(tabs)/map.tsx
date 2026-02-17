@@ -43,7 +43,10 @@ import {
 type Coords = { latitude: number; longitude: number };
 
 export default function MapScreen() {
-  const params = useLocalSearchParams<{ placeId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    placeId?: string | string[];
+    t?: string | string[];
+  }>();
   const router = useRouter();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
@@ -594,7 +597,10 @@ export default function MapScreen() {
     const raw = params?.placeId;
     const placeId = Array.isArray(raw) ? raw[0] : raw;
     if (!placeId) return;
-    if (lastOpenedPlaceIdRef.current === placeId) return;
+
+    // Allow re-opening if timestamp parameter is present
+    const hasTimestamp = params?.t;
+    if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) return;
 
     lastOpenedPlaceIdRef.current = placeId;
     setInputFocused(false);
@@ -609,7 +615,7 @@ export default function MapScreen() {
         moveToPlace(details);
       }
     })();
-  }, [params?.placeId]);
+  }, [params?.placeId, params?.t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
