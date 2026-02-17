@@ -528,10 +528,9 @@ export default function MapScreen() {
   };
 
   const POI_CATEGORIES = [
-    { key: "police", label: "Police", keyword: "police station" },
+    { key: "police", label: "Police Station", keyword: "police" },
     { key: "hospital", label: "Hospitals", keyword: "hospital" },
     { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy" },
-    { key: "fuel", label: "Fuel", keyword: "gas station" },
   ] as const;
 
   const loadPoiCategory = async (key: string, keyword: string) => {
@@ -902,22 +901,25 @@ export default function MapScreen() {
         </View>
 
         {selectedPlace && (
-          <View style={[
-            styles.sheet,
-            isDark && { backgroundColor: "#031B2E" }
-          ]}>
-            <View style={[
-              styles.sheetHandle,
-              isDark && { backgroundColor: "rgba(255,255,255,0.2)" }
-            ]} />
+          <View
+            style={[styles.sheet, isDark && { backgroundColor: "#031B2E" }]}
+          >
+            <View
+              style={[
+                styles.sheetHandle,
+                isDark && { backgroundColor: "rgba(255,255,255,0.2)" },
+              ]}
+            />
 
             {(placeLoading || directionsLoading) && (
               <View style={styles.sheetLoadingRow}>
                 <ActivityIndicator size="small" color="#2F6FED" />
-                <Text style={[
-                  styles.sheetLoadingText,
-                  isDark && { color: "rgba(255,255,255,0.7)" }
-                ]}>
+                <Text
+                  style={[
+                    styles.sheetLoadingText,
+                    isDark && { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                >
                   {placeLoading ? "Loading details…" : "Loading route…"}
                 </Text>
               </View>
@@ -950,19 +952,23 @@ export default function MapScreen() {
                 }}
               />
             ) : (
-              <Text style={[
-                styles.sheetPhotosEmpty,
-                isDark && { color: "rgba(255,255,255,0.5)" }
-              ]}>
+              <Text
+                style={[
+                  styles.sheetPhotosEmpty,
+                  isDark && { color: "rgba(255,255,255,0.5)" },
+                ]}
+              >
                 No photos available for this place.
               </Text>
             )}
 
             <View style={styles.sheetHeaderRow}>
-              <View style={[
-                styles.sheetHeaderIcon,
-                isDark && { backgroundColor: "rgba(255,255,255,0.1)" }
-              ]}>
+              <View
+                style={[
+                  styles.sheetHeaderIcon,
+                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
+                ]}
+              >
                 <Feather
                   name={
                     getCategoryLabel(selectedPlace.types) === "Hospital"
@@ -977,17 +983,20 @@ export default function MapScreen() {
               </View>
 
               <View style={styles.sheetHeaderText}>
-                <Text style={[
-                  styles.sheetTitle,
-                  isDark && { color: "#FFFFFF" }
-                ]} numberOfLines={1}>
+                <Text
+                  style={[styles.sheetTitle, isDark && { color: "#FFFFFF" }]}
+                  numberOfLines={1}
+                >
                   {selectedPlace.name}
                 </Text>
 
-                <Text style={[
-                  styles.sheetSubtitle,
-                  isDark && { color: "rgba(255,255,255,0.7)" }
-                ]} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.sheetSubtitle,
+                    isDark && { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                  numberOfLines={1}
+                >
                   {getCategoryLabel(selectedPlace.types)}
                   {hasLocation
                     ? ` • ${formatDistance(
@@ -1007,28 +1016,40 @@ export default function MapScreen() {
                 }}
                 style={[
                   styles.sheetClose,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" }
+                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
                 ]}
               >
-                <Feather name="x" size={18} color={isDark ? "#8FD3FF" : "#0B253A"} />
+                <Feather
+                  name="x"
+                  size={18}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
               </TouchableOpacity>
             </View>
 
             {selectedPlace.address ? (
-              <Text style={[
-                styles.sheetAddress,
-                isDark && { color: "rgba(255,255,255,0.6)" }
-              ]} numberOfLines={2}>
+              <Text
+                style={[
+                  styles.sheetAddress,
+                  isDark && { color: "rgba(255,255,255,0.6)" },
+                ]}
+                numberOfLines={2}
+              >
                 {selectedPlace.address}
               </Text>
             ) : null}
 
             <View style={styles.sheetMetaRow}>
               {typeof selectedPlace.rating === "number" ? (
-                <Text style={[
-                  styles.sheetMetaPill,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)" }
-                ]}>
+                <Text
+                  style={[
+                    styles.sheetMetaPill,
+                    isDark && {
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.8)",
+                    },
+                  ]}
+                >
                   ⭐ {selectedPlace.rating.toFixed(1)}
                   {typeof selectedPlace.userRatingsTotal === "number"
                     ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
@@ -1048,10 +1069,12 @@ export default function MapScreen() {
             </View>
 
             {route ? (
-              <Text style={[
-                styles.sheetMeta,
-                isDark && { color: "rgba(255,255,255,0.7)" }
-              ]}>
+              <Text
+                style={[
+                  styles.sheetMeta,
+                  isDark && { color: "rgba(255,255,255,0.7)" },
+                ]}
+              >
                 ETA: {route.durationText} • {route.distanceText}
               </Text>
             ) : null}
@@ -1061,7 +1084,10 @@ export default function MapScreen() {
                 style={[
                   styles.sheetActionBtn,
                   styles.actionNeutral,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)" }
+                  isDark && {
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    borderColor: "rgba(255,255,255,0.2)",
+                  },
                 ]}
                 onPress={() => {
                   if (!selectedPlace.phoneNumber) {
@@ -1074,18 +1100,29 @@ export default function MapScreen() {
                   void makePhoneCall(selectedPlace.phoneNumber);
                 }}
               >
-                <Feather name="phone" size={16} color={isDark ? "#8FD3FF" : "#0B253A"} />
-                <Text style={[
-                  styles.sheetActionText,
-                  isDark && { color: "#8FD3FF" }
-                ]}>Call</Text>
+                <Feather
+                  name="phone"
+                  size={16}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#8FD3FF" },
+                  ]}
+                >
+                  Call
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.sheetActionBtn,
                   styles.actionBlue,
-                  isDark && { backgroundColor: "rgba(47,111,237,0.25)", borderColor: "rgba(47,111,237,0.4)" }
+                  isDark && {
+                    backgroundColor: "rgba(47,111,237,0.25)",
+                    borderColor: "rgba(47,111,237,0.4)",
+                  },
                 ]}
                 onPress={() =>
                   void openGoogleMapsDirections({
@@ -1094,18 +1131,29 @@ export default function MapScreen() {
                   })
                 }
               >
-                <Feather name="navigation" size={16} color={isDark ? "#8FD3FF" : "#0B253A"} />
-                <Text style={[
-                  styles.sheetActionText,
-                  isDark && { color: "#8FD3FF" }
-                ]}>Route</Text>
+                <Feather
+                  name="navigation"
+                  size={16}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#8FD3FF" },
+                  ]}
+                >
+                  Route
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.sheetActionBtn,
                   styles.actionRed,
-                  isDark && { backgroundColor: "rgba(239,68,68,0.2)", borderColor: "rgba(239,68,68,0.3)" }
+                  isDark && {
+                    backgroundColor: "rgba(239,68,68,0.2)",
+                    borderColor: "rgba(239,68,68,0.3)",
+                  },
                 ]}
                 onPress={() => {
                   Alert.alert("Emergency", "Open Emergency Services?", [
@@ -1118,49 +1166,86 @@ export default function MapScreen() {
                   ]);
                 }}
               >
-                <Feather name="alert-triangle" size={16} color={isDark ? "#FF8A80" : "#0B253A"} />
-                <Text style={[
-                  styles.sheetActionText,
-                  isDark && { color: "#FF8A80" }
-                ]}>SOS</Text>
+                <Feather
+                  name="alert-triangle"
+                  size={16}
+                  color={isDark ? "#FF8A80" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#FF8A80" },
+                  ]}
+                >
+                  SOS
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.sheetActionBtn,
                   styles.actionGreen,
-                  isDark && { backgroundColor: "rgba(16,185,129,0.2)", borderColor: "rgba(16,185,129,0.3)" }
+                  isDark && {
+                    backgroundColor: "rgba(16,185,129,0.2)",
+                    borderColor: "rgba(16,185,129,0.3)",
+                  },
                 ]}
                 onPress={() => void sharePlace(selectedPlace)}
               >
-                <Feather name="share-2" size={16} color={isDark ? "#6EE7B7" : "#0B253A"} />
-                <Text style={[
-                  styles.sheetActionText,
-                  isDark && { color: "#6EE7B7" }
-                ]}>Share</Text>
+                <Feather
+                  name="share-2"
+                  size={16}
+                  color={isDark ? "#6EE7B7" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#6EE7B7" },
+                  ]}
+                >
+                  Share
+                </Text>
               </TouchableOpacity>
             </View>
 
             {getSafetyNote(selectedPlace.types) ? (
-              <View style={[
-                styles.sheetSafetyCard,
-                isDark && { backgroundColor: "rgba(254,148,0,0.18)", borderColor: "rgba(254,148,0,0.3)" }
-              ]}>
-                <View style={[
-                  styles.sheetSafetyIcon,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" }
-                ]}>
-                  <Feather name="shield" size={16} color={isDark ? "#FFA500" : "#0B253A"} />
+              <View
+                style={[
+                  styles.sheetSafetyCard,
+                  isDark && {
+                    backgroundColor: "rgba(254,148,0,0.18)",
+                    borderColor: "rgba(254,148,0,0.3)",
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.sheetSafetyIcon,
+                    isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
+                  ]}
+                >
+                  <Feather
+                    name="shield"
+                    size={16}
+                    color={isDark ? "#FFA500" : "#0B253A"}
+                  />
                 </View>
                 <View style={styles.sheetSafetyTextWrap}>
-                  <Text style={[
-                    styles.sheetSafetyTitle,
-                    isDark && { color: "#FFFFFF" }
-                  ]}>Safe zone nearby.</Text>
-                  <Text style={[
-                    styles.sheetSafetyText,
-                    isDark && { color: "rgba(255,255,255,0.7)" }
-                  ]} numberOfLines={2}>
+                  <Text
+                    style={[
+                      styles.sheetSafetyTitle,
+                      isDark && { color: "#FFFFFF" },
+                    ]}
+                  >
+                    Safe zone nearby.
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sheetSafetyText,
+                      isDark && { color: "rgba(255,255,255,0.7)" },
+                    ]}
+                    numberOfLines={2}
+                  >
                     {getSafetyNote(selectedPlace.types)}
                   </Text>
                 </View>
