@@ -6,7 +6,7 @@ const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
  * Returns distance in kilometers.
  * Complexity: O(1)
  */
-function calculateHaversine(
+/*function calculateHaversine(
   lat1: number,
   lng1: number,
   lat2: number,
@@ -27,7 +27,7 @@ function calculateHaversine(
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
+}*/
 
 export type PlaceSuggestion = {
   placeId: string;
