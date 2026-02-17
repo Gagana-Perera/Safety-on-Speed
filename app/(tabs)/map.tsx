@@ -39,6 +39,7 @@ import {
   PlaceSuggestion,
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
+import { useTheme } from "../themeContext";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -48,6 +49,7 @@ export default function MapScreen() {
     t?: string | string[];
   }>();
   const router = useRouter();
+  const { isDark } = useTheme();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
@@ -625,6 +627,7 @@ export default function MapScreen() {
             mapRef.current = ref;
           }}
           style={styles.map}
+          userInterfaceStyle={isDark ? "dark" : "light"}
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
           onRegionChangeComplete={(r) => setMapRegion(r)}
