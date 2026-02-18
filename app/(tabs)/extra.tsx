@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { useTheme } from "../themeContext";
 import {
   ActivityIndicator,
   Alert,
@@ -85,6 +86,7 @@ const SERVICES: ServiceItem[] = [
 
 export default function EmergencyServices() {
   const router = useRouter();
+  const { theme } = useTheme();
 
   // NEW: Object state to track which specific button is loading
   const [loadingStatus, setLoadingStatus] = useState<{
@@ -268,7 +270,7 @@ export default function EmergencyServices() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-[#031B2E]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
         <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-white/5">
           <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
