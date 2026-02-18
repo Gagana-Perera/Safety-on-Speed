@@ -809,7 +809,7 @@ export default function MapScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search places"
-              placeholderTextColor="rgba(0,0,0,0.45)"
+              placeholderTextColor="rgba(255,255,255,0.5)"
               style={styles.searchInput}
               autoCorrect={false}
               autoCapitalize="none"
@@ -1289,11 +1289,12 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#8FD3FF",
+    backgroundColor: "#031B2E",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    color: "#fff",
   },
   recenterButton: {
     width: 44,
@@ -1318,12 +1319,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   poiChip: {
-    backgroundColor: "#8FD3FF",
+    backgroundColor: "#031B2E",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
+    borderColor: "rgba(255,255,255,0.15)",
   },
   poiChipActive: {
     backgroundColor: "#2F6FED",
@@ -1331,7 +1332,7 @@ const styles = StyleSheet.create({
   },
   poiChipText: {
     fontSize: 12,
-    color: "#0B253A",
+    color: "#fff",
     fontWeight: "600",
   },
   poiChipTextActive: {
