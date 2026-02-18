@@ -1299,18 +1299,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#8FD3FF",
+    backgroundColor: "#031B2E",
     alignItems: "center",
     justifyContent: "center",
   },
   toggleActive: {
-    backgroundColor: "#DCEBFF",
-    borderWidth: 1,
-    borderColor: "#2F6FED",
+    backgroundColor: "#031B2E",
+    borderWidth: 2,
+    borderColor: "#8FD3FF",
   },
   recenterText: {
     fontSize: 18,
-    color: "#0B253A",
+    color: "#fff",
   },
   poiRow: {
     paddingTop: 10,
