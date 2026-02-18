@@ -1,34 +1,5 @@
 const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
 
-/**
- * Haversine Formula: Calculates the great-circle distance between two points
- * on Earth's surface given their latitude and longitude in decimal degrees.
- * Returns distance in kilometers.
- * Complexity: O(1)
- */
-/*function calculateHaversine(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371; // Earth's radius in kilometers
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}*/
-
 export type PlaceSuggestion = {
   placeId: string;
   description: string;

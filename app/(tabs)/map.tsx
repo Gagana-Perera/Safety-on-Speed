@@ -877,9 +877,21 @@ export default function MapScreen() {
           </ScrollView>
 
           {inputFocused && (autoLoading || suggestions.length > 0) && (
-            <View style={styles.suggestions}>
+            <View
+              style={[
+                styles.suggestions,
+                isDark && { backgroundColor: "#031B2E" },
+              ]}
+            >
               {autoLoading && (
-                <Text style={styles.suggestionLoading}>Searching…</Text>
+                <Text
+                  style={[
+                    styles.suggestionLoading,
+                    isDark && { color: "rgba(255,255,255,0.9)" },
+                  ]}
+                >
+                  Searching…
+                </Text>
               )}
               <FlatList
                 keyboardShouldPersistTaps="handled"
@@ -887,10 +899,21 @@ export default function MapScreen() {
                 keyExtractor={(item) => item.placeId}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.suggestionItem}
+                    style={[
+                      styles.suggestionItem,
+                      isDark && {
+                        borderTopColor: "rgba(255,255,255,0.2)",
+                      },
+                    ]}
                     onPress={() => onPickSuggestion(item)}
                   >
-                    <Text style={styles.suggestionText} numberOfLines={2}>
+                    <Text
+                      style={[
+                        styles.suggestionText,
+                        isDark && { color: "#fff" },
+                      ]}
+                      numberOfLines={2}
+                    >
                       {item.description}
                     </Text>
                   </TouchableOpacity>
