@@ -40,6 +40,7 @@ import {
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
 import { useTheme } from "../themeContext";
+import { icons } from "../../constants/icons";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -528,9 +529,9 @@ export default function MapScreen() {
   };
 
   const POI_CATEGORIES = [
-    { key: "police", label: "Police Station", keyword: "police" },
-    { key: "hospital", label: "Hospitals", keyword: "hospital" },
-    { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy" },
+    { key: "police", label: "Police Station", keyword: "police", icon: icons.police },
+    { key: "hospital", label: "Hospitals", keyword: "hospital", icon: icons.hospital },
+    { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy", icon: icons.pharmacy },
   ] as const;
 
   const loadPoiCategory = async (key: string, keyword: string) => {
@@ -832,24 +833,6 @@ export default function MapScreen() {
             >
               <Text style={styles.recenterText}>◎</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.recenterButton, followUser && styles.toggleActive]}
-              onPress={() => setFollowUser((v) => !v)}
-              disabled={locationDenied}
-            >
-              <Text style={styles.recenterText}>F</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.recenterButton,
-                trafficEnabled && styles.toggleActive,
-              ]}
-              onPress={() => setTrafficEnabled((v) => !v)}
-            >
-              <Text style={styles.recenterText}>T</Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -859,6 +842,7 @@ export default function MapScreen() {
           >
             {POI_CATEGORIES.map((c) => {
               const active = activePoiKey === c.key;
+              const IconComponent = c.icon;
               return (
                 <TouchableOpacity
                   key={c.key}
@@ -866,6 +850,11 @@ export default function MapScreen() {
                   style={[styles.poiChip, active && styles.poiChipActive]}
                   disabled={poiLoading}
                 >
+                  <IconComponent 
+                    width={20} 
+                    height={20} 
+                    fill={active ? "#1E90FF" : "#5FC9F1"}
+                  />
                   <Text
                     style={[
                       styles.poiChipText,
@@ -1350,6 +1339,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   poiChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: "#031B2E",
     borderRadius: 999,
     paddingHorizontal: 12,
