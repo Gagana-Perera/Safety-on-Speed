@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --go",
     "start:go": "expo start --go",
     "start:tunnel": "expo start --tunnel --go",
     "start:dev": "expo start --dev-client",
