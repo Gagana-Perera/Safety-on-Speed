@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { useTheme } from "../themeContext";
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from "../themeContext";
 
 import {
   getNearbyPlaces,
@@ -130,7 +130,9 @@ export default function EmergencyServices() {
       return;
     }
 
-    console.log(`[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    console.log(
+      `[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`,
+    );
     setLoadingStatus({ id: item.id, type: "call" });
     try {
       const placeId = await getNearbyPlaces(
@@ -165,7 +167,9 @@ export default function EmergencyServices() {
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
-    console.log(`[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    console.log(
+      `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
+    );
     setLoadingStatus({ id: item.id, type: "map" });
     try {
       const placeId = await getNearbyPlaces(
@@ -208,10 +212,10 @@ export default function EmergencyServices() {
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}
-      className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-white/10"
+      className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-[#8FD3FF]/30"
     >
       <View className="flex-row justify-between items-center min-h-[90px]">
-        <View className="flex-1 items-center justify-center border-r border-white/10 pr-2">
+        <View className="flex-1 items-center justify-center border-r border-[#8FD3FF]/20 pr-2">
           <Ionicons name={item.icon} size={32} color="#8FD3FF" />
           <Text
             className="text-white text-[10px] mt-2 text-center font-bold"
@@ -228,7 +232,7 @@ export default function EmergencyServices() {
             disabled={
               loadingStatus?.id === item.id && loadingStatus?.type === "call"
             }
-            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
+            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-[#8FD3FF]/40"
           >
             {loadingStatus?.id === item.id && loadingStatus?.type === "call" ? (
               <ActivityIndicator size="small" color="#8FD3FF" />
@@ -249,7 +253,7 @@ export default function EmergencyServices() {
               disabled={
                 loadingStatus?.id === item.id && loadingStatus?.type === "map"
               }
-              className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1"
+              className="bg-[#0B253A]/50 border border-[#8FD3FF]/40 py-2 rounded-xl flex-row items-center justify-center mt-1"
             >
               {loadingStatus?.id === item.id &&
               loadingStatus?.type === "map" ? (
@@ -272,7 +276,7 @@ export default function EmergencyServices() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-white/5">
+        <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30">
           <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
           <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
         </TouchableOpacity>
