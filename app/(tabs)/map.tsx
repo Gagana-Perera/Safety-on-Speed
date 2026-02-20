@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Keyboard,
   Linking,
@@ -29,6 +30,7 @@ import MapView, {
 } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { icons } from "../../constants/icons";
 import {
   autocompletePlaces,
   findNearestPlaceAt,
@@ -40,7 +42,6 @@ import {
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
 import { useTheme } from "../themeContext";
-import { icons } from "../../constants/icons";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -55,6 +56,7 @@ export default function MapScreen() {
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
   const mapRef = useRef<MapView | null>(null);
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
 
   const [coords, setCoords] = useState<Coords>(SRI_LANKA_CENTER);
   const [mapRegion, setMapRegion] = useState<Region>({
@@ -74,6 +76,7 @@ export default function MapScreen() {
   const [placeLoading, setPlaceLoading] = useState(false);
   const [directionsLoading, setDirectionsLoading] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [recenterPressed, setRecenterPressed] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
@@ -194,6 +197,15 @@ export default function MapScreen() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    // Handle dimension changes (device rotation, split screen, etc.)
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
   }, []);
 
   useEffect(() => {
@@ -529,9 +541,24 @@ export default function MapScreen() {
   };
 
   const POI_CATEGORIES = [
-    { key: "police", label: "Police Station", keyword: "police", icon: icons.police },
-    { key: "hospital", label: "Hospitals", keyword: "hospital", icon: icons.hospital },
-    { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy", icon: icons.pharmacy },
+    {
+      key: "police",
+      label: "Police Station",
+      keyword: "police",
+      icon: icons.police,
+    },
+    {
+      key: "hospital",
+      label: "Hospitals",
+      keyword: "hospital",
+      icon: icons.hospital,
+    },
+    {
+      key: "pharmacy",
+      label: "Pharmacies",
+      keyword: "pharmacy",
+      icon: icons.pharmacy,
+    },
   ] as const;
 
   const loadPoiCategory = async (key: string, keyword: string) => {
@@ -605,15 +632,19 @@ export default function MapScreen() {
     if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) return;
 
     lastOpenedPlaceIdRef.current = placeId;
+
+    // Reset state to ensure fresh load
+    setSelectedPlace(null);
+    setRoute(null);
     setInputFocused(false);
     Keyboard.dismiss();
     setSuggestions([]);
+    setNearbyPlaces([]);
+    setActivePoiKey(null);
 
     void (async () => {
       const details = await selectPlaceById(placeId);
       if (details) {
-        setNearbyPlaces([]);
-        setActivePoiKey(null);
         moveToPlace(details);
       }
     })();
@@ -626,7 +657,10 @@ export default function MapScreen() {
           ref={(ref) => {
             mapRef.current = ref;
           }}
-          style={styles.map}
+          style={[
+            styles.map,
+            { width: dimensions.width, height: dimensions.height },
+          ]}
           userInterfaceStyle={isDark ? "dark" : "light"}
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
@@ -640,6 +674,10 @@ export default function MapScreen() {
           pitchEnabled
           zoomEnabled
           scrollEnabled
+          minZoomLevel={3}
+          maxZoomLevel={20}
+          zoomControlEnabled={true}
+          zoomTapEnabled={true}
           onPress={(e) => {
             // Make single-tap feel like Google Maps: try to open nearest place.
             // (Especially useful on iOS where POI taps don't provide a placeId.)
@@ -827,8 +865,13 @@ export default function MapScreen() {
               }}
             />
             <TouchableOpacity
-              style={styles.recenterButton}
+              style={[
+                styles.recenterButton,
+                recenterPressed && styles.toggleActive,
+              ]}
               onPress={recenter}
+              onPressIn={() => setRecenterPressed(true)}
+              onPressOut={() => setRecenterPressed(false)}
               disabled={loading}
             >
               <Text style={styles.recenterText}>◎</Text>
@@ -850,11 +893,7 @@ export default function MapScreen() {
                   style={[styles.poiChip, active && styles.poiChipActive]}
                   disabled={poiLoading}
                 >
-                  <IconComponent 
-                    width={20} 
-                    height={20} 
-                    fill={active ? "#1E90FF" : "#5FC9F1"}
-                  />
+                  <IconComponent width={20} height={20} fill="#5FC9F1" />
                   <Text
                     style={[
                       styles.poiChipText,
@@ -1288,9 +1327,19 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B253A" },
-  mapWrap: { flex: 1 },
-  map: { ...StyleSheet.absoluteFillObject },
+  container: {
+    flex: 1,
+    backgroundColor: "#0B253A",
+  },
+  mapWrap: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    overflow: "hidden",
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
   searchWrap: {
     position: "absolute",
     top: 10,
@@ -1323,6 +1372,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#031B2E",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   toggleActive: {
     backgroundColor: "#031B2E",
@@ -1350,9 +1401,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.15)",
   },
   poiChipActive: {
-    backgroundColor: "#2F6FED",
     borderColor: "#8FD3FF",
     borderWidth: 2,
+    transform: [{ scale: 1.05 }],
   },
   poiChipText: {
     fontSize: 12,

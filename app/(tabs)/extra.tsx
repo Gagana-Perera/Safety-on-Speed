@@ -182,7 +182,7 @@ export default function EmergencyServices() {
       if (placeId) {
         // Open inside our app Map tab and load details for this placeId.
         console.log(`[Map] Navigating to map with placeId:`, placeId);
-        router.replace({
+        router.push({
           pathname: "/(tabs)/map",
           params: { placeId, t: Date.now().toString() },
         });
@@ -212,10 +212,10 @@ export default function EmergencyServices() {
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}
-      className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-[#8FD3FF]/30"
+      className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-white/10"
     >
       <View className="flex-row justify-between items-center min-h-[90px]">
-        <View className="flex-1 items-center justify-center border-r border-[#8FD3FF]/20 pr-2">
+        <View className="flex-1 items-center justify-center pr-2">
           <Ionicons name={item.icon} size={32} color="#8FD3FF" />
           <Text
             className="text-white text-[10px] mt-2 text-center font-bold"
