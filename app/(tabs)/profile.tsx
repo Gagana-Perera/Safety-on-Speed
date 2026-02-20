@@ -12,6 +12,7 @@ import {
   ActivityIndicator
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import * as ImagePicker from 'expo-image-picker';
 import { Feather } from "@expo/vector-icons"; 
 import { useTheme } from "../themeContext";
 import BackButton from '../backButton'; 
@@ -130,6 +131,69 @@ export default function Profile() {
     }
   };
 
+  // --- UPLOAD NEW AVATAR ---
+  const [uploading, setUploading] = useState(false); // Add this near your other state variables at the top
+
+  const changeAvatar = async () => {
+    try {
+      // 1. Open phone gallery
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, // Lets user crop the image
+        aspect: [1, 1],      // Forces a square crop
+        quality: 0.5,        // Compresses image to save database space
+      });
+
+      if (result.canceled) return;
+
+      setUploading(true);
+      const imageUri = result.assets[0].uri;
+
+      // 2. Convert image for upload
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const arrayBuffer = await new Response(blob).arrayBuffer();
+
+      // 3. Get user session & create unique file name
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+      
+      const fileExt = imageUri.split('.').pop() || 'jpeg';
+      const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
+
+      // 4. Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, arrayBuffer, {
+          contentType: `image/${fileExt}`,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // 5. Get the new public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // 6. Save the new URL to the user's profile table
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', session.user.id);
+
+      if (updateError) throw updateError;
+
+      // 7. Update the screen instantly
+      setAvatarUrl(publicUrl);
+
+    } catch (error) {
+      console.log("Error uploading image: ", error);
+      alert("Failed to upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -184,14 +248,25 @@ export default function Profile() {
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
-            <Image
-              source={{ 
-                uri: avatarUrl 
-                  ? avatarUrl 
-                  : "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80" 
-              }}
-              style={styles.avatar}
-            />
+            
+            {/* --- Image Upload Part --- */}
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              {uploading ? (
+                <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}>
+                  <ActivityIndicator size="large" color={theme.text} />
+                </View>
+              ) : (
+                <Image
+                  source={{ 
+                    uri: avatarUrl 
+                      ? avatarUrl 
+                      : "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80" 
+                  }}
+                  style={styles.avatar}
+                />
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={styles.editBadge} 
               onPress={() => router.push("/editProfile")}
@@ -199,7 +274,7 @@ export default function Profile() {
               <Feather name="edit-2" size={14} color="white" />
             </TouchableOpacity>
           </View>
-          
+
           {loading ? (
              <ActivityIndicator size="small" color={theme.text} style={{marginTop: 10}}/>
           ) : (
@@ -208,7 +283,7 @@ export default function Profile() {
               <Text style={[styles.email, { color: theme.text }]}>{email}</Text>
             </>
           )}
-        </View>
+        </View>  
 
         {/* --- 1. APPEARANCE --- */}
         <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
