@@ -6,12 +6,6 @@ import { Stack } from "expo-router";
 import { supabase } from "@/lib/superbase";
 import { saveGuardians } from "@/lib/guardians";
 
-const handleConfirm = async () =>{
-    if (!isAllContactsValid){
-        alert("Please ensure all contacts are valid before confirming.");
-        return;
-    }
-}
 
 type Contact = {
   name: string;
@@ -45,6 +39,25 @@ export default function AddGuardian() {
     contact.name.trim().length > 0 && contact.phone.trim().length >= 9;
 
   const isAllContactsValid = contacts.every(isContactValid);
+
+const handleConfirm = async () => {
+  if (!isAllContactsValid) {
+    alert("Please ensure all contacts are valid before confirming.");
+    return;
+  }
+
+  //  Hardcoded test user (must exist in Supabase auth.users)
+  const TEST_USER_ID = "afecdcf9-2d08-473f-aa55-815f4f5617d4";
+
+  try {
+    await saveGuardians(TEST_USER_ID, contacts);
+    alert("Guardians saved successfully (test mode)");
+  } catch (error) {
+    console.error(error);
+    alert("Failed to save guardians.");
+  }
+};
+
 
   return (
     <>

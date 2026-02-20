@@ -4,7 +4,7 @@ import menu from '@/assets/icons/menu.svg';
 import person from '@/assets/icons/person.svg';
 import addButton from '@/assets/icons/addButton.png';
 import deleteButton from '@/assets/icons/deleteButton.png';
-
+import nonotificationButton from '@/assets/icons/nonotifications.png';
 
 export const icons = {
   home,
@@ -13,4 +13,5 @@ export const icons = {
   person,
   addButton,
   deleteButton,
+  nonotificationButton
 };
