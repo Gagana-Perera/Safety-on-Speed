@@ -15,7 +15,6 @@ type Contact = {
 
 export default function AddGuardian() {
 
-  const MAX_CONTACTS = 5;
   const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]); // start with 1 contact
 
     const handleContactChange = (index: number, field: keyof Contact, value: string) => {
