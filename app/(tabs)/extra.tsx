@@ -170,10 +170,13 @@ export default function EmergencyServices() {
     console.log(
       `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
     );
-    
+
     // Check if we have valid coordinates
     if (!userLat || !userLng || isNaN(userLat) || isNaN(userLng)) {
-      Alert.alert("Location Error", "Unable to get your current location. Please enable GPS.");
+      Alert.alert(
+        "Location Error",
+        "Unable to get your current location. Please enable GPS.",
+      );
       return;
     }
 
@@ -201,7 +204,10 @@ export default function EmergencyServices() {
       }
     } catch (error) {
       console.error("[Map] Error:", error);
-      Alert.alert("Error", `Could not open in-app map: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Alert.alert(
+        "Error",
+        `Could not open in-app map: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     } finally {
       setLoadingStatus(null);
     }

@@ -13,7 +13,6 @@ import {
   Linking,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -112,6 +111,9 @@ export default function MapScreen() {
       isOpen?: boolean;
     }>
   >([]);
+
+  // Voice Search State
+  const [isListening, setIsListening] = useState(false);
 
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
@@ -253,6 +255,65 @@ export default function MapScreen() {
     return { today, yesterday, thisWeek, lastWeek, older };
   };
 
+  // Voice Search Handler
+  const handleVoiceSearch = async () => {
+    if (Platform.OS === "web") {
+      // Web Speech API implementation
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        Alert.alert(
+          "Not Supported",
+          "Voice search is not supported in this browser. Please use Chrome, Edge, or Safari.",
+        );
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        console.log("Voice recognition started");
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        console.log("Voice input:", transcript);
+        setQuery(transcript);
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+        Alert.alert("Error", "Could not recognize speech. Please try again.");
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      try {
+        recognition.start();
+      } catch (error) {
+        console.error("Error starting voice recognition:", error);
+        setIsListening(false);
+      }
+    } else {
+      // Mobile voice search - requires native rebuild
+      Alert.alert(
+        "Voice Search",
+        "Voice search is currently available on web only. Mobile voice search requires the app to be rebuilt with native modules.",
+        [{ text: "OK" }],
+      );
+    }
+  };
+
   useEffect(() => {
     void loadSearchHistory();
   }, []);
@@ -260,15 +321,15 @@ export default function MapScreen() {
   // Handle Android hardware back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
+      "hardwareBackPress",
       () => {
         if (showSearchHistory) {
-          console.log('Hardware back button pressed - closing modal');
+          console.log("Hardware back button pressed - closing modal");
           setShowSearchHistory(false);
           return true; // Prevent default behavior
         }
         return false; // Let default behavior happen
-      }
+      },
     );
 
     return () => backHandler.remove();
@@ -457,10 +518,10 @@ export default function MapScreen() {
     placeId: string,
     fallback?: PlaceDetails,
   ): Promise<PlaceDetails | null> => {
-    console.log('[selectPlaceById] Starting with placeId:', placeId);
+    console.log("[selectPlaceById] Starting with placeId:", placeId);
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) {
-      console.error('[selectPlaceById] No API key available');
+      console.error("[selectPlaceById] No API key available");
       if (fallback) setSelectedPlace(fallback);
       return fallback || null;
     }
@@ -470,12 +531,16 @@ export default function MapScreen() {
     setPlaceError(null);
     setPlaceLoading(true);
     try {
-      console.log('[selectPlaceById] Fetching place details...');
+      console.log("[selectPlaceById] Fetching place details...");
       const details = await getPlaceDetails(placeId);
-      console.log('[selectPlaceById] Details received:', details ? details.name : 'null');
+      console.log(
+        "[selectPlaceById] Details received:",
+        details ? details.name : "null",
+      );
       if (!details) {
-        const errorMsg = "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
-        console.error('[selectPlaceById]', errorMsg);
+        const errorMsg =
+          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
+        console.error("[selectPlaceById]", errorMsg);
         setPlaceError(errorMsg);
       } else {
         setSelectedPlace(details);
@@ -492,7 +557,7 @@ export default function MapScreen() {
   };
 
   const moveToPlace = (p: { latitude: number; longitude: number }) => {
-    console.log('[moveToPlace] Moving map to:', p.latitude, p.longitude);
+    console.log("[moveToPlace] Moving map to:", p.latitude, p.longitude);
     const nextRegion: Region = {
       latitude: p.latitude,
       longitude: p.longitude,
@@ -753,19 +818,19 @@ export default function MapScreen() {
     const placeId = Array.isArray(raw) ? raw[0] : raw;
     if (!placeId) return;
 
-    console.log('[Map useEffect] Received placeId:', placeId);
+    console.log("[Map useEffect] Received placeId:", placeId);
 
     // Allow re-opening if timestamp parameter is present
     const hasTimestamp = params?.t;
     if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) {
-      console.log('[Map useEffect] Skipping - same placeId without timestamp');
+      console.log("[Map useEffect] Skipping - same placeId without timestamp");
       return;
     }
 
     lastOpenedPlaceIdRef.current = placeId;
 
     // Reset state to ensure fresh load
-    console.log('[Map useEffect] Resetting state and loading place details');
+    console.log("[Map useEffect] Resetting state and loading place details");
     setSelectedPlace(null);
     setRoute(null);
     setInputFocused(false);
@@ -776,18 +841,27 @@ export default function MapScreen() {
 
     void (async () => {
       try {
-        console.log('[Map useEffect] Calling selectPlaceById...');
+        console.log("[Map useEffect] Calling selectPlaceById...");
         const details = await selectPlaceById(placeId);
         if (details) {
-          console.log('[Map useEffect] Place details loaded successfully:', details.name);
+          console.log(
+            "[Map useEffect] Place details loaded successfully:",
+            details.name,
+          );
           moveToPlace(details);
         } else {
-          console.error('[Map useEffect] No place details returned');
-          Alert.alert("Place Not Found", "Could not load details for this location. Please try again.");
+          console.error("[Map useEffect] No place details returned");
+          Alert.alert(
+            "Place Not Found",
+            "Could not load details for this location. Please try again.",
+          );
         }
       } catch (error) {
-        console.error('[Map useEffect] Error loading place:', error);
-        Alert.alert("Error", "Failed to load place details. Please check your internet connection.");
+        console.error("[Map useEffect] Error loading place:", error);
+        Alert.alert(
+          "Error",
+          "Failed to load place details. Please check your internet connection.",
+        );
       }
     })();
   }, [params?.placeId, params?.t]);
@@ -986,32 +1060,47 @@ export default function MapScreen() {
 
         <View style={styles.searchWrap}>
           <View style={styles.searchRow}>
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search places"
-              placeholderTextColor="rgba(255,255,255,0.5)"
+            <View
               style={[
-                styles.searchInput,
+                styles.searchInputContainer,
                 inputFocused && styles.searchInputFocused,
               ]}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
-              onSubmitEditing={() => {
-                if (suggestions.length) {
-                  void onPickSuggestion(suggestions[0]);
-                }
-              }}
-            />
-            <TouchableOpacity
-              style={styles.historyButton}
-              onPress={() => setShowSearchHistory(true)}
             >
-              <Ionicons name="time-outline" size={22} color="#fff" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clockButton}
+                onPress={() => setShowSearchHistory(true)}
+              >
+                <Ionicons name="time-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search places"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={styles.searchInput}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                onSubmitEditing={() => {
+                  if (suggestions.length) {
+                    void onPickSuggestion(suggestions[0]);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={styles.voiceButton}
+                onPress={handleVoiceSearch}
+                disabled={isListening}
+              >
+                <Ionicons
+                  name={isListening ? "mic" : "mic-outline"}
+                  size={20}
+                  color={isListening ? "#8FD3FF" : "#fff"}
+                />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={[
                 styles.recenterButton,
@@ -1792,19 +1881,31 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: "center",
   },
-  searchInput: {
+  searchInputContainer: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#031B2E",
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 2,
     borderColor: "transparent",
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#fff",
+    paddingVertical: 4,
   },
   searchInputFocused: {
     borderColor: "#8FD3FF",
+  },
+  clockButton: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   recenterButton: {
     width: 44,
@@ -2096,11 +2197,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  historyButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#031B2E",
+  voiceButton: {
+    padding: 4,
     alignItems: "center",
     justifyContent: "center",
   },

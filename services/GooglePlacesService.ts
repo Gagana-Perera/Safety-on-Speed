@@ -328,12 +328,18 @@ export function getPlacePhotoUrl(
 export async function searchNearbyPlaces(
   lat: number,
   lng: number,
-  keyword: string,
+  keywordOrType: string,
   maxResults = 12,
 ): Promise<NearbyPlace[]> {
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${encodeURIComponent(
-    keyword,
-  )}&key=${GOOGLE_API_KEY}`;
+  // Use type for police and hospital, keyword for others
+  let url = "";
+  if (keywordOrType === "police" || keywordOrType === "hospital") {
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&type=${keywordOrType}&key=${GOOGLE_API_KEY}`;
+  } else {
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${encodeURIComponent(
+      keywordOrType,
+    )}&key=${GOOGLE_API_KEY}`;
+  }
 
   try {
     const response = await fetch(url);
