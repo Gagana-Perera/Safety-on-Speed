@@ -170,6 +170,13 @@ export default function EmergencyServices() {
     console.log(
       `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
     );
+    
+    // Check if we have valid coordinates
+    if (!userLat || !userLng || isNaN(userLat) || isNaN(userLng)) {
+      Alert.alert("Location Error", "Unable to get your current location. Please enable GPS.");
+      return;
+    }
+
     setLoadingStatus({ id: item.id, type: "map" });
     try {
       const placeId = await getNearbyPlaces(
@@ -188,13 +195,13 @@ export default function EmergencyServices() {
         });
       } else {
         Alert.alert(
-          "Error",
-          `Could not locate the nearest ${item.name} on the map.`,
+          "Not Found",
+          `Could not locate the nearest ${item.name} on the map. Please try again or check your internet connection.`,
         );
       }
     } catch (error) {
       console.error("[Map] Error:", error);
-      Alert.alert("Error", "Could not open in-app map.");
+      Alert.alert("Error", `Could not open in-app map: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoadingStatus(null);
     }

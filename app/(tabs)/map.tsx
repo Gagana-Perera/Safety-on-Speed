@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -5,11 +6,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Dimensions,
   FlatList,
   Keyboard,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -19,7 +23,7 @@ import {
   View,
 } from "react-native";
 
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 
 import MapView, {
   LatLng,
@@ -97,6 +101,18 @@ export default function MapScreen() {
 
   const lastOpenedPlaceIdRef = useRef<string | null>(null);
 
+  // Search History State
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<
+    Array<{
+      query: string;
+      timestamp: number;
+      placeId?: string;
+      address?: string;
+      isOpen?: boolean;
+    }>
+  >([]);
+
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
     if (!cleaned) {
@@ -155,6 +171,108 @@ export default function MapScreen() {
       Alert.alert("Could not open Google Maps", "Please try again.");
     }
   };
+
+  // Search History Functions
+  const loadSearchHistory = async () => {
+    try {
+      const history = await AsyncStorage.getItem("mapSearchHistory");
+      if (history) {
+        setSearchHistory(JSON.parse(history));
+      }
+    } catch (error) {
+      console.error("Error loading search history:", error);
+    }
+  };
+
+  const saveSearchToHistory = async (
+    searchQuery: string,
+    place?: PlaceDetails,
+  ) => {
+    try {
+      const newEntry = {
+        query: searchQuery,
+        timestamp: Date.now(),
+        placeId: place?.placeId,
+        address: place?.address,
+        isOpen: place?.isOpenNow,
+      };
+
+      const updatedHistory = [
+        newEntry,
+        ...searchHistory.filter(
+          (item) => item.query.toLowerCase() !== searchQuery.toLowerCase(),
+        ),
+      ].slice(0, 50); // Keep last 50 searches
+
+      setSearchHistory(updatedHistory);
+      await AsyncStorage.setItem(
+        "mapSearchHistory",
+        JSON.stringify(updatedHistory),
+      );
+    } catch (error) {
+      console.error("Error saving search history:", error);
+    }
+  };
+
+  const clearSearchHistory = async () => {
+    try {
+      setSearchHistory([]);
+      await AsyncStorage.removeItem("mapSearchHistory");
+    } catch (error) {
+      console.error("Error clearing search history:", error);
+    }
+  };
+
+  const categorizeSearchHistory = () => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const oneWeek = 7 * oneDay;
+
+    const today: typeof searchHistory = [];
+    const yesterday: typeof searchHistory = [];
+    const thisWeek: typeof searchHistory = [];
+    const lastWeek: typeof searchHistory = [];
+    const older: typeof searchHistory = [];
+
+    searchHistory.forEach((item) => {
+      const diff = now - item.timestamp;
+
+      if (diff < oneDay) {
+        today.push(item);
+      } else if (diff < 2 * oneDay) {
+        yesterday.push(item);
+      } else if (diff < oneWeek) {
+        thisWeek.push(item);
+      } else if (diff < 2 * oneWeek) {
+        lastWeek.push(item);
+      } else {
+        older.push(item);
+      }
+    });
+
+    return { today, yesterday, thisWeek, lastWeek, older };
+  };
+
+  useEffect(() => {
+    void loadSearchHistory();
+  }, []);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (showSearchHistory) {
+          console.log('Hardware back button pressed - closing modal');
+          setShowSearchHistory(false);
+          return true; // Prevent default behavior
+        }
+        return false; // Let default behavior happen
+      }
+    );
+
+    return () => backHandler.remove();
+  }, [showSearchHistory]);
 
   useEffect(() => {
     (async () => {
@@ -339,8 +457,10 @@ export default function MapScreen() {
     placeId: string,
     fallback?: PlaceDetails,
   ): Promise<PlaceDetails | null> => {
+    console.log('[selectPlaceById] Starting with placeId:', placeId);
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) {
+      console.error('[selectPlaceById] No API key available');
       if (fallback) setSelectedPlace(fallback);
       return fallback || null;
     }
@@ -350,18 +470,20 @@ export default function MapScreen() {
     setPlaceError(null);
     setPlaceLoading(true);
     try {
+      console.log('[selectPlaceById] Fetching place details...');
       const details = await getPlaceDetails(placeId);
+      console.log('[selectPlaceById] Details received:', details ? details.name : 'null');
       if (!details) {
-        setPlaceError(
-          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.",
-        );
+        const errorMsg = "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
+        console.error('[selectPlaceById]', errorMsg);
+        setPlaceError(errorMsg);
       } else {
         setSelectedPlace(details);
       }
       setRoute(null);
       return details || fallback || null;
     } catch (e) {
-      console.error("selectPlaceById error:", e);
+      console.error("[selectPlaceById] error:", e);
       setPlaceError("Unexpected error while loading place details.");
       return fallback || null;
     } finally {
@@ -370,6 +492,7 @@ export default function MapScreen() {
   };
 
   const moveToPlace = (p: { latitude: number; longitude: number }) => {
+    console.log('[moveToPlace] Moving map to:', p.latitude, p.longitude);
     const nextRegion: Region = {
       latitude: p.latitude,
       longitude: p.longitude,
@@ -617,6 +740,9 @@ export default function MapScreen() {
       return;
     }
 
+    // Save to search history
+    await saveSearchToHistory(s.description, details);
+
     setNearbyPlaces([]);
     setActivePoiKey(null);
     moveToPlace(details);
@@ -627,13 +753,19 @@ export default function MapScreen() {
     const placeId = Array.isArray(raw) ? raw[0] : raw;
     if (!placeId) return;
 
+    console.log('[Map useEffect] Received placeId:', placeId);
+
     // Allow re-opening if timestamp parameter is present
     const hasTimestamp = params?.t;
-    if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) return;
+    if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) {
+      console.log('[Map useEffect] Skipping - same placeId without timestamp');
+      return;
+    }
 
     lastOpenedPlaceIdRef.current = placeId;
 
     // Reset state to ensure fresh load
+    console.log('[Map useEffect] Resetting state and loading place details');
     setSelectedPlace(null);
     setRoute(null);
     setInputFocused(false);
@@ -643,9 +775,19 @@ export default function MapScreen() {
     setActivePoiKey(null);
 
     void (async () => {
-      const details = await selectPlaceById(placeId);
-      if (details) {
-        moveToPlace(details);
+      try {
+        console.log('[Map useEffect] Calling selectPlaceById...');
+        const details = await selectPlaceById(placeId);
+        if (details) {
+          console.log('[Map useEffect] Place details loaded successfully:', details.name);
+          moveToPlace(details);
+        } else {
+          console.error('[Map useEffect] No place details returned');
+          Alert.alert("Place Not Found", "Could not load details for this location. Please try again.");
+        }
+      } catch (error) {
+        console.error('[Map useEffect] Error loading place:', error);
+        Alert.alert("Error", "Failed to load place details. Please check your internet connection.");
       }
     })();
   }, [params?.placeId, params?.t]);
@@ -864,6 +1006,12 @@ export default function MapScreen() {
                 }
               }}
             />
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => setShowSearchHistory(true)}
+            >
+              <Ionicons name="time-outline" size={22} color="#fff" />
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.recenterButton,
@@ -1322,6 +1470,299 @@ export default function MapScreen() {
           <ActivityIndicator size="small" color="#FF0000" />
         </View>
       )}
+
+      {/* Search History Modal */}
+      <Modal
+        visible={showSearchHistory}
+        animationType="slide"
+        onRequestClose={() => {
+          console.log("Modal onRequestClose triggered");
+          setShowSearchHistory(false);
+        }}
+        presentationStyle="fullScreen"
+      >
+        <SafeAreaView style={styles.historyModalContainer}>
+          <View style={styles.historyHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                console.log("Back button pressed - closing modal");
+                setShowSearchHistory(false);
+              }}
+              style={styles.historyBackButton}
+              activeOpacity={0.5}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Feather name="arrow-left" size={28} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.historyTitle}>Recent searches</Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          <ScrollView style={styles.historyContent}>
+            {(() => {
+              const { today, yesterday, thisWeek, lastWeek, older } =
+                categorizeSearchHistory();
+
+              return (
+                <>
+                  {today.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Today</Text>
+                      {today.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                            {item.isOpen !== undefined && (
+                              <Text
+                                style={[
+                                  styles.historyStatusText,
+                                  item.isOpen && styles.historyStatusOpen,
+                                ]}
+                              >
+                                {item.isOpen
+                                  ? "Open 24 hours"
+                                  : `Closes ${new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {yesterday.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Yesterday</Text>
+                      {yesterday.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {thisWeek.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>This week</Text>
+                      {thisWeek.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {lastWeek.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Last week</Text>
+                      {lastWeek.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {older.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>
+                        Previous searches
+                      </Text>
+                      {older.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {searchHistory.length === 0 && (
+                    <View style={styles.emptyHistoryContainer}>
+                      <Ionicons name="time-outline" size={64} color="#ccc" />
+                      <Text style={styles.emptyHistoryText}>
+                        No recent searches
+                      </Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1654,5 +2095,95 @@ const styles = StyleSheet.create({
     color: "rgba(11,37,58,0.75)",
     fontSize: 12,
     fontWeight: "600",
+  },
+  historyButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#031B2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyModalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    backgroundColor: "#fff",
+  },
+  historyBackButton: {
+    padding: 12,
+    marginLeft: -4,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  historyContent: {
+    flex: 1,
+  },
+  historySection: {
+    paddingTop: 16,
+  },
+  historySectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  historyIcon: {
+    marginRight: 12,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 20,
+    padding: 8,
+  },
+  historyTextContainer: {
+    flex: 1,
+  },
+  historyQueryText: {
+    fontSize: 16,
+    color: "#000",
+    marginBottom: 2,
+  },
+  historyAddressText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  historyStatusText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  historyStatusOpen: {
+    color: "#0F9D58",
+  },
+  emptyHistoryContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyHistoryText: {
+    fontSize: 16,
+    color: "#999",
+    marginTop: 16,
   },
 });
