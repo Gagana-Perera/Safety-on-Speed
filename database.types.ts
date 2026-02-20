@@ -86,6 +86,12 @@ export type Database = {
           location: string | null
           phone_number: string | null
           updated_at: string | null
+          email_notif: boolean | null
+          push_notif: boolean | null
+          alert_notif: boolean | null
+          personal_data_access: boolean | null
+          camera_access: boolean | null
+          live_location: boolean | null
         }
         Insert: {
           avatar_url?: string | null

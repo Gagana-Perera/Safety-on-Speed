@@ -49,11 +49,11 @@ export default function Profile() {
           if (!session) return;
 
           // 2. Fetch Profile Data from Database
-          const { data, error } = await supabase
+          const { data, error } = await (supabase
             .from('profiles')
-            .select('full_name, avatar_url, email') // fetching email column
+            .select('full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location') // fetching email column
             .eq('id', session.user.id)
-            .single();
+            .single() as any);
 
           if (error) {
              console.log("Error fetching profile:", error);
@@ -68,6 +68,17 @@ export default function Profile() {
             setEmail(displayEmail);
             
             if (data.avatar_url) setAvatarUrl(data.avatar_url);
+
+            // --- NEW: Set local state from database values ---
+            setEmailNotif(data.email_notif || false);
+            setPushNotif(data.push_notif || false);
+            setAlertNotif(data.alert_notif || false);
+
+            // --- NEW: Set Permission States ---
+            setPersonalDataAccess(data.personal_data_access || false);
+            setCameraAccess(data.camera_access || false);
+            setLiveLocation(data.live_location || false);
+
           } else if (isActive) {
             // Fallback if no profile data found at all
             setEmail(session.user.email || "No Email");
@@ -87,6 +98,37 @@ export default function Profile() {
       };
     }, [])
   );
+
+  // Update Preferences in database
+  const toggleSetting = async (
+    field: 'email_notif' | 'push_notif' | 'alert_notif' | 'personal_data_access' | 'camera_access' | 'live_location', 
+    newValue: boolean
+  ) => {
+    // 1. Instant UI update
+    if (field === 'email_notif') setEmailNotif(newValue);
+    if (field === 'push_notif') setPushNotif(newValue);
+    if (field === 'alert_notif') setAlertNotif(newValue);
+    if (field === 'personal_data_access') setPersonalDataAccess(newValue);
+    if (field === 'camera_access') setCameraAccess(newValue);
+    if (field === 'live_location') setLiveLocation(newValue);
+
+    // 2. Push to Supabase
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ [field]: newValue })
+        .eq('id', session.user.id);
+
+      if (error) {
+        console.log(`Error saving ${field}:`, error);
+      }
+    } catch (error) {
+      console.log("Unexpected error saving preference:", error);
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -198,21 +240,21 @@ export default function Profile() {
             label="Email Notifications" 
             subText="Receive daily summaries" 
             value={emailNotif} 
-            onValueChange={setEmailNotif} 
+            onValueChange={(val: boolean) => toggleSetting('email_notif', val)} 
           />
           <SettingRow 
             icon="bell" 
             label="Push Notification" 
             subText="Security & Update alerts" 
             value={pushNotif} 
-            onValueChange={setPushNotif} 
+            onValueChange={(val: boolean) => toggleSetting('push_notif', val)} 
           />
           <SettingRow 
             icon="alert-triangle" 
             label="Alert Notification" 
             subText="Security & Update alerts" 
             value={AlertNotif} 
-            onValueChange={setAlertNotif} 
+            onValueChange={(val: boolean) => toggleSetting('alert_notif', val)} 
           />
         </View>
 
@@ -224,21 +266,21 @@ export default function Profile() {
             label="Personal Data Access" 
             subText="Allow to use data customization" 
             value={personalDataAccess} 
-            onValueChange={setPersonalDataAccess} 
+            onValueChange={(val: boolean) => toggleSetting('personal_data_access', val)} 
           />
           <SettingRow 
             icon="camera" 
             label="Camera Access" 
             subText="Allow app to use camera" 
             value={cameraAccess} 
-            onValueChange={setCameraAccess} 
+            onValueChange={(val: boolean) => toggleSetting('camera_access', val)} 
           />
           <SettingRow 
             icon="map-pin" 
             label="Live Location Access" 
             subText="Share location in real-time" 
             value={liveLocation} 
-            onValueChange={setLiveLocation} 
+            onValueChange={(val: boolean) => toggleSetting('live_location', val)} 
           />
         </View>
 
