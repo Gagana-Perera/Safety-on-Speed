@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+//to get the user's current location
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -98,7 +99,7 @@ export default function EmergencyServices() {
     lat: number;
     lng: number;
   } | null>(null);
-
+  //getting the usser's current location using expo loaction and storing it in the userLocatio state.This location is then used to search for neaby places and to show the user's position in the map.
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();

@@ -21,9 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
 import { Feather, Ionicons } from "@expo/vector-icons";
-
 import MapView, {
   LatLng,
   Marker,
@@ -32,7 +30,6 @@ import MapView, {
   Region,
 } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { icons } from "../../constants/icons";
 import {
   autocompletePlaces,
@@ -84,6 +81,8 @@ export default function MapScreen() {
   const [placeError, setPlaceError] = useState<string | null>(null);
 
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+  const [nearbyLoadingPlaceId, setNearbyLoadingPlaceId] =
+    useState<string | null>(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [activePoiKey, setActivePoiKey] = useState<string | null>(null);
 
@@ -334,7 +333,7 @@ export default function MapScreen() {
 
     return () => backHandler.remove();
   }, [showSearchHistory]);
-
+  //get the current location through the expo location(this location then we use to show the user's poistion on the map and to search for nearby places)
   useEffect(() => {
     (async () => {
       try {
@@ -731,7 +730,7 @@ export default function MapScreen() {
   const POI_CATEGORIES = [
     {
       key: "police",
-      label: "Police Station",
+      label: "Police Stations",
       keyword: "police",
       icon: icons.police,
     },
@@ -760,9 +759,11 @@ export default function MapScreen() {
         mapRegion.latitude,
         mapRegion.longitude,
         keyword,
+        20,
       );
 
       setNearbyPlaces(list);
+      // Reset any previously selected place/route so we can show the nearby list
       setSelectedPlace(null);
       setRoute(null);
 
@@ -1544,6 +1545,177 @@ export default function MapScreen() {
             ) : null}
           </View>
         )}
+
+        {!selectedPlace && nearbyPlaces.length > 0 && (
+          <View
+            style={[styles.nearbySheet, isDark && { backgroundColor: "#031B2E" }]}
+          >
+            <View style={styles.nearbyHandle} />
+
+            <View style={styles.nearbyHeaderRow}>
+              <View>
+                <Text
+                  style={[styles.nearbyTitle, isDark && { color: "#FFFFFF" }]}
+                >
+                  {`Nearby ${
+                    POI_CATEGORIES.find((c) => c.key === activePoiKey)?.label ?? "Places"
+                  }`}
+                </Text>
+                <Text
+                  style={[
+                    styles.nearbySubtitle,
+                    isDark && { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                >
+                  {`${nearbyPlaces.length} places found`}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setNearbyPlaces([]);
+                  setActivePoiKey(null);
+                }}
+                style={styles.nearbyClose}
+              >
+                <Feather name="x" size={18} color={isDark ? "#8FD3FF" : "#0B253A"} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.nearbyList}>
+              {nearbyPlaces.map((p, index) => (
+                <View key={p.placeId} style={styles.nearbyCard}>
+                  <Text style={styles.nearbyIndex}>{`#${index + 1}`}</Text>
+                  <Text
+                    style={[styles.nearbyName, isDark && { color: "#FFFFFF" }]}
+                    numberOfLines={2}
+                  >
+                    {p.name}
+                  </Text>
+                  {p.vicinity ? (
+                    <Text
+                      style={[
+                        styles.nearbyAddress,
+                        isDark && { color: "rgba(255,255,255,0.7)" },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {p.vicinity}
+                    </Text>
+                  ) : null}
+
+                  <View style={styles.nearbyMetaRow}>
+                    {typeof p.rating === "number" && (
+                      <Text style={styles.nearbyRating}>
+                        ⭐ {p.rating.toFixed(1)}
+                        {typeof p.userRatingsTotal === "number"
+                          ? ` (${formatCount(p.userRatingsTotal)})`
+                          : ""}
+                      </Text>
+                    )}
+                    {hasLocation && (
+                      <Text style={styles.nearbyDistance}>
+                        {formatDistance(
+                          distanceMeters(coords, {
+                            latitude: p.latitude,
+                            longitude: p.longitude,
+                          }),
+                        )} away
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.nearbyActionsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sheetActionBtn,
+                        {
+                          backgroundColor: "#041424",
+                          borderColor: "rgba(143,211,255,0.4)",
+                        },
+                      ]}
+                      onPress={async () => {
+                        setNearbyLoadingPlaceId(p.placeId + "-call");
+                        try {
+                          const details = await getPlaceDetails(p.placeId);
+                          if (details?.phoneNumber) {
+                            await makePhoneCall(details.phoneNumber);
+                          } else {
+                            Alert.alert(
+                              "No phone number",
+                              "This place doesn't have a phone number listed.",
+                            );
+                          }
+                        } finally {
+                          setNearbyLoadingPlaceId(null);
+                        }
+                      }}
+                      disabled={nearbyLoadingPlaceId === p.placeId + "-call"}
+                    >
+                      {nearbyLoadingPlaceId === p.placeId + "-call" ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Feather name="phone" size={16} color="#FFFFFF" />
+                          <Text
+                            style={[
+                              styles.sheetActionText,
+                              { color: "#FFFFFF" },
+                            ]}
+                          >
+                            Call
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.sheetActionBtn,
+                        {
+                          backgroundColor: "#46AFFF",
+                          borderColor: "#46AFFF",
+                        },
+                      ]}
+                      onPress={async () => {
+                        setNearbyLoadingPlaceId(p.placeId + "-map");
+                        try {
+                          await openGoogleMapsDirections({
+                            latitude: p.latitude,
+                            longitude: p.longitude,
+                          });
+                        } finally {
+                          setNearbyLoadingPlaceId(null);
+                        }
+                      }}
+                      disabled={nearbyLoadingPlaceId === p.placeId + "-map"}
+                    >
+                      {nearbyLoadingPlaceId === p.placeId + "-map" ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Feather
+                            name="navigation"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+                          <Text
+                            style={[
+                              styles.sheetActionText,
+                              { color: "#FFFFFF" },
+                            ]}
+                          >
+                            Route
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {locationDenied && (
@@ -2196,6 +2368,99 @@ const styles = StyleSheet.create({
     color: "rgba(11,37,58,0.75)",
     fontSize: 12,
     fontWeight: "600",
+  },
+  nearbySheet: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: "#021221",
+    borderRadius: 18,
+    padding: 14,
+    maxHeight: "55%",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  nearbyHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+    marginBottom: 10,
+  },
+  nearbyHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  nearbyTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0B253A",
+  },
+  nearbySubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "rgba(11,37,58,0.7)",
+  },
+  nearbyClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nearbyList: {
+    marginTop: 6,
+  },
+  nearbyCard: {
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12,
+    backgroundColor: "#06243F",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  nearbyIndex: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 4,
+  },
+  nearbyName: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  nearbyAddress: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+  },
+  nearbyMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  nearbyRating: {
+    fontSize: 11,
+    color: "#FFE082",
+    fontWeight: "700",
+  },
+  nearbyDistance: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
+  },
+  nearbyActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
   },
   voiceButton: {
     padding: 4,

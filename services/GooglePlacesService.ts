@@ -50,6 +50,13 @@ export type NearbyPlace = {
  * Finds the closest place near a coordinate.
  * Useful when the map provider doesn't give a placeId on tap (e.g. iOS default provider).
  */
+
+/*
+When a user taps on the map, you only know the coordinates—not the place itself.
+ The Google Places API needs a search area to look for places near those coordinates.
+  By setting a small radius (e.g., 40 meters), you limit the search to places very close to the tapped spot,
+   increasing the chance that the result matches the exact location.
+*/
 export async function findNearestPlaceAt(
   lat: number,
   lng: number,
@@ -98,6 +105,7 @@ export async function findNearestPlaceAt(
  * Finds the unique Place ID for the absolute closest service.
  * Optimized for nationwide use by removing radius constraints.
  */
+//call the near by places service with the cor-ordinates and the type of the place.
 export async function getNearbyPlaces(
   lat: number,
   lng: number,
