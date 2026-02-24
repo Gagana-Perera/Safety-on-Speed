@@ -368,15 +368,18 @@ export async function searchNearbyPlaces(
   lng: number,
   keywordOrType: string,
   maxResults = 12,
+  options?: { openNow?: boolean },
 ): Promise<NearbyPlace[]> {
+  const openNowParam = options?.openNow ? "&opennow=true" : "";
+
   // Use type for police and hospital, keyword for others
   let url = "";
   if (keywordOrType === "police" || keywordOrType === "hospital") {
-    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&type=${keywordOrType}&key=${GOOGLE_API_KEY}`;
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&type=${keywordOrType}${openNowParam}&key=${GOOGLE_API_KEY}`;
   } else {
     url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${encodeURIComponent(
       keywordOrType,
-    )}&key=${GOOGLE_API_KEY}`;
+    )}${openNowParam}&key=${GOOGLE_API_KEY}`;
   }
 
   try {
@@ -400,7 +403,9 @@ export async function searchNearbyPlaces(
             isOpenNow:
               typeof r.opening_hours?.open_now === "boolean"
                 ? r.opening_hours.open_now
-                : undefined,
+                : options?.openNow
+                  ? true
+                  : undefined,
             wheelchairAccessibleEntrance:
               typeof r.wheelchair_accessible_entrance === "boolean"
                 ? r.wheelchair_accessible_entrance

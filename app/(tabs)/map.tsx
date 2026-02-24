@@ -970,6 +970,45 @@ export default function MapScreen() {
     }
   };
 
+  const toggleOpenNow = () => {
+    const apiKey = ensureGoogleApiKey();
+    if (!apiKey) return;
+
+    const next = !filterOpenNow;
+    setFilterOpenNow(next);
+
+    // Only the bottom-sheet POI list needs this behavior.
+    if (!activePoiKey) return;
+    const cat = POI_CATEGORIES.find((c) => c.key === activePoiKey);
+    if (!cat) return;
+
+    // Re-query using Places' built-in open-now filter for reliability.
+    attemptedOpenNowRef.current.clear();
+
+    setOpenNowHydrating(true);
+    setPoiLoading(true);
+    void (async () => {
+      try {
+        const list = await searchNearbyPlaces(
+          mapRegion.latitude,
+          mapRegion.longitude,
+          cat.keyword,
+          20,
+          { openNow: next },
+        );
+        setNearbyPlaces(list);
+        setSelectedPlace(null);
+        setRoute(null);
+      } catch (e) {
+        console.error(e);
+        Alert.alert("Error", "Could not apply Open now filter.");
+      } finally {
+        setPoiLoading(false);
+        setOpenNowHydrating(false);
+      }
+    })();
+  };
+
   const onPickSuggestion = async (s: PlaceSuggestion) => {
     setQuery(s.description);
     setSuggestions([]);
@@ -1308,7 +1347,7 @@ export default function MapScreen() {
                   style={[styles.poiChip, active && styles.poiChipActive]}
                   disabled={poiLoading}
                 >
-                  <IconComponent width={20} height={20} fill="#5FC9F1" />
+                  <IconComponent width={18} height={18} fill="#5FC9F1" />
                   <Text
                     style={[
                       styles.poiChipText,
@@ -1761,7 +1800,7 @@ export default function MapScreen() {
                     isDark && { color: "rgba(255,255,255,0.7)" },
                   ]}
                 >
-                  {`${nearbyPlaces.length} places found`}
+                  {`${filteredNearbyPlaces.length} places found`}
                 </Text>
               </View>
 
@@ -1807,7 +1846,7 @@ export default function MapScreen() {
                   styles.filterChip,
                   filterOpenNow && styles.filterChipActive,
                 ]}
-                onPress={() => setFilterOpenNow((v) => !v)}
+                onPress={toggleOpenNow}
               >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   {openNowHydrating ? (
@@ -2365,31 +2404,32 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   poiRow: {
-    paddingTop: 10,
+    paddingTop: 8,
     paddingHorizontal: 2,
-    gap: 8,
+    gap: 6,
   },
   poiChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(3,27,46,0.95)",
     borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
     borderWidth: 1.5,
     borderColor: "rgba(143,211,255,0.7)",
   },
   poiChipActive: {
     borderColor: "#8FD3FF",
     borderWidth: 2,
-    transform: [{ scale: 1.05 }],
+    transform: [{ scale: 1.02 }],
   },
   poiChipText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#FFFFFF",
     fontWeight: "700",
-    lineHeight: 15,
+    lineHeight: 14,
     includeFontPadding: true,
   },
   poiChipTextActive: {
