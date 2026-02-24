@@ -99,35 +99,83 @@ export default function EmergencyServices() {
     lat: number;
     lng: number;
   } | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   //getting the usser's current location using expo loaction and storing it in the userLocatio state.This location is then used to search for neaby places and to show the user's position in the map.
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      try {
+        setGpsError(null);
+
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setGpsError("Permission denied");
+          Alert.alert(
+            "Permission Denied",
+            "GPS is required to find help near you.",
+          );
+          return;
+        }
+
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) {
+          setGpsError("Location services disabled");
+          Alert.alert(
+            "Location Services Off",
+            "Please enable Location Services / GPS to find nearby help.",
+          );
+          return;
+        }
+
+        // Use last known location first (faster), then refresh with a high-accuracy fix.
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown?.coords) {
+          setUserLocation({
+            lat: lastKnown.coords.latitude,
+            lng: lastKnown.coords.longitude,
+          });
+        }
+
+        const locationData = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        setUserLocation({
+          lat: locationData.coords.latitude,
+          lng: locationData.coords.longitude,
+        });
+      } catch (e) {
+        console.error("[GPS] Error getting location:", e);
+        setGpsError("Unable to get location");
         Alert.alert(
-          "Permission Denied",
-          "GPS is required to find help near you.",
+          "Location Error",
+          "Unable to get your current location. Please enable GPS and try again.",
         );
-        return;
       }
-
-      let locationData = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setUserLocation({
-        lat: locationData.coords.latitude,
-        lng: locationData.coords.longitude,
-      });
     })();
   }, []);
 
-  const userLat = userLocation?.lat || 6.9271;
-  const userLng = userLocation?.lng || 79.8612;
+  const userLat = userLocation?.lat ?? null;
+  const userLng = userLocation?.lng ?? null;
 
   const handleCallAction = async (item: ServiceItem) => {
     if (item.category === "hotline") {
       makePhoneCall(item.phone);
+      return;
+    }
+
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) {
+      Alert.alert(
+        "Missing API key",
+        "Set EXPO_PUBLIC_GOOGLE_API_KEY in your .env to enable Places search.",
+      );
+      return;
+    }
+
+    if (userLat === null || userLng === null) {
+      Alert.alert(
+        "Waiting for GPS",
+        "Please wait until your location is available.",
+      );
       return;
     }
 
@@ -168,12 +216,25 @@ export default function EmergencyServices() {
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) {
+      Alert.alert(
+        "Missing API key",
+        "Set EXPO_PUBLIC_GOOGLE_API_KEY in your .env to enable Places search.",
+      );
+      return;
+    }
+
     console.log(
       `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
     );
 
     // Check if we have valid coordinates
-    if (!userLat || !userLng || isNaN(userLat) || isNaN(userLng)) {
+    if (
+      userLat === null ||
+      userLng === null ||
+      isNaN(userLat) ||
+      isNaN(userLng)
+    ) {
       Alert.alert(
         "Location Error",
         "Unable to get your current location. Please enable GPS.",
@@ -244,7 +305,9 @@ export default function EmergencyServices() {
           <TouchableOpacity
             onPress={() => handleCallAction(item)}
             disabled={
-              loadingStatus?.id === item.id && loadingStatus?.type === "call"
+              (loadingStatus?.id === item.id &&
+                loadingStatus?.type === "call") ||
+              (item.category === "place" && userLat === null)
             }
             className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-[#8FD3FF]/40"
           >
@@ -265,7 +328,9 @@ export default function EmergencyServices() {
             <TouchableOpacity
               onPress={() => handleMapAction(item)}
               disabled={
-                loadingStatus?.id === item.id && loadingStatus?.type === "map"
+                (loadingStatus?.id === item.id &&
+                  loadingStatus?.type === "map") ||
+                (item.category === "place" && userLat === null)
               }
               className="bg-[#0B253A]/50 border border-[#8FD3FF]/40 py-2 rounded-xl flex-row items-center justify-center mt-1"
             >
@@ -290,7 +355,10 @@ export default function EmergencyServices() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30"
+        >
           <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
           <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
         </TouchableOpacity>
@@ -304,7 +372,7 @@ export default function EmergencyServices() {
           </Text>
           {!userLocation && (
             <Text className="text-orange-400 text-xs mt-2 italic">
-              Waiting for GPS...
+              {gpsError ? `GPS issue: ${gpsError}` : "Waiting for GPS..."}
             </Text>
           )}
         </View>

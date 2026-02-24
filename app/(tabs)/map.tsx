@@ -1,4 +1,6 @@
+import { Feather, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,7 +23,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
 import MapView, {
   LatLng,
   Marker,
@@ -81,10 +82,20 @@ export default function MapScreen() {
   const [placeError, setPlaceError] = useState<string | null>(null);
 
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
-  const [nearbyLoadingPlaceId, setNearbyLoadingPlaceId] =
-    useState<string | null>(null);
+  const [nearbyLoadingPlaceId, setNearbyLoadingPlaceId] = useState<
+    string | null
+  >(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [activePoiKey, setActivePoiKey] = useState<string | null>(null);
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [filterWheelchair, setFilterWheelchair] = useState(false);
+  const [sortMode, setSortMode] = useState<"default" | "distance">("default");
+
+  const attemptedOpenNowRef = useRef<Set<string>>(new Set());
+  const [openNowHydrating, setOpenNowHydrating] = useState(false);
+
+  const attemptedWheelchairRef = useRef<Set<string>>(new Set());
+  const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
 
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
@@ -270,34 +281,11 @@ export default function MapScreen() {
         return;
       }
 
-      const recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        console.log("Voice recognition started");
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        console.log("Voice input:", transcript);
-        setQuery(transcript);
-        setIsListening(false);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        setIsListening(false);
-        Alert.alert("Error", "Could not recognize speech. Please try again.");
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
       try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
         recognition.start();
       } catch (error) {
         console.error("Error starting voice recognition:", error);
@@ -496,6 +484,15 @@ export default function MapScreen() {
   }, [query, mapRegion.latitude, mapRegion.longitude]);
 
   const recenter = () => {
+    // Recenter should not leave the search UI focused (which can feel like the
+    // map can't be panned/zoomed because overlays/keyboard steal gestures).
+    setInputFocused(false);
+    setSuggestions([]);
+    Keyboard.dismiss();
+
+    // Defensive: ensure we aren't in any implicit follow mode.
+    setFollowUser(false);
+
     const nextRegion: Region = {
       latitude: displayCenter.latitude,
       longitude: displayCenter.longitude,
@@ -637,6 +634,185 @@ export default function MapScreen() {
     return key;
   };
 
+  useEffect(() => {
+    if (!filterOpenNow) return;
+    if (!nearbyPlaces.length) return;
+
+    const pending = nearbyPlaces.filter(
+      (p) =>
+        typeof p.isOpenNow !== "boolean" &&
+        !attemptedOpenNowRef.current.has(p.placeId),
+    );
+
+    if (!pending.length) return;
+
+    // Mark as attempted immediately to avoid duplicate requests if state changes mid-flight.
+    for (const p of pending) attemptedOpenNowRef.current.add(p.placeId);
+
+    let cancelled = false;
+    setOpenNowHydrating(true);
+
+    void (async () => {
+      const results = new Map<string, boolean>();
+      const batchSize = 6;
+
+      for (let i = 0; i < pending.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = pending.slice(i, i + batchSize);
+
+        const settled = await Promise.all(
+          batch.map(async (p) => {
+            try {
+              const details = await getPlaceDetails(p.placeId);
+              return typeof details?.isOpenNow === "boolean"
+                ? { placeId: p.placeId, isOpenNow: details.isOpenNow }
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        for (const item of settled) {
+          if (item) results.set(item.placeId, item.isOpenNow);
+        }
+      }
+
+      if (cancelled) return;
+
+      if (results.size) {
+        setNearbyPlaces((prev) =>
+          prev.map((p) => {
+            const v = results.get(p.placeId);
+            return typeof v === "boolean" ? { ...p, isOpenNow: v } : p;
+          }),
+        );
+      }
+    })().finally(() => {
+      if (!cancelled) setOpenNowHydrating(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterOpenNow, nearbyPlaces]);
+
+  useEffect(() => {
+    if (!filterWheelchair) return;
+    if (!nearbyPlaces.length) return;
+
+    const pending = nearbyPlaces.filter(
+      (p) =>
+        typeof p.wheelchairAccessibleEntrance !== "boolean" &&
+        !attemptedWheelchairRef.current.has(p.placeId),
+    );
+
+    if (!pending.length) return;
+
+    // Mark as attempted immediately to avoid duplicate requests if state changes mid-flight.
+    for (const p of pending) attemptedWheelchairRef.current.add(p.placeId);
+
+    let cancelled = false;
+    setWheelchairHydrating(true);
+
+    void (async () => {
+      const results = new Map<string, boolean>();
+      const batchSize = 6;
+
+      for (let i = 0; i < pending.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = pending.slice(i, i + batchSize);
+
+        const settled = await Promise.all(
+          batch.map(async (p) => {
+            try {
+              const details = await getPlaceDetails(p.placeId);
+              return typeof details?.wheelchairAccessibleEntrance === "boolean"
+                ? {
+                    placeId: p.placeId,
+                    wheelchairAccessibleEntrance:
+                      details.wheelchairAccessibleEntrance,
+                  }
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        for (const item of settled) {
+          if (item)
+            results.set(item.placeId, item.wheelchairAccessibleEntrance);
+        }
+      }
+
+      if (cancelled) return;
+
+      if (results.size) {
+        setNearbyPlaces((prev) =>
+          prev.map((p) => {
+            const v = results.get(p.placeId);
+            return typeof v === "boolean"
+              ? { ...p, wheelchairAccessibleEntrance: v }
+              : p;
+          }),
+        );
+      }
+    })().finally(() => {
+      if (!cancelled) setWheelchairHydrating(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterWheelchair, nearbyPlaces]);
+
+  const filteredNearbyPlaces = useMemo(() => {
+    let list = [...nearbyPlaces];
+
+    if (filterOpenNow) {
+      // Keep only places we know are open right now.
+      list = list.filter((p) => p.isOpenNow === true);
+    }
+
+    if (filterWheelchair) {
+      // Keep only places we know have a wheelchair-accessible entrance.
+      list = list.filter((p) => p.wheelchairAccessibleEntrance === true);
+    }
+
+    if (sortMode === "distance") {
+      const base = hasLocation
+        ? coords
+        : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
+      list.sort((a, b) => {
+        const da = distanceMeters(base, {
+          latitude: a.latitude,
+          longitude: a.longitude,
+        });
+        const db = distanceMeters(base, {
+          latitude: b.latitude,
+          longitude: b.longitude,
+        });
+
+        const aVal = Number.isFinite(da) ? da : Number.POSITIVE_INFINITY;
+        const bVal = Number.isFinite(db) ? db : Number.POSITIVE_INFINITY;
+        if (aVal !== bVal) return aVal - bVal;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    return list;
+  }, [
+    nearbyPlaces,
+    filterOpenNow,
+    filterWheelchair,
+    sortMode,
+    hasLocation,
+    coords,
+    mapRegion,
+  ]);
+
   const decodePolyline = (encoded: string): LatLng[] => {
     let index = 0;
     let lat = 0;
@@ -751,6 +927,14 @@ export default function MapScreen() {
   const loadPoiCategory = async (key: string, keyword: string) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
+
+    // Reset filters whenever a new tab/category is chosen
+    setFilterOpenNow(false);
+    setFilterWheelchair(false);
+    setSortMode("default");
+
+    attemptedOpenNowRef.current.clear();
+    attemptedWheelchairRef.current.clear();
 
     setActivePoiKey(key);
     setPoiLoading(true);
@@ -881,7 +1065,21 @@ export default function MapScreen() {
           userInterfaceStyle={isDark ? "dark" : "light"}
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
-          onRegionChangeComplete={(r) => setMapRegion(r)}
+          onRegionChangeComplete={(
+            r,
+            details?: { isGesture?: boolean } | undefined,
+          ) => {
+            setMapRegion(r);
+
+            // If the user manually pans/zooms, stop following/recentering.
+            if (details?.isGesture) {
+              setFollowUser(false);
+            }
+          }}
+          onPanDrag={() => {
+            // Some platforms don't populate `details.isGesture`.
+            setFollowUser(false);
+          }}
           showsUserLocation={hasLocation}
           showsMyLocationButton={Platform.OS === "android"}
           showsCompass
@@ -1083,37 +1281,16 @@ export default function MapScreen() {
                 autoCapitalize="none"
                 returnKeyType="search"
                 onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
-                onSubmitEditing={() => {
-                  if (suggestions.length) {
-                    void onPickSuggestion(suggestions[0]);
-                  }
-                }}
               />
               <TouchableOpacity
-                style={styles.voiceButton}
-                onPress={handleVoiceSearch}
-                disabled={isListening}
+                onPress={recenter}
+                onPressIn={() => setRecenterPressed(true)}
+                onPressOut={() => setRecenterPressed(false)}
+                disabled={loading}
               >
-                <Ionicons
-                  name={isListening ? "mic" : "mic-outline"}
-                  size={20}
-                  color={isListening ? "#8FD3FF" : "#fff"}
-                />
+                <Text style={styles.recenterText}>◎</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[
-                styles.recenterButton,
-                recenterPressed && styles.toggleActive,
-              ]}
-              onPress={recenter}
-              onPressIn={() => setRecenterPressed(true)}
-              onPressOut={() => setRecenterPressed(false)}
-              disabled={loading}
-            >
-              <Text style={styles.recenterText}>◎</Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -1193,8 +1370,14 @@ export default function MapScreen() {
         </View>
 
         {selectedPlace && (
-          <View
-            style={[styles.sheet, isDark && { backgroundColor: "#031B2E" }]}
+          <BlurView
+            intensity={60}
+            tint={isDark ? "dark" : "light"}
+            style={[
+              styles.sheet,
+              isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
+              !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+            ]}
           >
             <View
               style={[
@@ -1400,7 +1583,8 @@ export default function MapScreen() {
                 <Text
                   style={[
                     styles.sheetActionText,
-                    isDark && { color: "#8FD3FF" },
+                    { fontSize: 14 },
+                    isDark && { color: "#FFFFFF" },
                   ]}
                 >
                   Call
@@ -1431,7 +1615,8 @@ export default function MapScreen() {
                 <Text
                   style={[
                     styles.sheetActionText,
-                    isDark && { color: "#8FD3FF" },
+                    { fontSize: 14 },
+                    isDark && { color: "#FFFFFF" },
                   ]}
                 >
                   Route
@@ -1466,6 +1651,7 @@ export default function MapScreen() {
                 <Text
                   style={[
                     styles.sheetActionText,
+                    { fontSize: 14 },
                     isDark && { color: "#FF8A80" },
                   ]}
                 >
@@ -1492,6 +1678,7 @@ export default function MapScreen() {
                 <Text
                   style={[
                     styles.sheetActionText,
+                    { fontSize: 14 },
                     isDark && { color: "#6EE7B7" },
                   ]}
                 >
@@ -1543,12 +1730,18 @@ export default function MapScreen() {
                 </View>
               </View>
             ) : null}
-          </View>
+          </BlurView>
         )}
 
         {!selectedPlace && nearbyPlaces.length > 0 && (
-          <View
-            style={[styles.nearbySheet, isDark && { backgroundColor: "#031B2E" }]}
+          <BlurView
+            intensity={60}
+            tint={isDark ? "dark" : "light"}
+            style={[
+              styles.nearbySheet,
+              isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
+              !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+            ]}
           >
             <View style={styles.nearbyHandle} />
 
@@ -1558,7 +1751,8 @@ export default function MapScreen() {
                   style={[styles.nearbyTitle, isDark && { color: "#FFFFFF" }]}
                 >
                   {`Nearby ${
-                    POI_CATEGORIES.find((c) => c.key === activePoiKey)?.label ?? "Places"
+                    POI_CATEGORIES.find((c) => c.key === activePoiKey)?.label ??
+                    "Places"
                   }`}
                 </Text>
                 <Text
@@ -1578,12 +1772,81 @@ export default function MapScreen() {
                 }}
                 style={styles.nearbyClose}
               >
-                <Feather name="x" size={18} color={isDark ? "#8FD3FF" : "#0B253A"} />
+                <Feather
+                  name="x"
+                  size={18}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
               </TouchableOpacity>
             </View>
 
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterRow}
+              contentContainerStyle={styles.filterRowContent}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  sortMode !== "default" && styles.filterChipActive,
+                ]}
+                onPress={() => {
+                  setSortMode((prev) =>
+                    prev === "default" ? "distance" : "default",
+                  );
+                }}
+              >
+                <Text style={styles.filterChipText} allowFontScaling={false}>
+                  Sort by
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  filterOpenNow && styles.filterChipActive,
+                ]}
+                onPress={() => setFilterOpenNow((v) => !v)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {openNowHydrating ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isDark ? "#8FD3FF" : "#0B253A"}
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : null}
+                  <Text style={styles.filterChipText} allowFontScaling={false}>
+                    Open now
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  filterWheelchair && styles.filterChipActive,
+                ]}
+                onPress={() => setFilterWheelchair((v) => !v)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {wheelchairHydrating ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isDark ? "#8FD3FF" : "#0B253A"}
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : null}
+                  <Text style={styles.filterChipText} allowFontScaling={false}>
+                    Wheelchair entrance
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </ScrollView>
+
             <ScrollView style={styles.nearbyList}>
-              {nearbyPlaces.map((p, index) => (
+              {filteredNearbyPlaces.map((p, index) => (
                 <View key={p.placeId} style={styles.nearbyCard}>
                   <Text style={styles.nearbyIndex}>{`#${index + 1}`}</Text>
                   <Text
@@ -1620,7 +1883,8 @@ export default function MapScreen() {
                             latitude: p.latitude,
                             longitude: p.longitude,
                           }),
-                        )} away
+                        )}{" "}
+                        away
                       </Text>
                     )}
                   </View>
@@ -1662,6 +1926,7 @@ export default function MapScreen() {
                               styles.sheetActionText,
                               { color: "#FFFFFF" },
                             ]}
+                            allowFontScaling={false}
                           >
                             Call
                           </Text>
@@ -1704,6 +1969,7 @@ export default function MapScreen() {
                               styles.sheetActionText,
                               { color: "#FFFFFF" },
                             ]}
+                            allowFontScaling={false}
                           >
                             Route
                           </Text>
@@ -1714,7 +1980,7 @@ export default function MapScreen() {
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </BlurView>
         )}
       </View>
 
@@ -2107,12 +2373,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#031B2E",
+    backgroundColor: "rgba(3,27,46,0.95)",
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: "rgba(143,211,255,0.7)",
   },
   poiChipActive: {
     borderColor: "#8FD3FF",
@@ -2121,8 +2387,10 @@ const styles = StyleSheet.create({
   },
   poiChipText: {
     fontSize: 12,
-    color: "#fff",
-    fontWeight: "600",
+    color: "#FFFFFF",
+    fontWeight: "700",
+    lineHeight: 15,
+    includeFontPadding: true,
   },
   poiChipTextActive: {
     color: "#fff",
@@ -2184,9 +2452,10 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "rgba(255,255,255,0.98)",
+    backgroundColor: "rgba(255,255,255,0.55)",
     borderRadius: 18,
     padding: 14,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2303,26 +2572,26 @@ const styles = StyleSheet.create({
     color: "#991B1B",
   },
   sheetActionsRow: {
-    marginTop: 12,
+    marginTop: 14,
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   sheetActionBtn: {
     flex: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderColor: "rgba(0,0,0,0.12)",
   },
   sheetActionText: {
     color: "#0B253A",
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 12,
   },
   actionNeutral: {
     backgroundColor: "rgba(0,0,0,0.06)",
@@ -2374,10 +2643,11 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "#021221",
+    backgroundColor: "rgba(2,18,33,0.6)",
     borderRadius: 18,
-    padding: 14,
+    padding: 16,
     maxHeight: "55%",
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2417,7 +2687,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   nearbyList: {
-    marginTop: 6,
+    marginTop: 10,
+    paddingTop: 6,
   },
   nearbyCard: {
     borderRadius: 20,
@@ -2461,6 +2732,54 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 10,
+  },
+  filterRow: {
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    height: 52,
+  },
+  filterRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+  },
+  filterChip: {
+    minWidth: 80,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(6,28,46,0.4)",
+    borderWidth: 2.2,
+    borderColor: "#BCEBFF",
+    borderStyle: "solid",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  filterChipActive: {
+    backgroundColor: "rgba(143,211,255,0.3)",
+    borderColor: "#FFFFFF",
+    borderWidth: 3,
+  },
+  filterChipText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 13,
+    includeFontPadding: true,
+    textAlignVertical: "center",
+    letterSpacing: 0.1,
+    opacity: 1,
   },
   voiceButton: {
     padding: 4,

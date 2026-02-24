@@ -25,6 +25,7 @@ export type PlaceDetails = {
   website?: string;
   googleMapsUrl?: string;
   isOpenNow?: boolean;
+  wheelchairAccessibleEntrance?: boolean;
   priceLevel?: number;
   photos?: PlacePhoto[];
 };
@@ -44,6 +45,8 @@ export type NearbyPlace = {
   rating?: number;
   userRatingsTotal?: number;
   types?: string[];
+  isOpenNow?: boolean;
+  wheelchairAccessibleEntrance?: boolean;
 };
 
 /**
@@ -87,6 +90,14 @@ export async function findNearestPlaceAt(
         rating: r.rating,
         userRatingsTotal: r.user_ratings_total,
         types: Array.isArray(r.types) ? r.types : undefined,
+        isOpenNow:
+          typeof r.opening_hours?.open_now === "boolean"
+            ? r.opening_hours.open_now
+            : undefined,
+        wheelchairAccessibleEntrance:
+          typeof r.wheelchair_accessible_entrance === "boolean"
+            ? r.wheelchair_accessible_entrance
+            : undefined,
       } satisfies NearbyPlace;
     }
 
@@ -111,21 +122,36 @@ export async function getNearbyPlaces(
   lng: number,
   serviceType: string,
 ): Promise<string | null> {
-  // Logic: rankby=distance ensures the closest result is always index [0]
-  // keyword= allows for broader matching (e.g., 'Hospital' vs 'Medical Center')
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${serviceType}&key=${GOOGLE_API_KEY}`;
+  if (!GOOGLE_API_KEY) {
+    console.error("[Google Search] Missing EXPO_PUBLIC_GOOGLE_API_KEY");
+    return null;
+  }
+
+  // Original simple behavior:
+  // - Use Places Nearby Search (Legacy) with rankby=distance
+  // - Use keyword matching (can include clinics/medical centers)
+  // - Return the first result (nearest in Google's distance-ranked list)
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
+    String(lat),
+  )},${encodeURIComponent(
+    String(lng),
+  )}&rankby=distance&keyword=${encodeURIComponent(
+    serviceType,
+  )}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
 
   try {
     const response = await fetch(url);
     const data = await response.json();
 
-    // Log the search result to your terminal for live debugging
     console.log(
       `[Google Search] Keyword: ${serviceType} | Status: ${data.status}`,
     );
 
-    if (data.status === "OK" && data.results.length > 0) {
-      // Return the ID of the nearest result found
+    if (
+      data.status === "OK" &&
+      Array.isArray(data.results) &&
+      data.results[0]
+    ) {
       return data.results[0].place_id;
     }
 
@@ -243,7 +269,7 @@ export async function getPlaceDetails(
 ): Promise<PlaceDetails | null> {
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(
     placeId,
-  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,types,geometry,photos,opening_hours,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
+  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,types,geometry,photos,opening_hours,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
 
   try {
     const response = await fetch(url);
@@ -293,6 +319,10 @@ export async function getPlaceDetails(
         isOpenNow:
           typeof data.result.opening_hours?.open_now === "boolean"
             ? data.result.opening_hours.open_now
+            : undefined,
+        wheelchairAccessibleEntrance:
+          typeof data.result.wheelchair_accessible_entrance === "boolean"
+            ? data.result.wheelchair_accessible_entrance
             : undefined,
         priceLevel:
           typeof data.result.price_level === "number"
@@ -367,6 +397,14 @@ export async function searchNearbyPlaces(
             rating: r.rating,
             userRatingsTotal: r.user_ratings_total,
             types: Array.isArray(r.types) ? r.types : undefined,
+            isOpenNow:
+              typeof r.opening_hours?.open_now === "boolean"
+                ? r.opening_hours.open_now
+                : undefined,
+            wheelchairAccessibleEntrance:
+              typeof r.wheelchair_accessible_entrance === "boolean"
+                ? r.wheelchair_accessible_entrance
+                : undefined,
           } satisfies NearbyPlace,
         ];
       });
