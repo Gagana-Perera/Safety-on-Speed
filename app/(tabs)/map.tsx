@@ -65,6 +65,71 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
 
+const formatCount = (n?: number) => {
+  if (typeof n !== "number") return "";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+};
+
+const shuffleArray = <T,>(items: T[]): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+};
+
+const estimateStarCountsMaxEntropy = (
+  averageRating: number,
+  totalReviews: number,
+): number[] => {
+  const total = Math.max(0, Math.floor(totalReviews));
+  if (!total) return [0, 0, 0, 0, 0];
+
+  const mu = clamp(averageRating, 1, 5);
+  const stars = [1, 2, 3, 4, 5] as const;
+
+  const expectedForLambda = (lambda: number) => {
+    const weights = stars.map((s) => Math.exp(lambda * s));
+    const sumW = weights.reduce((a, b) => a + b, 0);
+    const sumSW = weights.reduce((a, w, idx) => a + w * stars[idx], 0);
+    return sumSW / sumW;
+  };
+
+  let lo = -10;
+  let hi = 10;
+  for (let i = 0; i < 48; i += 1) {
+    const mid = (lo + hi) / 2;
+    const e = expectedForLambda(mid);
+    if (e < mu) lo = mid;
+    else hi = mid;
+  }
+  const lambda = (lo + hi) / 2;
+
+  const rawWeights = stars.map((s) => Math.exp(lambda * s));
+  const sumW = rawWeights.reduce((a, b) => a + b, 0);
+  const p = rawWeights.map((w) => w / sumW);
+
+  const floors = p.map((x) => Math.floor(x * total));
+  let remaining = total - floors.reduce((a, b) => a + b, 0);
+
+  const frac = p.map((x, i) => ({
+    i,
+    f: x * total - floors[i],
+  }));
+  frac.sort((a, b) => b.f - a.f);
+  for (let k = 0; k < frac.length && remaining > 0; k += 1) {
+    floors[frac[k].i] += 1;
+    remaining -= 1;
+  }
+
+  return floors;
+};
+
 export default function MapScreen() {
   const params = useLocalSearchParams<{
     placeId?: string | string[];
@@ -100,6 +165,62 @@ export default function MapScreen() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
+  const selectedReviewSummary = useMemo(() => {
+    const rating =
+      selectedPlace && typeof selectedPlace.rating === "number"
+        ? selectedPlace.rating
+        : null;
+
+    const totalReviews =
+      selectedPlace && typeof selectedPlace.userRatingsTotal === "number"
+        ? selectedPlace.userRatingsTotal
+        : null;
+
+    const raw = Array.isArray(selectedPlace?.reviews)
+      ? selectedPlace?.reviews
+      : [];
+
+    const sampleCounts = [0, 0, 0, 0, 0]; // 1..5
+    for (const r of raw) {
+      const v = typeof r?.rating === "number" ? r.rating : null;
+      if (v === null) continue;
+      const bucket = clamp(Math.round(v), 1, 5);
+      sampleCounts[bucket - 1] += 1;
+    }
+
+    const sampleTotal = sampleCounts.reduce((a, b) => a + b, 0);
+
+    const useEstimated =
+      rating !== null &&
+      totalReviews !== null &&
+      Number.isFinite(rating) &&
+      Number.isFinite(totalReviews) &&
+      totalReviews > 0;
+
+    const counts = useEstimated
+      ? estimateStarCountsMaxEntropy(rating, totalReviews)
+      : sampleCounts;
+
+    const denom = counts.reduce((a, b) => a + b, 0);
+    const pct = (star: 1 | 2 | 3 | 4 | 5) => {
+      if (!denom) return 0;
+      return counts[star - 1] / denom;
+    };
+
+    return {
+      rating,
+      totalText:
+        totalReviews !== null
+          ? formatCount(totalReviews)
+          : sampleTotal
+            ? String(sampleTotal)
+            : "",
+      source: useEstimated ? ("estimated" as const) : ("sample" as const),
+      usedCount: denom,
+      pct,
+    };
+  }, [selectedPlace]);
+
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [nearbyLoadingPlaceId, setNearbyLoadingPlaceId] = useState<
     string | null
@@ -119,11 +240,19 @@ export default function MapScreen() {
   const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
   const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
 
+  const [selectedSheetExpanded, setSelectedSheetExpanded] = useState(false);
+  const [selectedSheetMinimized, setSelectedSheetMinimized] = useState(false);
+
+  const [selectedSheetContentHeight, setSelectedSheetContentHeight] =
+    useState(0);
+
   const [nearbyDragZoneHeight, setNearbyDragZoneHeight] = useState(0);
   const [nearbyFilterRowHeight, setNearbyFilterRowHeight] = useState(0);
   const [topOverlayBottomY, setTopOverlayBottomY] = useState(0);
 
   const nearbyListScrollYRef = useRef(0);
+
+  const selectedSheetScrollYRef = useRef(0);
 
   const nearbySheetTranslateY = useRef(new Animated.Value(0)).current;
   const nearbySheetTranslateYRef = useRef(0);
@@ -133,6 +262,271 @@ export default function MapScreen() {
 
   const nearbySheetExpandedRef = useRef(false);
   const nearbySheetChipsOnlyRef = useRef(false);
+
+  const selectedSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const selectedSheetTranslateYRef = useRef(0);
+  const wasSelectedSheetVisibleRef = useRef(false);
+  const selectedSheetPanStartRef = useRef(0);
+  const selectedSheetDraggingRef = useRef(false);
+
+  const selectedSheetExpandedRef = useRef(false);
+
+  const {
+    selectedSheetHeightPx,
+    selectedSheetExpandedTranslate,
+    selectedSheetCollapsedTranslate,
+    selectedSheetMinimizedTranslate,
+    selectedSheetHasMinimizedSnap,
+  } = useMemo(() => {
+    const h = dimensions.height || Dimensions.get("window").height;
+    const sheetHeightPx = Math.round(h * 0.95);
+    const defaultPeekVisiblePx = Math.round(h * 0.4);
+    const minPeekVisiblePx = 220;
+    const contentPeekVisiblePx = selectedSheetContentHeight
+      ? clamp(
+          selectedSheetContentHeight + 64,
+          minPeekVisiblePx,
+          defaultPeekVisiblePx,
+        )
+      : defaultPeekVisiblePx;
+    const peekVisiblePx = contentPeekVisiblePx;
+    const collapsedTranslate = Math.max(0, sheetHeightPx - peekVisiblePx);
+
+    const overlayMargin = 10;
+    const minTop = Math.max(0, topOverlayBottomY + overlayMargin);
+    const baseTop = h - sheetHeightPx;
+    const expandedTranslate = clamp(minTop - baseTop, 0, collapsedTranslate);
+
+    // Minimized: show just the handle area (and a little breathing room).
+    const minimizedVisiblePx = 160;
+    const minimizedTranslateRaw = Math.max(
+      0,
+      sheetHeightPx - minimizedVisiblePx,
+    );
+    const minimizedTranslate = Math.max(
+      collapsedTranslate,
+      minimizedTranslateRaw,
+    );
+    const hasMinimizedSnap = minimizedTranslate > collapsedTranslate + 4;
+
+    return {
+      selectedSheetHeightPx: sheetHeightPx,
+      selectedSheetExpandedTranslate: expandedTranslate,
+      selectedSheetCollapsedTranslate: collapsedTranslate,
+      selectedSheetMinimizedTranslate: minimizedTranslate,
+      selectedSheetHasMinimizedSnap: hasMinimizedSnap,
+    };
+  }, [dimensions.height, topOverlayBottomY, selectedSheetContentHeight]);
+
+  const updateSelectedSheetModeFromTranslate = useCallback(
+    (translateY: number) => {
+      const isExpanded = translateY <= selectedSheetExpandedTranslate + 0.5;
+      const isMinimized =
+        selectedSheetHasMinimizedSnap &&
+        translateY >= selectedSheetMinimizedTranslate - 8;
+
+      if (selectedSheetExpandedRef.current !== isExpanded) {
+        selectedSheetExpandedRef.current = isExpanded;
+        setSelectedSheetExpanded(isExpanded);
+      }
+
+      if (isMinimized !== selectedSheetMinimized) {
+        setSelectedSheetMinimized(isMinimized);
+      }
+    },
+    [
+      selectedSheetExpandedTranslate,
+      selectedSheetHasMinimizedSnap,
+      selectedSheetMinimizedTranslate,
+      selectedSheetMinimized,
+    ],
+  );
+
+  const animateSelectedSheetTo = useCallback(
+    (toValue: number) => {
+      updateSelectedSheetModeFromTranslate(toValue);
+      Animated.timing(selectedSheetTranslateY, {
+        toValue,
+        duration: 300,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1.0),
+        useNativeDriver: true,
+      }).start(() => {
+        selectedSheetTranslateYRef.current = toValue;
+        updateSelectedSheetModeFromTranslate(toValue);
+      });
+    },
+    [selectedSheetTranslateY, updateSelectedSheetModeFromTranslate],
+  );
+
+  useEffect(() => {
+    if (!selectedPlace) return;
+    if (selectedSheetDraggingRef.current) return;
+
+    if (selectedSheetMinimized) {
+      animateSelectedSheetTo(selectedSheetMinimizedTranslate);
+      return;
+    }
+
+    const current = selectedSheetTranslateYRef.current;
+    const isExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+    animateSelectedSheetTo(
+      isExpanded
+        ? selectedSheetExpandedTranslate
+        : selectedSheetCollapsedTranslate,
+    );
+  }, [
+    selectedPlace,
+    selectedSheetCollapsedTranslate,
+    selectedSheetExpandedTranslate,
+    selectedSheetMinimizedTranslate,
+    selectedSheetMinimized,
+    animateSelectedSheetTo,
+  ]);
+
+  const selectedSheetPanResponder = useMemo(() => {
+    const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
+      const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
+      if (!vertical) return false;
+
+      const isExpanded =
+        selectedSheetTranslateYRef.current <=
+        selectedSheetExpandedTranslate + 0.5;
+      if (!isExpanded) return true;
+
+      const listAtTop = selectedSheetScrollYRef.current <= 0;
+      return listAtTop && g.dy > 0;
+    };
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: shouldSet,
+      onMoveShouldSetPanResponderCapture: shouldSet,
+      onPanResponderGrant: () => {
+        selectedSheetDraggingRef.current = true;
+        selectedSheetPanStartRef.current = selectedSheetTranslateYRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        if (!selectedSheetCollapsedTranslate) return;
+        const next = clamp(
+          selectedSheetPanStartRef.current + g.dy,
+          selectedSheetExpandedTranslate,
+          selectedSheetCollapsedTranslate,
+        );
+        selectedSheetTranslateY.setValue(next);
+        selectedSheetTranslateYRef.current = next;
+        updateSelectedSheetModeFromTranslate(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        selectedSheetDraggingRef.current = false;
+        if (!selectedSheetCollapsedTranslate) return;
+        const current = selectedSheetTranslateYRef.current;
+        const vy = g.vy;
+
+        const snapPoints = selectedSheetHasMinimizedSnap
+          ? [
+              selectedSheetExpandedTranslate,
+              selectedSheetCollapsedTranslate,
+              selectedSheetMinimizedTranslate,
+            ]
+          : [selectedSheetExpandedTranslate, selectedSheetCollapsedTranslate];
+
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+
+        if (vy <= -0.8) {
+          if (!selectedSheetHasMinimizedSnap) {
+            animateSelectedSheetTo(selectedSheetExpandedTranslate);
+            return;
+          }
+
+          const isAtPeek =
+            Math.abs(current - selectedSheetCollapsedTranslate) <= 14;
+          const isAtMin =
+            Math.abs(current - selectedSheetMinimizedTranslate) <= 18;
+
+          // Swipe-up: minimized -> peek -> expanded.
+          if (isAtMin || current > selectedSheetCollapsedTranslate) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek || current <= selectedSheetCollapsedTranslate) {
+            animateSelectedSheetTo(selectedSheetExpandedTranslate);
+            return;
+          }
+
+          animateSelectedSheetTo(nearest);
+          return;
+        }
+        if (vy >= 0.8) {
+          if (!selectedSheetHasMinimizedSnap) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          const isExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+          const isAtPeek =
+            Math.abs(current - selectedSheetCollapsedTranslate) <= 14;
+
+          if (isExpanded) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek) {
+            animateSelectedSheetTo(selectedSheetMinimizedTranslate);
+            return;
+          }
+
+          const mid =
+            selectedSheetCollapsedTranslate +
+            (selectedSheetMinimizedTranslate -
+              selectedSheetCollapsedTranslate) /
+              2;
+          animateSelectedSheetTo(
+            current >= mid
+              ? selectedSheetMinimizedTranslate
+              : selectedSheetCollapsedTranslate,
+          );
+          return;
+        }
+
+        animateSelectedSheetTo(nearest);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {
+        selectedSheetDraggingRef.current = false;
+        if (!selectedSheetCollapsedTranslate) return;
+        const current = selectedSheetTranslateYRef.current;
+
+        const snapPoints = selectedSheetHasMinimizedSnap
+          ? [
+              selectedSheetExpandedTranslate,
+              selectedSheetCollapsedTranslate,
+              selectedSheetMinimizedTranslate,
+            ]
+          : [selectedSheetExpandedTranslate, selectedSheetCollapsedTranslate];
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+        animateSelectedSheetTo(nearest);
+      },
+    });
+  }, [
+    animateSelectedSheetTo,
+    selectedSheetCollapsedTranslate,
+    selectedSheetExpandedTranslate,
+    selectedSheetHasMinimizedSnap,
+    selectedSheetMinimizedTranslate,
+    selectedSheetTranslateY,
+    updateSelectedSheetModeFromTranslate,
+  ]);
 
   // Bottom-sheet snap points (Google Maps style):
   // - Peek: 40% visible (map remains visible behind)
@@ -424,6 +818,33 @@ export default function MapScreen() {
     nearbySheetTranslateY,
     nearbySheetCollapsedTranslate,
   ]);
+
+  // Keep the selected-place sheet from overlapping the top overlay.
+  useEffect(() => {
+    const visible = !!selectedPlace;
+    if (!visible) return;
+    if (selectedSheetDraggingRef.current) return;
+
+    const current = selectedSheetTranslateYRef.current;
+    const isAtExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+    const delta = Math.abs(current - selectedSheetExpandedTranslate);
+    if (isAtExpanded && delta > 2) {
+      animateSelectedSheetTo(selectedSheetExpandedTranslate);
+    }
+  }, [animateSelectedSheetTo, selectedPlace, selectedSheetExpandedTranslate]);
+
+  // Reset to collapsed when a place sheet becomes visible.
+  useEffect(() => {
+    const visible = !!selectedPlace;
+    if (visible && !wasSelectedSheetVisibleRef.current) {
+      selectedSheetTranslateY.setValue(selectedSheetCollapsedTranslate);
+      selectedSheetTranslateYRef.current = selectedSheetCollapsedTranslate;
+      setSelectedSheetExpanded(false);
+      selectedSheetExpandedRef.current = false;
+      setSelectedSheetMinimized(false);
+    }
+    wasSelectedSheetVisibleRef.current = visible;
+  }, [selectedPlace, selectedSheetTranslateY, selectedSheetCollapsedTranslate]);
 
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
@@ -847,11 +1268,15 @@ export default function MapScreen() {
     mapRef.current?.animateToRegion(nextRegion, 450);
   };
 
-  const formatCount = (n?: number) => {
-    if (typeof n !== "number") return "";
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
+  const openAddReview = async (placeId: string) => {
+    const url = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
+      placeId,
+    )}`;
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      console.error("[Add review] openURL failed", url, e);
+    }
   };
 
   const selectPlaceById = async (
@@ -1313,6 +1738,10 @@ export default function MapScreen() {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
 
+    const base = hasLocation
+      ? coords
+      : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
     // Reset filters whenever a new tab/category is chosen
     setFilterOpenNow(false);
     setFilterWheelchair(false);
@@ -1325,13 +1754,13 @@ export default function MapScreen() {
     setPoiLoading(true);
     try {
       const list = await searchNearbyPlaces(
-        mapRegion.latitude,
-        mapRegion.longitude,
+        base.latitude,
+        base.longitude,
         keyword,
         20,
       );
 
-      setNearbyPlaces(list);
+      setNearbyPlaces(shuffleArray(list));
       // Reset any previously selected place/route so we can show the nearby list
       setSelectedPlace(null);
       setRoute(null);
@@ -1359,6 +1788,10 @@ export default function MapScreen() {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
 
+    const base = hasLocation
+      ? coords
+      : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
     const next = !filterOpenNow;
     setFilterOpenNow(next);
 
@@ -1375,13 +1808,13 @@ export default function MapScreen() {
     void (async () => {
       try {
         const list = await searchNearbyPlaces(
-          mapRegion.latitude,
-          mapRegion.longitude,
+          base.latitude,
+          base.longitude,
           cat.keyword,
           20,
           { openNow: next },
         );
-        setNearbyPlaces(list);
+        setNearbyPlaces(shuffleArray(list));
         setSelectedPlace(null);
         setRoute(null);
       } catch (e) {
@@ -1834,367 +2267,495 @@ export default function MapScreen() {
         </View>
 
         {selectedPlace && (
-          <BlurView
+          <AnimatedBlurView
             intensity={60}
             tint={isDark ? "dark" : "light"}
             style={[
               styles.sheet,
               isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
               !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+              { height: selectedSheetHeightPx },
+              { transform: [{ translateY: selectedSheetTranslateY }] },
             ]}
           >
             <View
-              style={[
-                styles.sheetHandle,
-                isDark && { backgroundColor: "rgba(255,255,255,0.2)" },
-              ]}
-            />
-
-            {(placeLoading || directionsLoading) && (
-              <View style={styles.sheetLoadingRow}>
-                <ActivityIndicator size="small" color="#2F6FED" />
-                <Text
-                  style={[
-                    styles.sheetLoadingText,
-                    isDark && { color: "rgba(255,255,255,0.7)" },
-                  ]}
-                >
-                  {placeLoading ? "Loading details…" : "Loading route…"}
-                </Text>
-              </View>
-            )}
-
-            {placeError ? (
-              <Text style={styles.sheetErrorText}>{placeError}</Text>
-            ) : null}
-
-            {selectedPlace.photos?.length ? (
-              <FlatList
-                horizontal
-                data={selectedPlace.photos}
-                keyExtractor={(p) => p.photoReference}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.sheetPhotosRow}
-                renderItem={({ item }) => {
-                  const url = getPlacePhotoUrl(item.photoReference, 900);
-                  if (!url) return null;
-                  return (
-                    <ExpoImage
-                      source={{ uri: url }}
-                      style={styles.sheetPhoto}
-                      onError={(e) => {
-                        console.error("[Place Photo] load error:", url, e);
-                      }}
-                      contentFit="cover"
-                    />
-                  );
-                }}
+              style={{ flex: 1 }}
+              {...selectedSheetPanResponder.panHandlers}
+            >
+              <View
+                style={[
+                  styles.sheetHandle,
+                  isDark && { backgroundColor: "rgba(255,255,255,0.2)" },
+                ]}
               />
-            ) : (
-              <Text
-                style={[
-                  styles.sheetPhotosEmpty,
-                  isDark && { color: "rgba(255,255,255,0.5)" },
-                ]}
-              >
-                No photos available for this place.
-              </Text>
-            )}
 
-            <View style={styles.sheetHeaderRow}>
-              <View
-                style={[
-                  styles.sheetHeaderIcon,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
-                ]}
-              >
-                <Feather
-                  name={
-                    getCategoryLabel(selectedPlace.types) === "Hospital"
-                      ? "plus"
-                      : getCategoryLabel(selectedPlace.types) === "Police"
-                        ? "shield"
-                        : "map-pin"
-                  }
-                  size={18}
-                  color={isDark ? "#8FD3FF" : "#0B253A"}
-                />
-              </View>
-
-              <View style={styles.sheetHeaderText}>
-                <Text
-                  style={[styles.sheetTitle, isDark && { color: "#FFFFFF" }]}
-                  numberOfLines={1}
-                >
-                  {selectedPlace.name}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.sheetSubtitle,
-                    isDark && { color: "rgba(255,255,255,0.7)" },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {getCategoryLabel(selectedPlace.types)}
-                  {hasLocation
-                    ? ` • ${formatDistance(
-                        distanceMeters(coords, {
-                          latitude: selectedPlace.latitude,
-                          longitude: selectedPlace.longitude,
-                        }),
-                      )} away`
-                    : ""}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedPlace(null);
-                  setRoute(null);
-                }}
-                style={[
-                  styles.sheetClose,
-                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
-                ]}
-              >
-                <Feather
-                  name="x"
-                  size={18}
-                  color={isDark ? "#8FD3FF" : "#0B253A"}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {selectedPlace.address ? (
-              <Text
-                style={[
-                  styles.sheetAddress,
-                  isDark && { color: "rgba(255,255,255,0.6)" },
-                ]}
-                numberOfLines={2}
-              >
-                {selectedPlace.address}
-              </Text>
-            ) : null}
-
-            <View style={styles.sheetMetaRow}>
-              {typeof selectedPlace.rating === "number" ? (
-                <Text
-                  style={[
-                    styles.sheetMetaPill,
-                    isDark && {
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                      color: "rgba(255,255,255,0.8)",
-                    },
-                  ]}
-                >
-                  ⭐ {selectedPlace.rating.toFixed(1)}
-                  {typeof selectedPlace.userRatingsTotal === "number"
-                    ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
-                    : ""}
-                </Text>
-              ) : null}
-              {typeof selectedPlace.isOpenNow === "boolean" ? (
-                <Text
-                  style={[
-                    styles.sheetMetaPill,
-                    selectedPlace.isOpenNow ? styles.openNow : styles.closedNow,
-                  ]}
-                >
-                  {selectedPlace.isOpenNow ? "Open now" : "Closed"}
-                </Text>
-              ) : null}
-            </View>
-
-            {route ? (
-              <Text
-                style={[
-                  styles.sheetMeta,
-                  isDark && { color: "rgba(255,255,255,0.7)" },
-                ]}
-              >
-                ETA: {route.durationText} • {route.distanceText}
-              </Text>
-            ) : null}
-
-            <View style={styles.sheetActionsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.sheetActionBtn,
-                  styles.actionNeutral,
-                  isDark && {
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    borderColor: "rgba(255,255,255,0.2)",
-                  },
-                ]}
-                onPress={() => {
-                  if (!selectedPlace.phoneNumber) {
-                    Alert.alert(
-                      "No phone number",
-                      "This place doesn't have a phone number listed.",
-                    );
-                    return;
-                  }
-                  void makePhoneCall(selectedPlace.phoneNumber);
-                }}
-              >
-                <Feather
-                  name="phone"
-                  size={16}
-                  color={isDark ? "#8FD3FF" : "#0B253A"}
-                />
-                <Text
-                  style={[
-                    styles.sheetActionText,
-                    { fontSize: 14 },
-                    isDark && { color: "#FFFFFF" },
-                  ]}
-                >
-                  Call
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.sheetActionBtn,
-                  styles.actionBlue,
-                  isDark && {
-                    backgroundColor: "rgba(47,111,237,0.25)",
-                    borderColor: "rgba(47,111,237,0.4)",
-                  },
-                ]}
-                onPress={() =>
-                  void openGoogleMapsDirections({
-                    latitude: selectedPlace.latitude,
-                    longitude: selectedPlace.longitude,
-                  })
-                }
-              >
-                <Feather
-                  name="navigation"
-                  size={16}
-                  color={isDark ? "#8FD3FF" : "#0B253A"}
-                />
-                <Text
-                  style={[
-                    styles.sheetActionText,
-                    { fontSize: 14 },
-                    isDark && { color: "#FFFFFF" },
-                  ]}
-                >
-                  Route
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.sheetActionBtn,
-                  styles.actionRed,
-                  isDark && {
-                    backgroundColor: "rgba(239,68,68,0.2)",
-                    borderColor: "rgba(239,68,68,0.3)",
-                  },
-                ]}
-                onPress={() => {
-                  Alert.alert("Emergency", "Open Emergency Services?", [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Open",
-                      style: "default",
-                      onPress: () => router.push("/(tabs)/extra"),
-                    },
-                  ]);
-                }}
-              >
-                <Feather
-                  name="alert-triangle"
-                  size={16}
-                  color={isDark ? "#FF8A80" : "#0B253A"}
-                />
-                <Text
-                  style={[
-                    styles.sheetActionText,
-                    { fontSize: 14 },
-                    isDark && { color: "#FF8A80" },
-                  ]}
-                >
-                  SOS
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.sheetActionBtn,
-                  styles.actionGreen,
-                  isDark && {
-                    backgroundColor: "rgba(16,185,129,0.2)",
-                    borderColor: "rgba(16,185,129,0.3)",
-                  },
-                ]}
-                onPress={() => void sharePlace(selectedPlace)}
-              >
-                <Feather
-                  name="share-2"
-                  size={16}
-                  color={isDark ? "#6EE7B7" : "#0B253A"}
-                />
-                <Text
-                  style={[
-                    styles.sheetActionText,
-                    { fontSize: 14 },
-                    isDark && { color: "#6EE7B7" },
-                  ]}
-                >
-                  Share
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {getSafetyNote(selectedPlace.types) ? (
-              <View
-                style={[
-                  styles.sheetSafetyCard,
-                  isDark && {
-                    backgroundColor: "rgba(254,148,0,0.18)",
-                    borderColor: "rgba(254,148,0,0.3)",
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.sheetSafetyIcon,
-                    isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
-                  ]}
-                >
-                  <Feather
-                    name="shield"
-                    size={16}
-                    color={isDark ? "#FFA500" : "#0B253A"}
-                  />
-                </View>
-                <View style={styles.sheetSafetyTextWrap}>
-                  <Text
-                    style={[
-                      styles.sheetSafetyTitle,
-                      isDark && { color: "#FFFFFF" },
-                    ]}
+              {!selectedSheetMinimized && (
+                <View style={[styles.sheetInnerBox, { flex: 1 }]}>
+                  <ScrollView
+                    scrollEnabled={selectedSheetExpanded}
+                    showsVerticalScrollIndicator={false}
+                    onScroll={(e) => {
+                      selectedSheetScrollYRef.current =
+                        e.nativeEvent.contentOffset?.y ?? 0;
+                    }}
+                    scrollEventThrottle={16}
                   >
-                    Safe zone nearby.
-                  </Text>
-                  <Text
-                    style={[
-                      styles.sheetSafetyText,
-                      isDark && { color: "rgba(255,255,255,0.7)" },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {getSafetyNote(selectedPlace.types)}
-                  </Text>
+                    <View
+                      onLayout={(e) => {
+                        const h = e.nativeEvent.layout.height;
+                        if (typeof h === "number" && h > 0) {
+                          setSelectedSheetContentHeight(h);
+                        }
+                      }}
+                    >
+                      {(placeLoading || directionsLoading) && (
+                        <View style={styles.sheetLoadingRow}>
+                          <ActivityIndicator size="small" color="#2F6FED" />
+                          <Text
+                            style={[
+                              styles.sheetLoadingText,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                          >
+                            {placeLoading
+                              ? "Loading details…"
+                              : "Loading route…"}
+                          </Text>
+                        </View>
+                      )}
+
+                      {placeError ? (
+                        <Text style={styles.sheetErrorText}>{placeError}</Text>
+                      ) : null}
+
+                      <View style={styles.sheetHeaderRow}>
+                        <View style={styles.sheetHeaderText}>
+                          <Text
+                            style={[
+                              styles.sheetTitle,
+                              isDark && { color: "#FFFFFF" },
+                            ]}
+                          >
+                            {selectedPlace.name}
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.sheetSubtitle,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {(() => {
+                              const cat = getCategoryLabel(selectedPlace.types);
+                              const dist = hasLocation
+                                ? `${formatDistance(
+                                    distanceMeters(coords, {
+                                      latitude: selectedPlace.latitude,
+                                      longitude: selectedPlace.longitude,
+                                    }),
+                                  )} away`
+                                : "";
+                              if (cat && dist) return `${cat} • ${dist}`;
+                              return cat || dist;
+                            })()}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          onPress={() => void sharePlace(selectedPlace)}
+                          style={[
+                            styles.sheetClose,
+                            isDark && {
+                              backgroundColor: "rgba(255,255,255,0.1)",
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="share-outline"
+                            size={20}
+                            color={isDark ? "#8FD3FF" : "#0B253A"}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            setSelectedPlace(null);
+                            setRoute(null);
+                          }}
+                          style={[
+                            styles.sheetClose,
+                            isDark && {
+                              backgroundColor: "rgba(255,255,255,0.1)",
+                            },
+                          ]}
+                        >
+                          <Feather
+                            name="x"
+                            size={18}
+                            color={isDark ? "#8FD3FF" : "#0B253A"}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {selectedPlace.address ||
+                      typeof selectedPlace.rating === "number" ||
+                      typeof selectedPlace.isOpenNow === "boolean" ||
+                      route ? (
+                        <>
+                          {selectedPlace.address ? (
+                            <Text
+                              style={[
+                                styles.sheetAddress,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {selectedPlace.address}
+                            </Text>
+                          ) : null}
+
+                          <View
+                            style={[
+                              styles.sheetMetaRow,
+                              !selectedPlace.address && { marginTop: 0 },
+                            ]}
+                          >
+                            {typeof selectedPlace.rating === "number" ? (
+                              <Text
+                                style={[
+                                  styles.sheetMetaPill,
+                                  isDark && {
+                                    backgroundColor: "rgba(255,255,255,0.1)",
+                                    color: "rgba(255,255,255,0.8)",
+                                  },
+                                ]}
+                              >
+                                ⭐ {selectedPlace.rating.toFixed(1)}
+                                {typeof selectedPlace.userRatingsTotal ===
+                                "number"
+                                  ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
+                                  : ""}
+                              </Text>
+                            ) : null}
+                            {typeof selectedPlace.isOpenNow === "boolean" ? (
+                              <Text
+                                style={[
+                                  styles.sheetMetaPill,
+                                  selectedPlace.isOpenNow
+                                    ? styles.openNow
+                                    : styles.closedNow,
+                                ]}
+                              >
+                                {selectedPlace.isOpenNow
+                                  ? "Open now"
+                                  : "Closed"}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          {route ? (
+                            <Text
+                              style={[
+                                styles.sheetMeta,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                            >
+                              ETA: {route.durationText} • {route.distanceText}
+                            </Text>
+                          ) : null}
+                        </>
+                      ) : null}
+
+                      <View style={styles.sheetActionsRow}>
+                        <View style={styles.sheetActionsRowLine}>
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              {
+                                backgroundColor: "#041424",
+                                borderColor: "rgba(143,211,255,0.4)",
+                              },
+                            ]}
+                            onPress={() => {
+                              if (!selectedPlace.phoneNumber) {
+                                Alert.alert(
+                                  "No phone number",
+                                  "This place doesn't have a phone number listed.",
+                                );
+                                return;
+                              }
+                              void makePhoneCall(selectedPlace.phoneNumber);
+                            }}
+                          >
+                            <Feather name="phone" size={16} color="#FFFFFF" />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14, color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Call
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              {
+                                backgroundColor: "#46AFFF",
+                                borderColor: "#46AFFF",
+                              },
+                            ]}
+                            onPress={() =>
+                              void openGoogleMapsDirections({
+                                latitude: selectedPlace.latitude,
+                                longitude: selectedPlace.longitude,
+                              })
+                            }
+                          >
+                            <Feather
+                              name="navigation"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14, color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Route
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.sheetActionsRowLine}>
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              styles.actionRed,
+                              isDark && {
+                                backgroundColor: "rgba(239,68,68,0.2)",
+                                borderColor: "rgba(239,68,68,0.3)",
+                              },
+                            ]}
+                            onPress={() => {
+                              Alert.alert(
+                                "Emergency",
+                                "Open Emergency Services?",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Open",
+                                    style: "default",
+                                    onPress: () => router.push("/(tabs)/extra"),
+                                  },
+                                ],
+                              );
+                            }}
+                          >
+                            <Feather
+                              name="alert-triangle"
+                              size={16}
+                              color={isDark ? "#FF8A80" : "#0B253A"}
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14 },
+                                isDark && { color: "#FF8A80" },
+                              ]}
+                            >
+                              SOS
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {selectedPlace.photos?.length ? (
+                        <FlatList
+                          horizontal
+                          data={selectedPlace.photos}
+                          keyExtractor={(p) => p.photoReference}
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.sheetPhotosRow}
+                          renderItem={({ item }) => {
+                            const url = getPlacePhotoUrl(
+                              item.photoReference,
+                              900,
+                            );
+                            if (!url) return null;
+                            return (
+                              <ExpoImage
+                                source={{ uri: url }}
+                                style={styles.sheetPhoto}
+                                onError={(e) => {
+                                  console.error(
+                                    "[Place Photo] load error:",
+                                    url,
+                                    e,
+                                  );
+                                }}
+                                contentFit="cover"
+                              />
+                            );
+                          }}
+                        />
+                      ) : null}
+
+                      {(selectedReviewSummary.rating !== null ||
+                        selectedReviewSummary.usedCount > 0) && (
+                        <View style={styles.reviewsCard}>
+                          <View style={styles.reviewsTopRow}>
+                            <Text style={styles.reviewsTitle}>
+                              Review summary
+                            </Text>
+                            {selectedPlace?.placeId ? (
+                              <TouchableOpacity
+                                onPress={() =>
+                                  void openAddReview(selectedPlace.placeId)
+                                }
+                                hitSlop={{
+                                  top: 10,
+                                  bottom: 10,
+                                  left: 10,
+                                  right: 10,
+                                }}
+                              >
+                                <Text style={styles.reviewsAddReview}>
+                                  Add review
+                                </Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <Text style={styles.reviewsAddReview}>
+                                Add review
+                              </Text>
+                            )}
+                          </View>
+
+                          <View style={styles.reviewsMainRow}>
+                            <View style={styles.reviewsRatingBlock}>
+                              <Text style={styles.reviewsRatingValue}>
+                                {selectedReviewSummary.rating !== null
+                                  ? selectedReviewSummary.rating.toFixed(1)
+                                  : "—"}
+                              </Text>
+
+                              <View style={styles.reviewsStarsRow}>
+                                {Array.from({ length: 5 }).map((_, idx) => {
+                                  const starIndex = idx + 1;
+                                  const r =
+                                    selectedReviewSummary.rating !== null
+                                      ? selectedReviewSummary.rating
+                                      : 0;
+
+                                  const name =
+                                    r >= starIndex
+                                      ? "star"
+                                      : r >= starIndex - 0.5
+                                        ? "star-half"
+                                        : "star-outline";
+
+                                  return (
+                                    <Ionicons
+                                      key={starIndex}
+                                      name={name as any}
+                                      size={14}
+                                      color="#FFE082"
+                                    />
+                                  );
+                                })}
+                              </View>
+
+                              {selectedReviewSummary.totalText ? (
+                                <Text style={styles.reviewsRatingCount}>
+                                  ({selectedReviewSummary.totalText})
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            <View style={styles.reviewsBars}>
+                              {([5, 4, 3, 2, 1] as const).map((star) => {
+                                const p = selectedReviewSummary.pct(star);
+                                return (
+                                  <View key={star} style={styles.reviewsBarRow}>
+                                    <View style={styles.reviewsBarTrack}>
+                                      <View
+                                        style={[
+                                          styles.reviewsBarFill,
+                                          { width: `${Math.round(p * 100)}%` },
+                                        ]}
+                                      />
+                                    </View>
+                                  </View>
+                                );
+                              })}
+                            </View>
+
+                            <Ionicons
+                              name="information-circle-outline"
+                              size={20}
+                              color="rgba(255,255,255,0.75)"
+                              style={styles.reviewsInfoIcon}
+                            />
+                          </View>
+                        </View>
+                      )}
+
+                      {getSafetyNote(selectedPlace.types) ? (
+                        <View
+                          style={[
+                            styles.sheetSafetyCard,
+                            isDark && {
+                              backgroundColor: "rgba(254,148,0,0.18)",
+                              borderColor: "rgba(254,148,0,0.3)",
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.sheetSafetyIcon,
+                              isDark && {
+                                backgroundColor: "rgba(255,255,255,0.1)",
+                              },
+                            ]}
+                          >
+                            <Feather
+                              name="shield"
+                              size={16}
+                              color={isDark ? "#FFA500" : "#0B253A"}
+                            />
+                          </View>
+                          <View style={styles.sheetSafetyTextWrap}>
+                            <Text
+                              style={[
+                                styles.sheetSafetyTitle,
+                                isDark && { color: "#FFFFFF" },
+                              ]}
+                            >
+                              Safe zone nearby.
+                            </Text>
+                            <Text
+                              style={[
+                                styles.sheetSafetyText,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {getSafetyNote(selectedPlace.types)}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  </ScrollView>
                 </View>
-              </View>
-            ) : null}
-          </BlurView>
+              )}
+            </View>
+          </AnimatedBlurView>
         )}
 
         {!selectedPlace && nearbyPlaces.length > 0 && (
@@ -3017,6 +3578,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.18)",
     marginBottom: 10,
   },
+  sheetInnerBox: {
+    backgroundColor: "#06243F",
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
   sheetHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3048,6 +3616,18 @@ const styles = StyleSheet.create({
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.75)",
   },
+  sheetInfoCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  sheetInfoCardDark: {
+    backgroundColor: "rgba(26,59,84,0.7)",
+    borderColor: "rgba(143,211,255,0.25)",
+  },
   sheetLoadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -3068,8 +3648,9 @@ const styles = StyleSheet.create({
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhotosRow: {
-    gap: 10,
-    paddingBottom: 10,
+    gap: 12,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   sheetPhotosEmpty: {
     paddingBottom: 10,
@@ -3079,16 +3660,105 @@ const styles = StyleSheet.create({
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhoto: {
-    width: 120,
-    height: 74,
-    borderRadius: 12,
+    width: 260,
+    height: 150,
+    borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  reviewsCard: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#041424",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  reviewsTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  reviewsTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#FFFFFF",
+  },
+  reviewsAddReview: {
+    fontSize: 14,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#8FD3FF",
+  },
+  reviewsMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  reviewsRatingBlock: {
+    width: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewsRatingValue: {
+    fontSize: 40,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#FFFFFF",
+    lineHeight: 44,
+  },
+  reviewsStarsRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  reviewsRatingCount: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+  },
+  reviewsBars: {
+    flex: 1,
+    gap: 8,
+  },
+  reviewsBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  reviewsBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    overflow: "hidden",
+  },
+  reviewsBarFill: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#FFE082",
+  },
+  reviewsInfoIcon: {
+    marginLeft: 6,
+  },
+  reviewsDisclaimer: {
+    marginTop: 10,
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.65)",
   },
   sheetTitle: {
     fontSize: 16,
     fontWeight: "700",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#0B253A",
+    flexShrink: 1,
+    flexWrap: "wrap",
   },
   sheetSubtitle: {
     marginTop: 4,
@@ -3128,11 +3798,15 @@ const styles = StyleSheet.create({
   },
   sheetActionsRow: {
     marginTop: 14,
+    gap: 12,
+  },
+  sheetActionsRowLine: {
     flexDirection: "row",
     gap: 12,
   },
   sheetActionBtn: {
     flex: 1,
+    minHeight: 52,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -3322,7 +3996,7 @@ const styles = StyleSheet.create({
   },
   nearbyActionsRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 12,
     marginTop: 10,
   },
   filterRow: {

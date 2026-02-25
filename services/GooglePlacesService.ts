@@ -20,6 +20,7 @@ export type PlaceDetails = {
   address?: string;
   rating?: number;
   userRatingsTotal?: number;
+  reviews?: PlaceReview[];
   types?: string[];
   phoneNumber?: string;
   website?: string;
@@ -29,6 +30,10 @@ export type PlaceDetails = {
   wheelchairAccessibleEntrance?: boolean;
   priceLevel?: number;
   photos?: PlacePhoto[];
+};
+
+export type PlaceReview = {
+  rating?: number;
 };
 
 export type PlacePhoto = {
@@ -349,7 +354,7 @@ export async function getPlaceDetails(
 ): Promise<PlaceDetails | null> {
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(
     placeId,
-  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,types,geometry,photos,opening_hours,current_opening_hours,utc_offset,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
+  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,reviews,types,geometry,photos,opening_hours,current_opening_hours,utc_offset,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
 
   try {
     const response = await fetch(url);
@@ -379,6 +384,14 @@ export async function getPlaceDetails(
           })
         : undefined;
 
+      const reviews: PlaceReview[] | undefined = Array.isArray(
+        data.result.reviews,
+      )
+        ? data.result.reviews.slice(0, 50).map((r: any) => ({
+            rating: typeof r?.rating === "number" ? r.rating : undefined,
+          }))
+        : undefined;
+
       const phoneNumber: string | undefined =
         data.result.international_phone_number ||
         data.result.formatted_phone_number ||
@@ -399,6 +412,7 @@ export async function getPlaceDetails(
         address: data.result.formatted_address,
         rating: data.result.rating,
         userRatingsTotal: data.result.user_ratings_total,
+        reviews,
         types: Array.isArray(data.result.types) ? data.result.types : undefined,
         phoneNumber,
         website: data.result.website,
@@ -457,14 +471,25 @@ export async function searchNearbyPlaces(
 ): Promise<NearbyPlace[]> {
   const openNowParam = options?.openNow ? "&opennow=true" : "";
 
-  // Use type for police and hospital, keyword for others
+  // Prefer `type` for well-defined POI categories (more reliable than keyword).
   let url = "";
-  if (keywordOrType === "police" || keywordOrType === "hospital") {
-    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&type=${keywordOrType}${openNowParam}&key=${GOOGLE_API_KEY}`;
-  } else {
-    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${encodeURIComponent(
+  const useType =
+    keywordOrType === "police" ||
+    keywordOrType === "hospital" ||
+    keywordOrType === "pharmacy";
+
+  if (useType) {
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
+      `${lat},${lng}`,
+    )}&rankby=distance&type=${encodeURIComponent(
       keywordOrType,
-    )}${openNowParam}&key=${GOOGLE_API_KEY}`;
+    )}${openNowParam}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
+  } else {
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
+      `${lat},${lng}`,
+    )}&rankby=distance&keyword=${encodeURIComponent(
+      keywordOrType,
+    )}${openNowParam}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
   }
 
   try {
