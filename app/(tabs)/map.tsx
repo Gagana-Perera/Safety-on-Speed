@@ -4,16 +4,25 @@ import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   BackHandler,
   Dimensions,
+  Easing,
   FlatList,
   Keyboard,
   Linking,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   Share,
@@ -45,6 +54,16 @@ import {
 import { useTheme } from "../themeContext";
 
 type Coords = { latitude: number; longitude: number };
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+
+const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
+  android: "sans-serif",
+  ios: undefined,
+});
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
 
 export default function MapScreen() {
   const params = useLocalSearchParams<{
@@ -97,6 +116,315 @@ export default function MapScreen() {
   const attemptedWheelchairRef = useRef<Set<string>>(new Set());
   const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
 
+  const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
+  const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
+
+  const [nearbyDragZoneHeight, setNearbyDragZoneHeight] = useState(0);
+  const [nearbyFilterRowHeight, setNearbyFilterRowHeight] = useState(0);
+  const [topOverlayBottomY, setTopOverlayBottomY] = useState(0);
+
+  const nearbyListScrollYRef = useRef(0);
+
+  const nearbySheetTranslateY = useRef(new Animated.Value(0)).current;
+  const nearbySheetTranslateYRef = useRef(0);
+  const wasNearbySheetVisibleRef = useRef(false);
+  const nearbySheetPanStartRef = useRef(0);
+  const nearbySheetDraggingRef = useRef(false);
+
+  const nearbySheetExpandedRef = useRef(false);
+  const nearbySheetChipsOnlyRef = useRef(false);
+
+  // Bottom-sheet snap points (Google Maps style):
+  // - Peek: 40% visible (map remains visible behind)
+  // - Expanded: 95% height
+  const {
+    nearbySheetHeightPx,
+    nearbySheetExpandedTranslate,
+    nearbySheetCollapsedTranslate,
+    nearbySheetChipsOnlyTranslate,
+    nearbySheetHasChipsOnlySnap,
+  } = useMemo(() => {
+    const h = dimensions.height || Dimensions.get("window").height;
+    const sheetHeightPx = Math.round(h * 0.95);
+    const peekVisiblePx = Math.round(h * 0.4);
+    const collapsedTranslate = Math.max(0, sheetHeightPx - peekVisiblePx);
+
+    // Expanded should not cover the search bar/top overlay.
+    // translateY moves the sheet DOWN (larger = lower). Sheet top is:
+    //   top = h - sheetHeightPx + translateY
+    // So to keep the top below the overlay bottom:
+    //   translateY >= overlayBottom + margin - (h - sheetHeightPx)
+    const overlayMargin = 10;
+    const minTop = Math.max(0, topOverlayBottomY + overlayMargin);
+    const baseTop = h - sheetHeightPx;
+    const expandedTranslate = clamp(minTop - baseTop, 0, collapsedTranslate);
+
+    // Chips-only: show just the drag handle + filter chips row.
+    // We measure these heights via onLayout; fall back to a reasonable minimum.
+    const dragH = nearbyDragZoneHeight || 24;
+    const chipsH = nearbyFilterRowHeight || 56;
+    // Extra space keeps chips comfortably visible and avoids bottom cut-off
+    // (home indicator / gesture bar area on some phones).
+    const chipsOnlyVisiblePx = Math.max(140, Math.round(dragH + chipsH + 64));
+    const chipsOnlyTranslateRaw = Math.max(
+      0,
+      sheetHeightPx - chipsOnlyVisiblePx,
+    );
+    const chipsOnlyTranslate = Math.max(
+      collapsedTranslate,
+      chipsOnlyTranslateRaw,
+    );
+    const hasChipsOnlySnap = chipsOnlyTranslate > collapsedTranslate + 4;
+
+    return {
+      nearbySheetHeightPx: sheetHeightPx,
+      nearbySheetExpandedTranslate: expandedTranslate,
+      nearbySheetCollapsedTranslate: collapsedTranslate,
+      nearbySheetChipsOnlyTranslate: chipsOnlyTranslate,
+      nearbySheetHasChipsOnlySnap: hasChipsOnlySnap,
+    };
+  }, [
+    dimensions.height,
+    nearbyDragZoneHeight,
+    nearbyFilterRowHeight,
+    topOverlayBottomY,
+  ]);
+
+  const updateNearbySheetModeFromTranslate = useCallback(
+    (translateY: number) => {
+      const isExpanded = translateY <= nearbySheetExpandedTranslate + 0.5;
+      const isChipsOnly =
+        nearbySheetHasChipsOnlySnap &&
+        translateY >= nearbySheetChipsOnlyTranslate - 8;
+
+      if (nearbySheetExpandedRef.current !== isExpanded) {
+        nearbySheetExpandedRef.current = isExpanded;
+        setNearbySheetExpanded(isExpanded);
+      }
+
+      if (nearbySheetChipsOnlyRef.current !== isChipsOnly) {
+        nearbySheetChipsOnlyRef.current = isChipsOnly;
+        setNearbySheetChipsOnly(isChipsOnly);
+      }
+    },
+    [
+      nearbySheetChipsOnlyTranslate,
+      nearbySheetExpandedTranslate,
+      nearbySheetHasChipsOnlySnap,
+    ],
+  );
+
+  const animateNearbySheetTo = useCallback(
+    (toValue: number) => {
+      // Update UI immediately so content doesn't "appear late" after snapping.
+      updateNearbySheetModeFromTranslate(toValue);
+      Animated.timing(nearbySheetTranslateY, {
+        toValue,
+        duration: 300,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1.0),
+        useNativeDriver: true,
+      }).start(() => {
+        nearbySheetTranslateYRef.current = toValue;
+        updateNearbySheetModeFromTranslate(toValue);
+      });
+    },
+    [nearbySheetTranslateY, updateNearbySheetModeFromTranslate],
+  );
+
+  const nearbySheetPanResponder = useMemo(() => {
+    const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
+      const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
+      if (!vertical) return false;
+
+      const isExpanded =
+        nearbySheetTranslateYRef.current <= nearbySheetExpandedTranslate + 0.5;
+      if (!isExpanded) return true;
+
+      // When expanded, allow collapsing only if the list is already at the top
+      // and the user is pulling down.
+      const listAtTop = nearbyListScrollYRef.current <= 0;
+      return listAtTop && g.dy > 0;
+    };
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: shouldSet,
+      onMoveShouldSetPanResponderCapture: shouldSet,
+      onPanResponderGrant: () => {
+        nearbySheetDraggingRef.current = true;
+        nearbySheetPanStartRef.current = nearbySheetTranslateYRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        if (!nearbySheetCollapsedTranslate) return;
+        const next = clamp(
+          nearbySheetPanStartRef.current + g.dy,
+          nearbySheetExpandedTranslate,
+          nearbySheetHasChipsOnlySnap
+            ? nearbySheetChipsOnlyTranslate
+            : nearbySheetCollapsedTranslate,
+        );
+        nearbySheetTranslateY.setValue(next);
+        nearbySheetTranslateYRef.current = next;
+
+        // Keep the content visibility in sync while dragging.
+        updateNearbySheetModeFromTranslate(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        nearbySheetDraggingRef.current = false;
+        if (!nearbySheetCollapsedTranslate) return;
+
+        const current = nearbySheetTranslateYRef.current;
+        const vy = g.vy;
+
+        const snapPoints = nearbySheetHasChipsOnlySnap
+          ? [
+              nearbySheetExpandedTranslate,
+              nearbySheetCollapsedTranslate,
+              nearbySheetChipsOnlyTranslate,
+            ]
+          : [nearbySheetExpandedTranslate, nearbySheetCollapsedTranslate];
+
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+
+        if (vy <= -0.8) {
+          if (!nearbySheetHasChipsOnlySnap) {
+            animateNearbySheetTo(nearbySheetExpandedTranslate);
+            return;
+          }
+
+          const isAtPeek =
+            Math.abs(current - nearbySheetCollapsedTranslate) <= 14;
+          const isAtChipsOnly =
+            Math.abs(current - nearbySheetChipsOnlyTranslate) <= 18;
+
+          // Swipe-up should not "over-scroll":
+          // chips-only -> Peek -> Expanded.
+          if (isAtChipsOnly || current > nearbySheetCollapsedTranslate) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek || current <= nearbySheetCollapsedTranslate) {
+            animateNearbySheetTo(nearbySheetExpandedTranslate);
+            return;
+          }
+
+          animateNearbySheetTo(nearest);
+          return;
+        }
+
+        if (vy >= 0.8) {
+          if (!nearbySheetHasChipsOnlySnap) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          const isExpanded = current <= nearbySheetExpandedTranslate + 0.5;
+          const isAtPeek =
+            Math.abs(current - nearbySheetCollapsedTranslate) <= 14;
+
+          // First swipe-down from Expanded -> Peek.
+          if (isExpanded) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          // Second swipe-down from Peek -> Chips-only.
+          if (isAtPeek) {
+            animateNearbySheetTo(nearbySheetChipsOnlyTranslate);
+            return;
+          }
+
+          // Otherwise, snap toward the nearer downward stop.
+          const mid =
+            nearbySheetCollapsedTranslate +
+            (nearbySheetChipsOnlyTranslate - nearbySheetCollapsedTranslate) / 2;
+          animateNearbySheetTo(
+            current >= mid
+              ? nearbySheetChipsOnlyTranslate
+              : nearbySheetCollapsedTranslate,
+          );
+          return;
+        }
+
+        animateNearbySheetTo(nearest);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {
+        nearbySheetDraggingRef.current = false;
+        // Snap back to the nearest position if the gesture is interrupted.
+        if (!nearbySheetCollapsedTranslate) return;
+        const current = nearbySheetTranslateYRef.current;
+        const snapPoints = nearbySheetHasChipsOnlySnap
+          ? [
+              nearbySheetExpandedTranslate,
+              nearbySheetCollapsedTranslate,
+              nearbySheetChipsOnlyTranslate,
+            ]
+          : [nearbySheetExpandedTranslate, nearbySheetCollapsedTranslate];
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+        animateNearbySheetTo(nearest);
+      },
+    });
+  }, [
+    animateNearbySheetTo,
+    nearbySheetExpandedTranslate,
+    nearbySheetCollapsedTranslate,
+    nearbySheetChipsOnlyTranslate,
+    nearbySheetHasChipsOnlySnap,
+    nearbySheetTranslateY,
+    updateNearbySheetModeFromTranslate,
+  ]);
+
+  // If the expanded snap point changes (e.g., after measuring the search bar),
+  // keep the sheet from overlapping the top overlay.
+  useEffect(() => {
+    const visible = !selectedPlace && nearbyPlaces.length > 0;
+    if (!visible) return;
+    if (nearbySheetDraggingRef.current) return;
+
+    const current = nearbySheetTranslateYRef.current;
+    const isAtExpanded = current <= nearbySheetExpandedTranslate + 0.5;
+    const delta = Math.abs(current - nearbySheetExpandedTranslate);
+    if (isAtExpanded && delta > 2) {
+      animateNearbySheetTo(nearbySheetExpandedTranslate);
+    }
+  }, [
+    animateNearbySheetTo,
+    nearbyPlaces.length,
+    nearbySheetExpandedTranslate,
+    selectedPlace,
+  ]);
+
+  // Reset to expanded when the sheet becomes visible.
+  useEffect(() => {
+    const visible = !selectedPlace && nearbyPlaces.length > 0;
+    if (visible && !wasNearbySheetVisibleRef.current) {
+      // Default to collapsed (same feel as before); user can drag up to expand.
+      nearbySheetTranslateY.setValue(nearbySheetCollapsedTranslate);
+      nearbySheetTranslateYRef.current = nearbySheetCollapsedTranslate;
+      setNearbySheetExpanded(false);
+      setNearbySheetChipsOnly(false);
+      nearbySheetExpandedRef.current = false;
+      nearbySheetChipsOnlyRef.current = false;
+    }
+    wasNearbySheetVisibleRef.current = visible;
+  }, [
+    selectedPlace,
+    nearbyPlaces.length,
+    nearbySheetTranslateY,
+    nearbySheetCollapsedTranslate,
+  ]);
+
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
@@ -124,6 +452,22 @@ export default function MapScreen() {
 
   // Voice Search State
   const [isListening, setIsListening] = useState(false);
+
+  const getPoiKeyForPlace = (p: NearbyPlace): string | null => {
+    if (activePoiKey) return activePoiKey;
+    const types = Array.isArray(p.types) ? p.types : [];
+    if (types.includes("police")) return "police";
+    if (types.includes("hospital")) return "hospital";
+    if (types.includes("pharmacy")) return "pharmacy";
+    return null;
+  };
+
+  const getPoiMarkerIcon = (p: NearbyPlace) => {
+    const key = getPoiKeyForPlace(p);
+    if (!key) return null;
+    const cat = POI_CATEGORIES.find((c) => c.key === key);
+    return cat?.icon ?? null;
+  };
 
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
@@ -635,14 +979,19 @@ export default function MapScreen() {
   };
 
   useEffect(() => {
-    if (!filterOpenNow) return;
+    // Hydrate "open now" status so cards can show Open/Closed.
+    // We do this when the Open-now filter is enabled OR when a POI category list
+    // is visible (activePoiKey), so every card can be labeled.
+    if (!filterOpenNow && !activePoiKey) return;
     if (!nearbyPlaces.length) return;
 
-    const pending = nearbyPlaces.filter(
-      (p) =>
-        typeof p.isOpenNow !== "boolean" &&
-        !attemptedOpenNowRef.current.has(p.placeId),
-    );
+    const pending = nearbyPlaces.filter((p) => {
+      if (attemptedOpenNowRef.current.has(p.placeId)) return false;
+      const needsOpenNow = typeof p.isOpenNow !== "boolean";
+      const needsNextOpen =
+        p.isOpenNow === false && typeof p.nextOpenTimeText !== "string";
+      return needsOpenNow || needsNextOpen;
+    });
 
     if (!pending.length) return;
 
@@ -653,7 +1002,13 @@ export default function MapScreen() {
     setOpenNowHydrating(true);
 
     void (async () => {
-      const results = new Map<string, boolean>();
+      const results = new Map<
+        string,
+        {
+          isOpenNow?: boolean;
+          nextOpenTimeText?: string;
+        }
+      >();
       const batchSize = 6;
 
       for (let i = 0; i < pending.length; i += batchSize) {
@@ -664,8 +1019,24 @@ export default function MapScreen() {
           batch.map(async (p) => {
             try {
               const details = await getPlaceDetails(p.placeId);
-              return typeof details?.isOpenNow === "boolean"
-                ? { placeId: p.placeId, isOpenNow: details.isOpenNow }
+              if (!details) return null;
+
+              const patch: {
+                placeId: string;
+                isOpenNow?: boolean;
+                nextOpenTimeText?: string;
+              } = { placeId: p.placeId };
+
+              if (typeof details.isOpenNow === "boolean") {
+                patch.isOpenNow = details.isOpenNow;
+              }
+              if (typeof details.nextOpenTimeText === "string") {
+                patch.nextOpenTimeText = details.nextOpenTimeText;
+              }
+
+              return patch.isOpenNow !== undefined ||
+                patch.nextOpenTimeText !== undefined
+                ? patch
                 : null;
             } catch {
               return null;
@@ -674,7 +1045,11 @@ export default function MapScreen() {
         );
 
         for (const item of settled) {
-          if (item) results.set(item.placeId, item.isOpenNow);
+          if (item)
+            results.set(item.placeId, {
+              isOpenNow: item.isOpenNow,
+              nextOpenTimeText: item.nextOpenTimeText,
+            });
         }
       }
 
@@ -684,7 +1059,16 @@ export default function MapScreen() {
         setNearbyPlaces((prev) =>
           prev.map((p) => {
             const v = results.get(p.placeId);
-            return typeof v === "boolean" ? { ...p, isOpenNow: v } : p;
+            if (!v) return p;
+            return {
+              ...p,
+              ...(typeof v.isOpenNow === "boolean"
+                ? { isOpenNow: v.isOpenNow }
+                : {}),
+              ...(typeof v.nextOpenTimeText === "string"
+                ? { nextOpenTimeText: v.nextOpenTimeText }
+                : {}),
+            };
           }),
         );
       }
@@ -695,7 +1079,7 @@ export default function MapScreen() {
     return () => {
       cancelled = true;
     };
-  }, [filterOpenNow, nearbyPlaces]);
+  }, [filterOpenNow, activePoiKey, nearbyPlaces]);
 
   useEffect(() => {
     if (!filterWheelchair) return;
@@ -775,7 +1159,7 @@ export default function MapScreen() {
       list = list.filter((p) => p.isOpenNow === true);
     }
 
-    if (filterWheelchair) {
+    if (filterWheelchair && !wheelchairHydrating) {
       // Keep only places we know have a wheelchair-accessible entrance.
       list = list.filter((p) => p.wheelchairAccessibleEntrance === true);
     }
@@ -807,6 +1191,7 @@ export default function MapScreen() {
     nearbyPlaces,
     filterOpenNow,
     filterWheelchair,
+    wheelchairHydrating,
     sortMode,
     hasLocation,
     coords,
@@ -1007,6 +1392,22 @@ export default function MapScreen() {
         setOpenNowHydrating(false);
       }
     })();
+  };
+
+  const toggleWheelchair = () => {
+    const next = !filterWheelchair;
+    setFilterWheelchair(next);
+
+    if (!next) {
+      setWheelchairHydrating(false);
+      return;
+    }
+
+    // Allow re-trying details hydration when the user toggles the filter on.
+    attemptedWheelchairRef.current.clear();
+
+    // Prevent the list from instantly going empty while we fetch details.
+    setWheelchairHydrating(true);
   };
 
   const onPickSuggestion = async (s: PlaceSuggestion) => {
@@ -1246,46 +1647,64 @@ export default function MapScreen() {
             />
           )}
 
-          {nearbyPlaces.map((p) => (
-            <Marker
-              key={p.placeId}
-              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-              title={p.name}
-              description={p.vicinity}
-              onPress={() => {
-                const fallback: PlaceDetails = {
-                  placeId: p.placeId,
-                  name: p.name,
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  address: p.vicinity,
-                  rating: p.rating,
-                  userRatingsTotal: p.userRatingsTotal,
-                  types: p.types,
-                };
-                void (async () => {
-                  const details = await selectPlaceById(p.placeId, fallback);
-                  if (details) moveToPlace(details);
-                })();
-              }}
-              onCalloutPress={() => {
-                const fallback: PlaceDetails = {
-                  placeId: p.placeId,
-                  name: p.name,
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  address: p.vicinity,
-                  rating: p.rating,
-                  userRatingsTotal: p.userRatingsTotal,
-                  types: p.types,
-                };
-                void (async () => {
-                  const details = await selectPlaceById(p.placeId, fallback);
-                  if (details) moveToPlace(details);
-                })();
-              }}
-            />
-          ))}
+          {nearbyPlaces.map((p) =>
+            (() => {
+              const IconComponent = getPoiMarkerIcon(p);
+              return (
+                <Marker
+                  key={p.placeId}
+                  coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+                  title={p.name}
+                  description={p.vicinity}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  onPress={() => {
+                    const fallback: PlaceDetails = {
+                      placeId: p.placeId,
+                      name: p.name,
+                      latitude: p.latitude,
+                      longitude: p.longitude,
+                      address: p.vicinity,
+                      rating: p.rating,
+                      userRatingsTotal: p.userRatingsTotal,
+                      types: p.types,
+                    };
+                    void (async () => {
+                      const details = await selectPlaceById(
+                        p.placeId,
+                        fallback,
+                      );
+                      if (details) moveToPlace(details);
+                    })();
+                  }}
+                  onCalloutPress={() => {
+                    const fallback: PlaceDetails = {
+                      placeId: p.placeId,
+                      name: p.name,
+                      latitude: p.latitude,
+                      longitude: p.longitude,
+                      address: p.vicinity,
+                      rating: p.rating,
+                      userRatingsTotal: p.userRatingsTotal,
+                      types: p.types,
+                    };
+                    void (async () => {
+                      const details = await selectPlaceById(
+                        p.placeId,
+                        fallback,
+                      );
+                      if (details) moveToPlace(details);
+                    })();
+                  }}
+                >
+                  <View style={styles.poiMarker}>
+                    {IconComponent ? (
+                      <IconComponent width={18} height={18} fill="#E11D48" />
+                    ) : null}
+                  </View>
+                </Marker>
+              );
+            })(),
+          )}
 
           {route?.polyline?.length ? (
             <Polyline
@@ -1296,7 +1715,13 @@ export default function MapScreen() {
           ) : null}
         </MapView>
 
-        <View style={styles.searchWrap}>
+        <View
+          style={styles.searchWrap}
+          onLayout={(e) => {
+            const { y, height } = e.nativeEvent.layout;
+            setTopOverlayBottomY(y + height);
+          }}
+        >
           <View style={styles.searchRow}>
             <View
               style={[
@@ -1773,253 +2198,322 @@ export default function MapScreen() {
         )}
 
         {!selectedPlace && nearbyPlaces.length > 0 && (
-          <BlurView
+          <AnimatedBlurView
             intensity={60}
             tint={isDark ? "dark" : "light"}
             style={[
               styles.nearbySheet,
               isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
               !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+              { height: nearbySheetHeightPx },
+              { transform: [{ translateY: nearbySheetTranslateY }] },
             ]}
           >
-            <View style={styles.nearbyHandle} />
-
-            <View style={styles.nearbyHeaderRow}>
-              <View>
-                <Text
-                  style={[styles.nearbyTitle, isDark && { color: "#FFFFFF" }]}
-                >
-                  {`Nearby ${
-                    POI_CATEGORIES.find((c) => c.key === activePoiKey)?.label ??
-                    "Places"
-                  }`}
-                </Text>
-                <Text
-                  style={[
-                    styles.nearbySubtitle,
-                    isDark && { color: "rgba(255,255,255,0.7)" },
-                  ]}
-                >
-                  {`${filteredNearbyPlaces.length} places found`}
-                </Text>
+            <View style={{ flex: 1 }} {...nearbySheetPanResponder.panHandlers}>
+              <View
+                style={styles.nearbyDragZone}
+                onLayout={(e) => {
+                  setNearbyDragZoneHeight(e.nativeEvent.layout.height);
+                }}
+              >
+                <View style={styles.nearbyHandle} />
               </View>
 
-              <TouchableOpacity
-                onPress={() => {
-                  setNearbyPlaces([]);
-                  setActivePoiKey(null);
-                }}
-                style={styles.nearbyClose}
-              >
-                <Feather
-                  name="x"
-                  size={18}
-                  color={isDark ? "#8FD3FF" : "#0B253A"}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterRow}
-              contentContainerStyle={styles.filterRowContent}
-            >
-              <TouchableOpacity
+              <View
                 style={[
-                  styles.filterChip,
-                  sortMode !== "default" && styles.filterChipActive,
+                  styles.nearbyHeaderRow,
+                  nearbySheetChipsOnly && {
+                    opacity: 0,
+                    height: 0,
+                    overflow: "hidden",
+                  },
                 ]}
-                onPress={() => {
-                  setSortMode((prev) =>
-                    prev === "default" ? "distance" : "default",
-                  );
-                }}
+                pointerEvents={nearbySheetChipsOnly ? "none" : "auto"}
               >
-                <Text style={styles.filterChipText} allowFontScaling={false}>
-                  Sort by
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterChip,
-                  filterOpenNow && styles.filterChipActive,
-                ]}
-                onPress={toggleOpenNow}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {openNowHydrating ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={isDark ? "#8FD3FF" : "#0B253A"}
-                      style={{ marginRight: 8 }}
-                    />
-                  ) : null}
-                  <Text style={styles.filterChipText} allowFontScaling={false}>
-                    Open now
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterChip,
-                  filterWheelchair && styles.filterChipActive,
-                ]}
-                onPress={() => setFilterWheelchair((v) => !v)}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {wheelchairHydrating ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={isDark ? "#8FD3FF" : "#0B253A"}
-                      style={{ marginRight: 8 }}
-                    />
-                  ) : null}
-                  <Text style={styles.filterChipText} allowFontScaling={false}>
-                    Wheelchair entrance
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </ScrollView>
-
-            <ScrollView style={styles.nearbyList}>
-              {filteredNearbyPlaces.map((p, index) => (
-                <View key={p.placeId} style={styles.nearbyCard}>
-                  <Text style={styles.nearbyIndex}>{`#${index + 1}`}</Text>
+                <View>
                   <Text
-                    style={[styles.nearbyName, isDark && { color: "#FFFFFF" }]}
-                    numberOfLines={2}
+                    style={[styles.nearbyTitle, isDark && { color: "#FFFFFF" }]}
                   >
-                    {p.name}
+                    {`Nearby ${
+                      POI_CATEGORIES.find((c) => c.key === activePoiKey)
+                        ?.label ?? "Places"
+                    }`}
                   </Text>
-                  {p.vicinity ? (
+                  <Text
+                    style={[
+                      styles.nearbySubtitle,
+                      isDark && { color: "rgba(255,255,255,0.7)" },
+                    ]}
+                  >
+                    {`${filteredNearbyPlaces.length} places found`}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setNearbyPlaces([]);
+                    setActivePoiKey(null);
+                  }}
+                  style={styles.nearbyClose}
+                >
+                  <Feather
+                    name="x"
+                    size={18}
+                    color={isDark ? "#8FD3FF" : "#0B253A"}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterRow}
+                contentContainerStyle={styles.filterRowContent}
+                onLayout={(e) => {
+                  setNearbyFilterRowHeight(e.nativeEvent.layout.height);
+                }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    sortMode !== "default" && styles.filterChipActive,
+                  ]}
+                  onPress={() => {
+                    setSortMode((prev) =>
+                      prev === "default" ? "distance" : "default",
+                    );
+                  }}
+                >
+                  <Text style={styles.filterChipText} allowFontScaling={false}>
+                    Sort by
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filterOpenNow && styles.filterChipActive,
+                  ]}
+                  onPress={toggleOpenNow}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {filterOpenNow && openNowHydrating ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        style={{ marginRight: 8 }}
+                      />
+                    ) : null}
+                    <Text
+                      style={styles.filterChipText}
+                      allowFontScaling={false}
+                    >
+                      Open now
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filterWheelchair && styles.filterChipActive,
+                  ]}
+                  onPress={toggleWheelchair}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {wheelchairHydrating ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        style={{ marginRight: 8 }}
+                      />
+                    ) : null}
+                    <Text
+                      style={styles.filterChipText}
+                      allowFontScaling={false}
+                    >
+                      Wheelchair accessible entrance
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </ScrollView>
+
+              <ScrollView
+                style={[
+                  styles.nearbyList,
+                  nearbySheetChipsOnly && {
+                    opacity: 0,
+                    height: 0,
+                    overflow: "hidden",
+                  },
+                ]}
+                pointerEvents={nearbySheetChipsOnly ? "none" : "auto"}
+                scrollEnabled={nearbySheetExpanded && !nearbySheetChipsOnly}
+                showsVerticalScrollIndicator={false}
+                onScroll={(e) => {
+                  nearbyListScrollYRef.current =
+                    e.nativeEvent.contentOffset?.y ?? 0;
+                }}
+                scrollEventThrottle={16}
+              >
+                {filteredNearbyPlaces.map((p) => (
+                  <View key={p.placeId} style={styles.nearbyCard}>
                     <Text
                       style={[
-                        styles.nearbyAddress,
-                        isDark && { color: "rgba(255,255,255,0.7)" },
+                        styles.nearbyName,
+                        isDark && { color: "#FFFFFF" },
                       ]}
                       numberOfLines={2}
                     >
-                      {p.vicinity}
+                      {p.name}
                     </Text>
-                  ) : null}
-
-                  <View style={styles.nearbyMetaRow}>
-                    {typeof p.rating === "number" && (
-                      <Text style={styles.nearbyRating}>
-                        ⭐ {p.rating.toFixed(1)}
-                        {typeof p.userRatingsTotal === "number"
-                          ? ` (${formatCount(p.userRatingsTotal)})`
-                          : ""}
+                    {p.vicinity ? (
+                      <Text
+                        style={[
+                          styles.nearbyAddress,
+                          isDark && { color: "rgba(255,255,255,0.7)" },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {p.vicinity}
                       </Text>
-                    )}
-                    {hasLocation && (
-                      <Text style={styles.nearbyDistance}>
-                        {formatDistance(
-                          distanceMeters(coords, {
-                            latitude: p.latitude,
-                            longitude: p.longitude,
-                          }),
-                        )}{" "}
-                        away
-                      </Text>
-                    )}
-                  </View>
+                    ) : null}
 
-                  <View style={styles.nearbyActionsRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.sheetActionBtn,
-                        {
-                          backgroundColor: "#041424",
-                          borderColor: "rgba(143,211,255,0.4)",
-                        },
-                      ]}
-                      onPress={async () => {
-                        setNearbyLoadingPlaceId(p.placeId + "-call");
-                        try {
-                          const details = await getPlaceDetails(p.placeId);
-                          if (details?.phoneNumber) {
-                            await makePhoneCall(details.phoneNumber);
-                          } else {
-                            Alert.alert(
-                              "No phone number",
-                              "This place doesn't have a phone number listed.",
-                            );
+                    <View style={styles.nearbyMetaRow}>
+                      <View style={styles.nearbyMetaLeft}>
+                        {typeof p.isOpenNow === "boolean" ? (
+                          <Text
+                            style={[
+                              styles.nearbyStatus,
+                              p.isOpenNow
+                                ? styles.nearbyStatusOpen
+                                : styles.nearbyStatusClosed,
+                            ]}
+                            allowFontScaling={false}
+                          >
+                            {p.isOpenNow
+                              ? "Open"
+                              : typeof p.nextOpenTimeText === "string"
+                                ? `Closed • Opens ${p.nextOpenTimeText}`
+                                : "Closed"}
+                          </Text>
+                        ) : null}
+
+                        {typeof p.rating === "number" ? (
+                          <Text style={styles.nearbyRating} numberOfLines={1}>
+                            ⭐ {p.rating.toFixed(1)}
+                            {typeof p.userRatingsTotal === "number"
+                              ? ` (${formatCount(p.userRatingsTotal)})`
+                              : ""}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {hasLocation && (
+                        <Text style={styles.nearbyDistance}>
+                          {formatDistance(
+                            distanceMeters(coords, {
+                              latitude: p.latitude,
+                              longitude: p.longitude,
+                            }),
+                          )}{" "}
+                          away
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={styles.nearbyActionsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.sheetActionBtn,
+                          {
+                            backgroundColor: "#041424",
+                            borderColor: "rgba(143,211,255,0.4)",
+                          },
+                        ]}
+                        onPress={async () => {
+                          setNearbyLoadingPlaceId(p.placeId + "-call");
+                          try {
+                            const details = await getPlaceDetails(p.placeId);
+                            if (details?.phoneNumber) {
+                              await makePhoneCall(details.phoneNumber);
+                            } else {
+                              Alert.alert(
+                                "No phone number",
+                                "This place doesn't have a phone number listed.",
+                              );
+                            }
+                          } finally {
+                            setNearbyLoadingPlaceId(null);
                           }
-                        } finally {
-                          setNearbyLoadingPlaceId(null);
-                        }
-                      }}
-                      disabled={nearbyLoadingPlaceId === p.placeId + "-call"}
-                    >
-                      {nearbyLoadingPlaceId === p.placeId + "-call" ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Feather name="phone" size={16} color="#FFFFFF" />
-                          <Text
-                            style={[
-                              styles.sheetActionText,
-                              { color: "#FFFFFF" },
-                            ]}
-                            allowFontScaling={false}
-                          >
-                            Call
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+                        }}
+                        disabled={nearbyLoadingPlaceId === p.placeId + "-call"}
+                      >
+                        {nearbyLoadingPlaceId === p.placeId + "-call" ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Feather name="phone" size={16} color="#FFFFFF" />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Call
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[
-                        styles.sheetActionBtn,
-                        {
-                          backgroundColor: "#46AFFF",
-                          borderColor: "#46AFFF",
-                        },
-                      ]}
-                      onPress={async () => {
-                        setNearbyLoadingPlaceId(p.placeId + "-map");
-                        try {
-                          await openGoogleMapsDirections({
-                            latitude: p.latitude,
-                            longitude: p.longitude,
-                          });
-                        } finally {
-                          setNearbyLoadingPlaceId(null);
-                        }
-                      }}
-                      disabled={nearbyLoadingPlaceId === p.placeId + "-map"}
-                    >
-                      {nearbyLoadingPlaceId === p.placeId + "-map" ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Feather
-                            name="navigation"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-                          <Text
-                            style={[
-                              styles.sheetActionText,
-                              { color: "#FFFFFF" },
-                            ]}
-                            allowFontScaling={false}
-                          >
-                            Route
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.sheetActionBtn,
+                          {
+                            backgroundColor: "#46AFFF",
+                            borderColor: "#46AFFF",
+                          },
+                        ]}
+                        onPress={async () => {
+                          setNearbyLoadingPlaceId(p.placeId + "-map");
+                          try {
+                            await openGoogleMapsDirections({
+                              latitude: p.latitude,
+                              longitude: p.longitude,
+                            });
+                          } finally {
+                            setNearbyLoadingPlaceId(null);
+                          }
+                        }}
+                        disabled={nearbyLoadingPlaceId === p.placeId + "-map"}
+                      >
+                        {nearbyLoadingPlaceId === p.placeId + "-map" ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Feather
+                              name="navigation"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Route
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </ScrollView>
-          </BlurView>
+                ))}
+              </ScrollView>
+            </View>
+          </AnimatedBlurView>
         )}
       </View>
 
@@ -2435,6 +2929,16 @@ const styles = StyleSheet.create({
   poiChipTextActive: {
     color: "#fff",
   },
+  poiMarker: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(3,27,46,0.95)",
+    borderWidth: 1.5,
+    borderColor: "#E11D48",
+  },
   suggestions: {
     marginTop: 8,
     backgroundColor: "#fff",
@@ -2493,7 +2997,10 @@ const styles = StyleSheet.create({
     right: 12,
     bottom: 12,
     backgroundColor: "rgba(255,255,255,0.55)",
-    borderRadius: 18,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
     padding: 14,
     overflow: "hidden",
     shadowColor: "#000",
@@ -2538,6 +3045,7 @@ const styles = StyleSheet.create({
   sheetAddress: {
     marginTop: 6,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.75)",
   },
   sheetLoadingRow: {
@@ -2550,12 +3058,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(0,0,0,0.6)",
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetErrorText: {
     marginBottom: 8,
     color: "rgba(185,28,28,0.95)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhotosRow: {
     gap: 10,
@@ -2566,6 +3076,7 @@ const styles = StyleSheet.create({
     color: "rgba(0,0,0,0.55)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhoto: {
     width: 120,
@@ -2576,16 +3087,19 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 16,
     fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#0B253A",
   },
   sheetSubtitle: {
     marginTop: 4,
     fontSize: 13,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.8)",
   },
   sheetMeta: {
     marginTop: 8,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(0,0,0,0.6)",
   },
   sheetMetaRow: {
@@ -2600,6 +3114,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(0,0,0,0.75)",
     overflow: "hidden",
   },
@@ -2632,6 +3147,7 @@ const styles = StyleSheet.create({
     color: "#0B253A",
     fontWeight: "800",
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   actionNeutral: {
     backgroundColor: "rgba(0,0,0,0.06)",
@@ -2671,12 +3187,14 @@ const styles = StyleSheet.create({
     color: "#0B253A",
     fontWeight: "900",
     fontSize: 13,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetSafetyText: {
     marginTop: 2,
     color: "rgba(11,37,58,0.75)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   nearbySheet: {
     position: "absolute",
@@ -2684,15 +3202,22 @@ const styles = StyleSheet.create({
     right: 12,
     bottom: 12,
     backgroundColor: "rgba(2,18,33,0.6)",
-    borderRadius: 18,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
     padding: 16,
-    maxHeight: "55%",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
+  },
+  nearbyDragZone: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
   },
   nearbyHandle: {
     width: 42,
@@ -2711,11 +3236,13 @@ const styles = StyleSheet.create({
   nearbyTitle: {
     fontSize: 18,
     fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#0B253A",
   },
   nearbySubtitle: {
     marginTop: 2,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.7)",
   },
   nearbyClose: {
@@ -2746,11 +3273,13 @@ const styles = StyleSheet.create({
   nearbyName: {
     fontSize: 14,
     fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#FFFFFF",
   },
   nearbyAddress: {
     marginTop: 2,
     fontSize: 11,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(255,255,255,0.7)",
   },
   nearbyMetaRow: {
@@ -2759,13 +3288,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 6,
   },
+  nearbyMetaLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
   nearbyRating: {
     fontSize: 11,
     color: "#FFE082",
     fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  nearbyStatus: {
+    fontSize: 11,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    flexShrink: 0,
+  },
+  nearbyStatusOpen: {
+    color: "#6EE7B7",
+  },
+  nearbyStatusClosed: {
+    color: "#FF8A80",
   },
   nearbyDistance: {
     fontSize: 11,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(255,255,255,0.8)",
   },
   nearbyActionsRow: {
@@ -2814,6 +3366,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#FFFFFF",
     fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     textAlign: "center",
     lineHeight: 13,
     includeFontPadding: true,

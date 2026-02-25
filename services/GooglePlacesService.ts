@@ -25,6 +25,7 @@ export type PlaceDetails = {
   website?: string;
   googleMapsUrl?: string;
   isOpenNow?: boolean;
+  nextOpenTimeText?: string;
   wheelchairAccessibleEntrance?: boolean;
   priceLevel?: number;
   photos?: PlacePhoto[];
@@ -46,7 +47,86 @@ export type NearbyPlace = {
   userRatingsTotal?: number;
   types?: string[];
   isOpenNow?: boolean;
+  nextOpenTimeText?: string;
   wheelchairAccessibleEntrance?: boolean;
+};
+
+const parseHhmmToMinutes = (hhmm: unknown): number | null => {
+  if (typeof hhmm !== "string") return null;
+  if (!/^\d{4}$/.test(hhmm)) return null;
+  const h = Number(hhmm.slice(0, 2));
+  const m = Number(hhmm.slice(2, 4));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+};
+
+const formatMinutesTo12Hour = (minutes: number): string => {
+  const h24 = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const suffix = h24 >= 12 ? "PM" : "AM";
+  let h = h24 % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, "0")} ${suffix}`;
+};
+
+const computeNextOpenTimeText = (
+  result: any,
+  isOpenNow: boolean | undefined,
+): string | undefined => {
+  if (isOpenNow !== false) return undefined;
+
+  const utcOffsetMinutes =
+    typeof result?.utc_offset_minutes === "number"
+      ? result.utc_offset_minutes
+      : typeof result?.utc_offset === "number"
+        ? result.utc_offset
+        : null;
+  if (utcOffsetMinutes === null) return undefined;
+
+  const periods =
+    result?.current_opening_hours?.periods ?? result?.opening_hours?.periods;
+  if (!Array.isArray(periods) || periods.length === 0) return undefined;
+
+  // Compute "now" in the place's local time using utc_offset_minutes.
+  const nowLocal = new Date(Date.now() + utcOffsetMinutes * 60_000);
+  const nowDay = nowLocal.getUTCDay();
+  const nowMinutes = nowLocal.getUTCHours() * 60 + nowLocal.getUTCMinutes();
+  const nowWeekMinutes = nowDay * 1440 + nowMinutes;
+
+  let bestOpenWeekMinutes: number | null = null;
+  let bestOpenDay: number | null = null;
+  let bestOpenMinutes: number | null = null;
+
+  for (const p of periods) {
+    const open = p?.open;
+    const openDay = typeof open?.day === "number" ? open.day : null;
+    const openMins = parseHhmmToMinutes(open?.time);
+    if (openDay === null || openMins === null) continue;
+
+    let openWeekMinutes = openDay * 1440 + openMins;
+    if (openWeekMinutes <= nowWeekMinutes) openWeekMinutes += 7 * 1440;
+
+    if (bestOpenWeekMinutes === null || openWeekMinutes < bestOpenWeekMinutes) {
+      bestOpenWeekMinutes = openWeekMinutes;
+      bestOpenDay = openDay;
+      bestOpenMinutes = openMins;
+    }
+  }
+
+  if (
+    bestOpenWeekMinutes === null ||
+    bestOpenDay === null ||
+    bestOpenMinutes === null
+  ) {
+    return undefined;
+  }
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const timeText = formatMinutesTo12Hour(bestOpenMinutes);
+  if (bestOpenDay === nowDay) return timeText;
+  const dayText = dayNames[bestOpenDay] ?? "";
+  return dayText ? `${dayText} ${timeText}` : timeText;
 };
 
 /**
@@ -269,7 +349,7 @@ export async function getPlaceDetails(
 ): Promise<PlaceDetails | null> {
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(
     placeId,
-  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,types,geometry,photos,opening_hours,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
+  )}&fields=place_id,name,formatted_address,rating,user_ratings_total,types,geometry,photos,opening_hours,current_opening_hours,utc_offset,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
 
   try {
     const response = await fetch(url);
@@ -304,6 +384,13 @@ export async function getPlaceDetails(
         data.result.formatted_phone_number ||
         undefined;
 
+      const isOpenNow: boolean | undefined =
+        typeof data.result.current_opening_hours?.open_now === "boolean"
+          ? data.result.current_opening_hours.open_now
+          : typeof data.result.opening_hours?.open_now === "boolean"
+            ? data.result.opening_hours.open_now
+            : undefined;
+
       return {
         placeId: data.result.place_id || placeId,
         name: data.result.name || "Selected place",
@@ -316,10 +403,8 @@ export async function getPlaceDetails(
         phoneNumber,
         website: data.result.website,
         googleMapsUrl: data.result.url,
-        isOpenNow:
-          typeof data.result.opening_hours?.open_now === "boolean"
-            ? data.result.opening_hours.open_now
-            : undefined,
+        isOpenNow,
+        nextOpenTimeText: computeNextOpenTimeText(data.result, isOpenNow),
         wheelchairAccessibleEntrance:
           typeof data.result.wheelchair_accessible_entrance === "boolean"
             ? data.result.wheelchair_accessible_entrance
