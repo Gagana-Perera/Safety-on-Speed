@@ -1,8 +1,9 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
+import { bringGuardians } from "@/lib/editguardians";
 import { saveGuardians } from "@/lib/saveguardians";
 import { Stack } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 
@@ -16,6 +17,23 @@ export default function EditGuardian() {
 
     const MAX_CONTACTS = 5;
     const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]); // start with 1 contact
+
+    const FIXED_USER_ID = "9c1ec720-76b1-48ba-86f5-e3432a36e4e9";
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const fetched = await bringGuardians(FIXED_USER_ID);
+                if (fetched && fetched.length > 0) {
+                    setContacts(fetched);
+                } else {
+                    setContacts([{ name: "", phone: "" }]);
+                }
+            } catch (err) {
+                console.error("Error fetching guardians:", err);
+            }
+        })();
+    }, []);
 
     const handleContactChange = (index: number, field: keyof Contact, value: string) => {
         const updatedContacts = [...contacts];
@@ -45,12 +63,9 @@ export default function EditGuardian() {
             return;
         }
 
-        //  Hardcoded test user (must exist in Supabase auth.users)
-        const TEST_USER_ID = "afecdcf9-2d08-473f-aa55-815f4f5617d4";
-
         try {
-            await saveGuardians(TEST_USER_ID, contacts);
-            alert("Guardians saved successfully (test mode)");
+            await saveGuardians(FIXED_USER_ID, contacts);
+            alert("Guardians saved successfully");
         } catch (error) {
             console.error(error);
             alert("Failed to save guardians.");
