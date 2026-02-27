@@ -1,10 +1,9 @@
-import { KeyboardAvoidingView, Platform, ScrollView, ImageBackground, View, Text, TextInput, Pressable, Image } from "react-native";
-import { officialdoc } from "@/constants/officialdoc";
 import { icons } from "@/constants/icons";
-import { useState } from "react";
+import { officialdoc } from "@/constants/officialdoc";
+import { saveGuardians } from "@/lib/saveguardians";
 import { Stack } from "expo-router";
-import { supabase } from "@/lib/superbase";
-import { saveGuardians } from "@/lib/guardians";
+import { useState } from "react";
+import { Image, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 
 type Contact = {
@@ -18,13 +17,13 @@ export default function AddGuardian() {
   const MAX_CONTACTS = 5;
   const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]); // start with 1 contact
 
-    const handleContactChange = (index: number, field: keyof Contact, value: string) => {
+  const handleContactChange = (index: number, field: keyof Contact, value: string) => {
     const updatedContacts = [...contacts];
     updatedContacts[index][field] = value;
     setContacts(updatedContacts);
   };
 
-  const handleDeleteContact = (index:number) => {
+  const handleDeleteContact = (index: number) => {
     const updatedContacts = contacts.filter((_, i) => i !== index);
     setContacts(updatedContacts);
   };
@@ -40,23 +39,23 @@ export default function AddGuardian() {
 
   const isAllContactsValid = contacts.every(isContactValid);
 
-const handleConfirm = async () => {
-  if (!isAllContactsValid) {
-    alert("Please ensure all contacts are valid before confirming.");
-    return;
-  }
+  const handleConfirm = async () => {
+    if (!isAllContactsValid) {
+      alert("Please ensure all contacts are valid before confirming.");
+      return;
+    }
 
-  //  Hardcoded test user (must exist in Supabase auth.users)
-  const TEST_USER_ID = "afecdcf9-2d08-473f-aa55-815f4f5617d4";
+    //  Hardcoded test user (must exist in Supabase auth.users)
+    const TEST_USER_ID = "afecdcf9-2d08-473f-aa55-815f4f5617d4";
 
-  try {
-    await saveGuardians(TEST_USER_ID, contacts);
-    alert("Guardians saved successfully (test mode)");
-  } catch (error) {
-    console.error(error);
-    alert("Failed to save guardians.");
-  }
-};
+    try {
+      await saveGuardians(TEST_USER_ID, contacts);
+      alert("Guardians saved successfully (test mode)");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save guardians.");
+    }
+  };
 
 
   return (
@@ -150,8 +149,8 @@ const handleConfirm = async () => {
       <View className="bg-[#002747]">
         <Pressable
           className="bg-[#011C33] px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3"
-          onPress={ handleConfirm}
-          
+          onPress={handleConfirm}
+
         >
           <Text className="text-[#DCDDE0]">Confirm All Contacts</Text>
         </Pressable>
