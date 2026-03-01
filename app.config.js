@@ -9,7 +9,9 @@ export default {
         // MUST MATCH YOUR .env NAME
         googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_API_KEY,
       },
-      // ... infoPlist ...
+      infoPlist: {
+        UIViewControllerBasedStatusBarAppearance: true,
+      },
     },
     android: {
       package: "com.safetyonspeed.app",
