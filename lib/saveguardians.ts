@@ -22,7 +22,7 @@ export async function saveGuardians(userId: string, contacts: { name: string; ph
         }
     }
 
-    const { error } = await supabase.from("guardians").upsert([row], { onConflict: "user_id" });
+    const { error } = await supabase.from("guardians").upsert([row] as any, { onConflict: "user_id" });
 
     if (error) {
         console.error("Failed to save guardians:", error);

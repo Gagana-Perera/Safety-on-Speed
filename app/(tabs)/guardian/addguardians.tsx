@@ -1,6 +1,7 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 import { saveGuardians } from "@/lib/saveguardians";
+import { getCurrentUser } from "@/lib/auth";
 import { Stack } from "expo-router";
 import { useState } from "react";
 import { Image, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -45,12 +46,14 @@ export default function AddGuardian() {
       return;
     }
 
-    //  Hardcoded test user (must exist in Supabase auth.users)
-    const TEST_USER_ID = "afecdcf9-2d08-473f-aa55-815f4f5617d4";
-
     try {
-      await saveGuardians(TEST_USER_ID, contacts);
-      alert("Guardians saved successfully (test mode)");
+      const user = await getCurrentUser();
+      if (!user) {
+        alert("You must be logged in to save guardians.");
+        return;
+      }
+      await saveGuardians(user.id, contacts);
+      alert("Guardians saved successfully");
     } catch (error) {
       console.error(error);
       alert("Failed to save guardians.");
@@ -87,7 +90,8 @@ export default function AddGuardian() {
             </Text>
 
             {contacts.map((contact, index) => (
-              <View key={index}>
+              
+              <View key={index} className='bg-black/20 rounded-2xl mx-4 mt-6 pb-8'>
                 <View className="flex-row justify-between items-center px-8">
                   <Text className="text-[#D9F5FF] text-xl mt-8">
                     Contact {index + 1}
