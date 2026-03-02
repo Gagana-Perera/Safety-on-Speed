@@ -1,5 +1,6 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
+import { getCurrentUser } from "@/lib/auth";
 import { bringGuardians } from "@/lib/editguardians";
 import { saveGuardians } from "@/lib/saveguardians";
 import { Stack } from "expo-router";
@@ -18,12 +19,15 @@ export default function EditGuardian() {
     const MAX_CONTACTS = 5;
     const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]); // start with 1 contact
 
-    const FIXED_USER_ID = "9c1ec720-76b1-48ba-86f5-e3432a36e4e9";
-
     useEffect(() => {
         (async () => {
             try {
-                const fetched = await bringGuardians(FIXED_USER_ID);
+                const user = await getCurrentUser();
+                if (!user) {
+                    console.warn("no logged in user when loading guardians");
+                    return;
+                }
+                const fetched = await bringGuardians(user.id);
                 if (fetched && fetched.length > 0) {
                     setContacts(fetched);
                 } else {
@@ -64,7 +68,12 @@ export default function EditGuardian() {
         }
 
         try {
-            await saveGuardians(FIXED_USER_ID, contacts);
+            const user = await getCurrentUser();
+            if (!user) {
+                alert("You must be logged in to update your guardians.");
+                return;
+            }
+            await saveGuardians(user.id, contacts);
             alert("Guardians saved successfully");
         } catch (error) {
             console.error(error);
