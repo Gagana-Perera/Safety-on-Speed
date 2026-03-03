@@ -53,6 +53,16 @@ import {
 } from "../../services/GooglePlacesService";
 import { useTheme } from "../themeContext";
 
+// Map tab:
+// - Search + autocomplete
+// - POI category chips (police/hospital/pharmacy/etc.)
+// - Two bottom sheets:
+//   1) Nearby places list
+//   2) Selected place details (photos, actions, reviews)
+//
+// This file is intentionally "state heavy" because it coordinates map gestures,
+// Places API calls, and bottom-sheet snap/scroll interactions.
+
 type Coords = { latitude: number; longitude: number };
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -65,6 +75,7 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
 
+// Shortens large counts for UI (e.g. 12500 -> 12.5K).
 const formatCount = (n?: number) => {
   if (typeof n !== "number") return "";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -72,6 +83,8 @@ const formatCount = (n?: number) => {
   return String(n);
 };
 
+// Fisher–Yates shuffle.
+// Used so POI results can be randomized by default (distance sorting is optional via UI).
 const shuffleArray = <T,>(items: T[]): T[] => {
   const out = [...items];
   for (let i = out.length - 1; i > 0; i -= 1) {
@@ -87,6 +100,9 @@ const estimateStarCountsMaxEntropy = (
   averageRating: number,
   totalReviews: number,
 ): number[] => {
+  // Places Details does NOT provide the full star histogram.
+  // When we only have (averageRating, totalReviews), we approximate a plausible
+  // 1..5 distribution via a maximum-entropy model that matches the average.
   const total = Math.max(0, Math.floor(totalReviews));
   if (!total) return [0, 0, 0, 0, 0];
 
@@ -165,6 +181,10 @@ export default function MapScreen() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
+  // Review summary model for the selected-place sheet.
+  // - If the API provided a small review sample, we can build a sample histogram.
+  // - If we also have userRatingsTotal + average rating, we can show an estimated
+  //   histogram that scales to the full review count.
   const selectedReviewSummary = useMemo(() => {
     const rating =
       selectedPlace && typeof selectedPlace.rating === "number"
@@ -227,6 +247,9 @@ export default function MapScreen() {
   >(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [activePoiKey, setActivePoiKey] = useState<string | null>(null);
+
+  // POI list controls.
+  // Default behavior is randomized results; user can switch to distance sorting.
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterWheelchair, setFilterWheelchair] = useState(false);
   const [sortMode, setSortMode] = useState<"default" | "distance">("default");
@@ -240,6 +263,9 @@ export default function MapScreen() {
   const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
   const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
 
+  // Selected-place sheet state.
+  // Expanded: user is reading details and can scroll.
+  // Minimized: extra collapsed state ("second touch") for more map visibility.
   const [selectedSheetExpanded, setSelectedSheetExpanded] = useState(false);
   const [selectedSheetMinimized, setSelectedSheetMinimized] = useState(false);
 

@@ -1,5 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-//to get the user's current location
+// Emergency Services tab:
+// - Shows hotline numbers (static)
+// - Finds the nearest hospital/police station using GPS + Google Places
+// - Supports: Call (dial the place phone) and Map (open in-app map by placeId)
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -28,10 +31,12 @@ interface ServiceItem {
   icon: keyof typeof Ionicons.glyphMap;
   hasMap: boolean;
   category: "hotline" | "place";
+  // For category="place": query string used by Places search.
+  // Examples: "hospital", "police station".
   searchKey?: string;
 }
 
-// 2. Define the services data
+// UI cards are driven entirely by this data structure.
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
@@ -89,7 +94,8 @@ export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
 
-  // NEW: Object state to track which specific button is loading
+  // Tracks the loading spinner per-card and per-action.
+  // This avoids locking the whole screen while one Places request is in flight.
   const [loadingStatus, setLoadingStatus] = useState<{
     id: string;
     type: "call" | "map";
@@ -100,7 +106,12 @@ export default function EmergencyServices() {
     lng: number;
   } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  //getting the usser's current location using expo loaction and storing it in the userLocatio state.This location is then used to search for neaby places and to show the user's position in the map.
+
+  // GPS bootstrap:
+  // - Ask permission
+  // - Check if services are enabled
+  // - Use last-known for fast initial UI
+  // - Then refresh with a high-accuracy fix
   useEffect(() => {
     (async () => {
       try {
@@ -157,6 +168,9 @@ export default function EmergencyServices() {
   const userLat = userLocation?.lat ?? null;
   const userLng = userLocation?.lng ?? null;
 
+  // "Call" action:
+  // - Hotlines: dial the known number
+  // - Places (Hospital/Police): find nearest placeId -> fetch phone -> dial
   const handleCallAction = async (item: ServiceItem) => {
     if (item.category === "hotline") {
       makePhoneCall(item.phone);
@@ -213,6 +227,9 @@ export default function EmergencyServices() {
     }
   };
 
+  // "Map" action:
+  // - Finds nearest placeId
+  // - Navigates to our Map tab and opens the selected-place sheet
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
@@ -275,6 +292,7 @@ export default function EmergencyServices() {
     }
   };
 
+  // Platform-specific dialing. (iOS uses telprompt for a better UX.)
   const makePhoneCall = (phoneNumber: string) => {
     const url =
       Platform.OS === "ios" ? `telprompt:${phoneNumber}` : `tel:${phoneNumber}`;
@@ -284,6 +302,8 @@ export default function EmergencyServices() {
     });
   };
 
+  // Renders a single service card.
+  // For "place" cards, buttons are disabled until GPS is available.
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}

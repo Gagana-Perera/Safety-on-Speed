@@ -1,5 +1,16 @@
 const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
 
+/**
+ * Google Places helpers used across the app.
+ *
+ * Notes:
+ * - We centralize URL building / response parsing here to keep screens simple.
+ * - This file mixes a few endpoints:
+ *   - Places Nearby Search (nearbysearch/json)
+ *   - Places Details (details/json)
+ *   - Places Photo (photo)
+ */
+
 export type PlaceSuggestion = {
   placeId: string;
   description: string;
@@ -94,6 +105,7 @@ const computeNextOpenTimeText = (
   if (!Array.isArray(periods) || periods.length === 0) return undefined;
 
   // Compute "now" in the place's local time using utc_offset_minutes.
+  // Places Details provides the offset for the place's timezone; we convert Date.now() into that local time.
   const nowLocal = new Date(Date.now() + utcOffsetMinutes * 60_000);
   const nowDay = nowLocal.getUTCDay();
   const nowMinutes = nowLocal.getUTCHours() * 60 + nowLocal.getUTCMinutes();
@@ -140,16 +152,17 @@ const computeNextOpenTimeText = (
  */
 
 /*
-When a user taps on the map, you only know the coordinates—not the place itself.
- The Google Places API needs a search area to look for places near those coordinates.
+  When a user taps on the map, you only know the coordinates—not the place itself.
+  The Google Places API needs a search area to look for places near those coordinates.
   By setting a small radius (e.g., 40 meters), you limit the search to places very close to the tapped spot,
-   increasing the chance that the result matches the exact location.
+  increasing the chance that the result matches the exact location.
 */
 export async function findNearestPlaceAt(
   lat: number,
   lng: number,
   radiusMeters = 40,
 ): Promise<NearbyPlace | null> {
+  // Uses a small-radius Nearby Search to map raw coordinates -> the nearest place.
   const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${encodeURIComponent(
     String(radiusMeters),
   )}&key=${GOOGLE_API_KEY}`;
@@ -199,7 +212,10 @@ export async function findNearestPlaceAt(
 
 /**
  * Finds the unique Place ID for the absolute closest service.
- * Optimized for nationwide use by removing radius constraints.
+ * Strategy:
+ * - Prefer `rankby=distance` for well-defined types (police/hospital/pharmacy) so the nearest
+ *   results are actually included in the response.
+ * - Fall back to radius-based searches if rank-by-distance returns no usable candidates.
  */
 //call the near by places service with the cor-ordinates and the type of the place.
 export async function getNearbyPlaces(
@@ -212,36 +228,194 @@ export async function getNearbyPlaces(
     return null;
   }
 
-  // Original simple behavior:
-  // - Use Places Nearby Search (Legacy) with rankby=distance
-  // - Use keyword matching (can include clinics/medical centers)
-  // - Return the first result (nearest in Google's distance-ranked list)
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
-    String(lat),
-  )},${encodeURIComponent(
-    String(lng),
-  )}&rankby=distance&keyword=${encodeURIComponent(
-    serviceType,
-  )}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
+  // Haversine distance (great-circle distance) to choose the truly closest result.
+  // We compute this ourselves instead of trusting Places ordering.
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const haversineMeters = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ) => {
+    const R = 6371_000; // meters
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
+  // Normalize the service type from UI strings to Places "type".
+  // (e.g. "police station" still maps to type="police".)
+  const normalized = serviceType.trim().toLowerCase();
+  const type = normalized.includes("hospital")
+    ? "hospital"
+    : normalized.includes("police")
+      ? "police"
+      : normalized.includes("pharmacy")
+        ? "pharmacy"
+        : null;
 
-    console.log(
-      `[Google Search] Keyword: ${serviceType} | Status: ${data.status}`,
-    );
+  // We intentionally do NOT rely on Google's ordering. Instead:
+  // 1) Fetch a set of candidates near the user
+  // 2) Compute the distance ourselves using Haversine
+  // 3) Pick the minimum-distance place_id
+  // We expand search radius until we have at least one candidate to choose from.
+  // This avoids a hard single-radius limit while still bounding API calls.
+  const radii = [5_000, 15_000, 40_000];
 
-    if (
-      data.status === "OK" &&
-      Array.isArray(data.results) &&
-      data.results[0]
-    ) {
-      return data.results[0].place_id;
+  const pickClosestPlaceId = (results: any[]): string | null => {
+    let bestId: string | null = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+
+    for (const r of results) {
+      const pid = r?.place_id;
+      const loc = r?.geometry?.location;
+      const rLat = typeof loc?.lat === "number" ? loc.lat : null;
+      const rLng = typeof loc?.lng === "number" ? loc.lng : null;
+      if (!pid || rLat === null || rLng === null) continue;
+
+      const d = haversineMeters(lat, lng, rLat, rLng);
+      if (d < bestDist) {
+        bestDist = d;
+        bestId = String(pid);
+      }
     }
 
-    if (data.error_message) {
-      console.error("API Error Message:", data.error_message);
+    return bestId;
+  };
+
+  try {
+    // 1) Prefer rank-by-distance for typed queries so that the nearest candidates are returned.
+    // This is especially important for police stations: prominence-based results within a radius
+    // can omit the truly nearest station from the first page.
+    if (type) {
+      const baseParams = new URLSearchParams({
+        location: `${lat},${lng}`,
+        rankby: "distance",
+        type,
+        key: GOOGLE_API_KEY,
+      });
+
+      const attemptParams: URLSearchParams[] = [];
+
+      // Emergency Services page behavior:
+      // - Hospitals: bias toward emergency-capable facilities.
+      // - Police: use an explicit police-station keyword (never "emergency").
+      if (type === "hospital") {
+        // `keyword=emergency` alone can match specialized clinics/hospitals (e.g., eye care).
+        // Try stricter ER terms first.
+        for (const kw of [
+          "emergency room",
+          "emergency department",
+          "emergency",
+        ]) {
+          const withKeyword = new URLSearchParams(baseParams);
+          withKeyword.set("keyword", kw);
+          attemptParams.push(withKeyword);
+        }
+      }
+      if (type === "police") {
+        const withPoliceStation = new URLSearchParams(baseParams);
+        withPoliceStation.set("keyword", "police station");
+        attemptParams.push(withPoliceStation);
+      }
+      // Important: for hospitals on the Emergency Services page we do NOT fall back to a plain
+      // `type=hospital` query (too broad and can pick non-emergency/specialized hospitals).
+      if (type !== "hospital") {
+        attemptParams.push(baseParams);
+      }
+
+      for (const params of attemptParams) {
+        const finalUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params.toString()}`;
+        const response = await fetch(finalUrl);
+        const data = await response.json();
+
+        const keyword = params.get("keyword");
+        console.log(
+          `[Google Search] Query: ${serviceType} | rankby=distance | keyword=${keyword ?? "(none)"} | Status: ${data.status}`,
+        );
+
+        if (data.status === "OK" && Array.isArray(data.results)) {
+          const bestId = pickClosestPlaceId(data.results);
+          if (bestId) return bestId;
+        }
+
+        if (data.error_message) {
+          console.error("API Error Message:", data.error_message);
+        }
+      }
+    }
+
+    // 2) Fallback: radius-based searches (useful if rank-by-distance returns no candidates).
+    for (const radius of radii) {
+      const baseParams = new URLSearchParams({
+        location: `${lat},${lng}`,
+        radius: String(radius),
+        key: GOOGLE_API_KEY,
+      });
+
+      const attemptParams: URLSearchParams[] = [];
+
+      if (type) {
+        baseParams.set("type", type);
+
+        // Emergency Services page: keyword biasing.
+        // - Hospitals: try `keyword=emergency` first.
+        // - Police: try `keyword=police station` first (do NOT use "emergency").
+        // If it's too strict (0 results), fall back to the same query without a keyword.
+        if (type === "hospital") {
+          // Try stricter ER terms first to reduce false positives.
+          for (const kw of [
+            "emergency room",
+            "emergency department",
+            "emergency",
+          ]) {
+            const withKeyword = new URLSearchParams(baseParams);
+            withKeyword.set("keyword", kw);
+            attemptParams.push(withKeyword);
+          }
+        }
+        if (type === "police") {
+          const withPoliceStation = new URLSearchParams(baseParams);
+          withPoliceStation.set("keyword", "police station");
+          attemptParams.push(withPoliceStation);
+        }
+
+        // Same rationale as rank-by-distance: keep hospital results strict.
+        if (type !== "hospital") {
+          attemptParams.push(baseParams);
+        }
+      } else {
+        baseParams.set("keyword", serviceType);
+        attemptParams.push(baseParams);
+      }
+
+      for (const params of attemptParams) {
+        const finalUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params.toString()}`;
+
+        const response = await fetch(finalUrl);
+        const data = await response.json();
+
+        const keyword = params.get("keyword");
+        console.log(
+          `[Google Search] Query: ${serviceType} | radius=${radius} | keyword=${keyword ?? "(none)"} | Status: ${data.status}`,
+        );
+
+        if (data.status === "OK" && Array.isArray(data.results)) {
+          const bestId = pickClosestPlaceId(data.results);
+          if (bestId) return bestId;
+        }
+
+        if (data.error_message) {
+          console.error("API Error Message:", data.error_message);
+        }
+      }
     }
 
     return null;
@@ -257,7 +431,7 @@ export async function getNearbyPlaces(
 export async function getPlaceMobileNumber(
   placeId: string,
 ): Promise<string | null> {
-  // We limit fields to name and phone to optimize performance and data costs
+  // We limit fields to name and phone to keep payload small and speed up dialing.
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
 
   try {
@@ -352,6 +526,8 @@ export async function getPlaceCoordinates(
 export async function getPlaceDetails(
   placeId: string,
 ): Promise<PlaceDetails | null> {
+  // Main details call used by the Map selected-place bottom sheet.
+  // We request only the fields we actually render (name/address/rating/photos/etc.).
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(
     placeId,
   )}&fields=place_id,name,formatted_address,rating,user_ratings_total,reviews,types,geometry,photos,opening_hours,current_opening_hours,utc_offset,wheelchair_accessible_entrance,price_level,url,website,formatted_phone_number,international_phone_number&key=${GOOGLE_API_KEY}`;
@@ -469,6 +645,9 @@ export async function searchNearbyPlaces(
   maxResults = 12,
   options?: { openNow?: boolean },
 ): Promise<NearbyPlace[]> {
+  // Used by POI category chips on the Map screen.
+  // - For police/hospital/pharmacy we use `type` (more consistent)
+  // - For everything else we use `keyword` (more flexible)
   const openNowParam = options?.openNow ? "&opennow=true" : "";
 
   // Prefer `type` for well-defined POI categories (more reliable than keyword).
