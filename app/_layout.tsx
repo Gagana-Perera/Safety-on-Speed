@@ -1,25 +1,27 @@
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import "./global.css";
 
 export default function RootLayout() {
   return (
-    <Stack>
-      <Redirect href={"/session"} />
-      <Stack.Screen name="session" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/login" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="auth/forgot-password"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/guardians" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <ThemeProvider>
+      <Stack>
+        <Stack.Screen name="session" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="auth/forgot-password"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/setup" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+    </ThemeProvider>
   );
 }
 
-{/*}
+{
+  /*}
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
@@ -34,7 +36,13 @@ export default function RootLayout() {
           headerShown: false,
         }}
       />
-    </>
+      <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="auth/guardian-setup"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
   );
 }
-  */}

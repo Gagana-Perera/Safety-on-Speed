@@ -39,12 +39,17 @@ import {
   PlaceSuggestion,
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
+import { useTheme } from "../themeContext";
 
 type Coords = { latitude: number; longitude: number };
 
 export default function MapScreen() {
-  const params = useLocalSearchParams<{ placeId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    placeId?: string | string[];
+    t?: string | string[];
+  }>();
   const router = useRouter();
+  const { isDark } = useTheme();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
@@ -523,10 +528,9 @@ export default function MapScreen() {
   };
 
   const POI_CATEGORIES = [
-    { key: "police", label: "Police", keyword: "police station" },
+    { key: "police", label: "Police Station", keyword: "police" },
     { key: "hospital", label: "Hospitals", keyword: "hospital" },
     { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy" },
-    { key: "fuel", label: "Fuel", keyword: "gas station" },
   ] as const;
 
   const loadPoiCategory = async (key: string, keyword: string) => {
@@ -594,7 +598,10 @@ export default function MapScreen() {
     const raw = params?.placeId;
     const placeId = Array.isArray(raw) ? raw[0] : raw;
     if (!placeId) return;
-    if (lastOpenedPlaceIdRef.current === placeId) return;
+
+    // Allow re-opening if timestamp parameter is present
+    const hasTimestamp = params?.t;
+    if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) return;
 
     lastOpenedPlaceIdRef.current = placeId;
     setInputFocused(false);
@@ -609,7 +616,7 @@ export default function MapScreen() {
         moveToPlace(details);
       }
     })();
-  }, [params?.placeId]);
+  }, [params?.placeId, params?.t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -619,6 +626,7 @@ export default function MapScreen() {
             mapRef.current = ref;
           }}
           style={styles.map}
+          userInterfaceStyle={isDark ? "dark" : "light"}
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
           onRegionChangeComplete={(r) => setMapRegion(r)}
@@ -801,8 +809,11 @@ export default function MapScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search places"
-              placeholderTextColor="rgba(0,0,0,0.45)"
-              style={styles.searchInput}
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              style={[
+                styles.searchInput,
+                inputFocused && styles.searchInputFocused,
+              ]}
               autoCorrect={false}
               autoCapitalize="none"
               returnKeyType="search"
@@ -869,9 +880,21 @@ export default function MapScreen() {
           </ScrollView>
 
           {inputFocused && (autoLoading || suggestions.length > 0) && (
-            <View style={styles.suggestions}>
+            <View
+              style={[
+                styles.suggestions,
+                isDark && { backgroundColor: "#031B2E" },
+              ]}
+            >
               {autoLoading && (
-                <Text style={styles.suggestionLoading}>Searching…</Text>
+                <Text
+                  style={[
+                    styles.suggestionLoading,
+                    isDark && { color: "rgba(255,255,255,0.9)" },
+                  ]}
+                >
+                  Searching…
+                </Text>
               )}
               <FlatList
                 keyboardShouldPersistTaps="handled"
@@ -879,10 +902,21 @@ export default function MapScreen() {
                 keyExtractor={(item) => item.placeId}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.suggestionItem}
+                    style={[
+                      styles.suggestionItem,
+                      isDark && {
+                        borderTopColor: "rgba(255,255,255,0.2)",
+                      },
+                    ]}
                     onPress={() => onPickSuggestion(item)}
                   >
-                    <Text style={styles.suggestionText} numberOfLines={2}>
+                    <Text
+                      style={[
+                        styles.suggestionText,
+                        isDark && { color: "#fff" },
+                      ]}
+                      numberOfLines={2}
+                    >
                       {item.description}
                     </Text>
                   </TouchableOpacity>
@@ -893,13 +927,25 @@ export default function MapScreen() {
         </View>
 
         {selectedPlace && (
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
+          <View
+            style={[styles.sheet, isDark && { backgroundColor: "#031B2E" }]}
+          >
+            <View
+              style={[
+                styles.sheetHandle,
+                isDark && { backgroundColor: "rgba(255,255,255,0.2)" },
+              ]}
+            />
 
             {(placeLoading || directionsLoading) && (
               <View style={styles.sheetLoadingRow}>
                 <ActivityIndicator size="small" color="#2F6FED" />
-                <Text style={styles.sheetLoadingText}>
+                <Text
+                  style={[
+                    styles.sheetLoadingText,
+                    isDark && { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                >
                   {placeLoading ? "Loading details…" : "Loading route…"}
                 </Text>
               </View>
@@ -932,13 +978,23 @@ export default function MapScreen() {
                 }}
               />
             ) : (
-              <Text style={styles.sheetPhotosEmpty}>
+              <Text
+                style={[
+                  styles.sheetPhotosEmpty,
+                  isDark && { color: "rgba(255,255,255,0.5)" },
+                ]}
+              >
                 No photos available for this place.
               </Text>
             )}
 
             <View style={styles.sheetHeaderRow}>
-              <View style={styles.sheetHeaderIcon}>
+              <View
+                style={[
+                  styles.sheetHeaderIcon,
+                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
+                ]}
+              >
                 <Feather
                   name={
                     getCategoryLabel(selectedPlace.types) === "Hospital"
@@ -948,16 +1004,25 @@ export default function MapScreen() {
                         : "map-pin"
                   }
                   size={18}
-                  color="#0B253A"
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
                 />
               </View>
 
               <View style={styles.sheetHeaderText}>
-                <Text style={styles.sheetTitle} numberOfLines={1}>
+                <Text
+                  style={[styles.sheetTitle, isDark && { color: "#FFFFFF" }]}
+                  numberOfLines={1}
+                >
                   {selectedPlace.name}
                 </Text>
 
-                <Text style={styles.sheetSubtitle} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.sheetSubtitle,
+                    isDark && { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                  numberOfLines={1}
+                >
                   {getCategoryLabel(selectedPlace.types)}
                   {hasLocation
                     ? ` • ${formatDistance(
@@ -975,21 +1040,42 @@ export default function MapScreen() {
                   setSelectedPlace(null);
                   setRoute(null);
                 }}
-                style={styles.sheetClose}
+                style={[
+                  styles.sheetClose,
+                  isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
+                ]}
               >
-                <Feather name="x" size={18} color="#0B253A" />
+                <Feather
+                  name="x"
+                  size={18}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
               </TouchableOpacity>
             </View>
 
             {selectedPlace.address ? (
-              <Text style={styles.sheetAddress} numberOfLines={2}>
+              <Text
+                style={[
+                  styles.sheetAddress,
+                  isDark && { color: "rgba(255,255,255,0.6)" },
+                ]}
+                numberOfLines={2}
+              >
                 {selectedPlace.address}
               </Text>
             ) : null}
 
             <View style={styles.sheetMetaRow}>
               {typeof selectedPlace.rating === "number" ? (
-                <Text style={styles.sheetMetaPill}>
+                <Text
+                  style={[
+                    styles.sheetMetaPill,
+                    isDark && {
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.8)",
+                    },
+                  ]}
+                >
                   ⭐ {selectedPlace.rating.toFixed(1)}
                   {typeof selectedPlace.userRatingsTotal === "number"
                     ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
@@ -1009,14 +1095,26 @@ export default function MapScreen() {
             </View>
 
             {route ? (
-              <Text style={styles.sheetMeta}>
+              <Text
+                style={[
+                  styles.sheetMeta,
+                  isDark && { color: "rgba(255,255,255,0.7)" },
+                ]}
+              >
                 ETA: {route.durationText} • {route.distanceText}
               </Text>
             ) : null}
 
             <View style={styles.sheetActionsRow}>
               <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionNeutral]}
+                style={[
+                  styles.sheetActionBtn,
+                  styles.actionNeutral,
+                  isDark && {
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    borderColor: "rgba(255,255,255,0.2)",
+                  },
+                ]}
                 onPress={() => {
                   if (!selectedPlace.phoneNumber) {
                     Alert.alert(
@@ -1028,12 +1126,30 @@ export default function MapScreen() {
                   void makePhoneCall(selectedPlace.phoneNumber);
                 }}
               >
-                <Feather name="phone" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Call</Text>
+                <Feather
+                  name="phone"
+                  size={16}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#8FD3FF" },
+                  ]}
+                >
+                  Call
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionBlue]}
+                style={[
+                  styles.sheetActionBtn,
+                  styles.actionBlue,
+                  isDark && {
+                    backgroundColor: "rgba(47,111,237,0.25)",
+                    borderColor: "rgba(47,111,237,0.4)",
+                  },
+                ]}
                 onPress={() =>
                   void openGoogleMapsDirections({
                     latitude: selectedPlace.latitude,
@@ -1041,12 +1157,30 @@ export default function MapScreen() {
                   })
                 }
               >
-                <Feather name="navigation" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Route</Text>
+                <Feather
+                  name="navigation"
+                  size={16}
+                  color={isDark ? "#8FD3FF" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#8FD3FF" },
+                  ]}
+                >
+                  Route
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionRed]}
+                style={[
+                  styles.sheetActionBtn,
+                  styles.actionRed,
+                  isDark && {
+                    backgroundColor: "rgba(239,68,68,0.2)",
+                    borderColor: "rgba(239,68,68,0.3)",
+                  },
+                ]}
                 onPress={() => {
                   Alert.alert("Emergency", "Open Emergency Services?", [
                     { text: "Cancel", style: "cancel" },
@@ -1058,27 +1192,86 @@ export default function MapScreen() {
                   ]);
                 }}
               >
-                <Feather name="alert-triangle" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>SOS</Text>
+                <Feather
+                  name="alert-triangle"
+                  size={16}
+                  color={isDark ? "#FF8A80" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#FF8A80" },
+                  ]}
+                >
+                  SOS
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionGreen]}
+                style={[
+                  styles.sheetActionBtn,
+                  styles.actionGreen,
+                  isDark && {
+                    backgroundColor: "rgba(16,185,129,0.2)",
+                    borderColor: "rgba(16,185,129,0.3)",
+                  },
+                ]}
                 onPress={() => void sharePlace(selectedPlace)}
               >
-                <Feather name="share-2" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Share</Text>
+                <Feather
+                  name="share-2"
+                  size={16}
+                  color={isDark ? "#6EE7B7" : "#0B253A"}
+                />
+                <Text
+                  style={[
+                    styles.sheetActionText,
+                    isDark && { color: "#6EE7B7" },
+                  ]}
+                >
+                  Share
+                </Text>
               </TouchableOpacity>
             </View>
 
             {getSafetyNote(selectedPlace.types) ? (
-              <View style={styles.sheetSafetyCard}>
-                <View style={styles.sheetSafetyIcon}>
-                  <Feather name="shield" size={16} color="#0B253A" />
+              <View
+                style={[
+                  styles.sheetSafetyCard,
+                  isDark && {
+                    backgroundColor: "rgba(254,148,0,0.18)",
+                    borderColor: "rgba(254,148,0,0.3)",
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.sheetSafetyIcon,
+                    isDark && { backgroundColor: "rgba(255,255,255,0.1)" },
+                  ]}
+                >
+                  <Feather
+                    name="shield"
+                    size={16}
+                    color={isDark ? "#FFA500" : "#0B253A"}
+                  />
                 </View>
                 <View style={styles.sheetSafetyTextWrap}>
-                  <Text style={styles.sheetSafetyTitle}>Safe zone nearby.</Text>
-                  <Text style={styles.sheetSafetyText} numberOfLines={2}>
+                  <Text
+                    style={[
+                      styles.sheetSafetyTitle,
+                      isDark && { color: "#FFFFFF" },
+                    ]}
+                  >
+                    Safe zone nearby.
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sheetSafetyText,
+                      isDark && { color: "rgba(255,255,255,0.7)" },
+                    ]}
+                    numberOfLines={2}
+                  >
                     {getSafetyNote(selectedPlace.types)}
                   </Text>
                 </View>
@@ -1122,28 +1315,34 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#031B2E",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    color: "#fff",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  searchInputFocused: {
+    borderColor: "#8FD3FF",
   },
   recenterButton: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: "#031B2E",
     alignItems: "center",
     justifyContent: "center",
   },
   toggleActive: {
-    backgroundColor: "#DCEBFF",
-    borderWidth: 1,
-    borderColor: "#2F6FED",
+    backgroundColor: "#031B2E",
+    borderWidth: 2,
+    borderColor: "#8FD3FF",
   },
   recenterText: {
     fontSize: 18,
-    color: "#0B253A",
+    color: "#fff",
   },
   poiRow: {
     paddingTop: 10,
@@ -1151,20 +1350,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   poiChip: {
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "#031B2E",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
+    borderColor: "rgba(255,255,255,0.15)",
   },
   poiChipActive: {
     backgroundColor: "#2F6FED",
-    borderColor: "#2F6FED",
+    borderColor: "#8FD3FF",
+    borderWidth: 2,
   },
   poiChipText: {
     fontSize: 12,
-    color: "#0B253A",
+    color: "#fff",
     fontWeight: "600",
   },
   poiChipTextActive: {

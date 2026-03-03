@@ -2,14 +2,14 @@ import { setSignupDraft } from "@/lib/signup-draft";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 export default function SignUpEmail() {
@@ -27,8 +27,8 @@ export default function SignUpEmail() {
       email: trimmedEmail,
     });
 
-    // Per user design flow: "Finish" -> Add Guardians
-    router.push("/auth/guardians");
+    // Per user design flow: "Finish" -> OTP Verification
+    router.push("/auth/otp");
   }
 
   return (

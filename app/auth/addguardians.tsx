@@ -1,24 +1,40 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
-import { saveGuardians } from "@/lib/saveguardians";
 import { getCurrentUser } from "@/lib/auth";
-import { Stack } from "expo-router";
+import { saveGuardians } from "@/lib/saveguardians";
+import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-
+import {
+    Alert,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 
 type Contact = {
   name: string;
   phone: string;
 };
 
-
-export default function AddGuardian() {
-
+export default function GuardianSetup() {
+  const router = useRouter();
   const MAX_CONTACTS = 5;
-  const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]); // start with 1 contact
+  const [contacts, setContacts] = useState<Contact[]>([
+    { name: "", phone: "" },
+  ]);
+  const [saving, setSaving] = useState(false);
 
-  const handleContactChange = (index: number, field: keyof Contact, value: string) => {
+  const handleContactChange = (
+    index: number,
+    field: keyof Contact,
+    value: string,
+  ) => {
     const updatedContacts = [...contacts];
     updatedContacts[index][field] = value;
     setContacts(updatedContacts);
@@ -38,28 +54,44 @@ export default function AddGuardian() {
   const isContactValid = (contact: Contact) =>
     contact.name.trim().length > 0 && contact.phone.trim().length >= 9;
 
-  const isAllContactsValid = contacts.every(isContactValid);
+  const isAllContactsValid =
+    contacts.length > 0 && contacts.every(isContactValid);
 
   const handleConfirm = async () => {
     if (!isAllContactsValid) {
-      alert("Please ensure all contacts are valid before confirming.");
+      Alert.alert(
+        "Invalid Contacts",
+        "Please ensure all contacts have a name and a valid phone number.",
+      );
       return;
     }
 
+    setSaving(true);
     try {
+      console.log("Attempting to get user...");
       const user = await getCurrentUser();
+
       if (!user) {
-        alert("You must be logged in to save guardians.");
+        console.error("No user found after signup.");
+        Alert.alert("Error", "You must be logged in to save guardians.");
         return;
       }
+
+      console.log("User found:", user.id);
+      console.log("Saving guardians for user:", user.id, contacts);
+
       await saveGuardians(user.id, contacts);
-      alert("Guardians saved successfully");
-    } catch (error) {
-      console.error(error);
-      alert("Failed to save guardians.");
+
+      console.log("Guardians saved successfully.");
+      Alert.alert("Success", "Guardians saved successfully!");
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      console.error("Error in handleConfirm:", error);
+      Alert.alert("Error", `Failed to save: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
-
 
   return (
     <>
@@ -82,7 +114,15 @@ export default function AddGuardian() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 10 }}
           >
-            <Text className="text-[#D9F5FF] text-[40px] font-normal px-8 mt-8">
+            <View className="flex-row items-center px-6 mt-4">
+              {/* Optional Back button if they want to go back? 
+                   But technically they are already signed up. 
+                   Maybe better to just have logout? Or no back?
+                   For now, no back button as this is a mandatory step after signup.
+               */}
+            </View>
+
+            <Text className="text-[#D9F5FF] text-[40px] font-normal px-8 mt-4">
               Add Guardian
             </Text>
             <Text className="text-[#D9F5FF] text-base mt-8 px-8">
@@ -90,18 +130,22 @@ export default function AddGuardian() {
             </Text>
 
             {contacts.map((contact, index) => (
-              
-              <View key={index} className='bg-black/20 rounded-2xl mx-4 mt-6 pb-8'>
+              <View
+                key={index}
+                className="bg-black/20 rounded-2xl mx-4 mt-6 pb-8"
+              >
                 <View className="flex-row justify-between items-center px-8">
                   <Text className="text-[#D9F5FF] text-xl mt-8">
                     Contact {index + 1}
                   </Text>
-                  <Pressable onPress={() => handleDeleteContact(index)}>
-                    <Image
-                      source={icons.deleteButton}
-                      className="w-6 h-6 pt-1"
-                    />
-                  </Pressable>
+                  {contacts.length > 1 && (
+                    <Pressable onPress={() => handleDeleteContact(index)}>
+                      <Image
+                        source={icons.deleteButton}
+                        className="w-6 h-6 pt-1"
+                      />
+                    </Pressable>
+                  )}
                 </View>
 
                 <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
@@ -111,6 +155,7 @@ export default function AddGuardian() {
                     handleContactChange(index, "name", text)
                   }
                   placeholder={`Guardian ${index + 1} Name`}
+                  placeholderTextColor="rgba(255,255,255,0.4)"
                   keyboardType="default"
                   className="bg-white/5 p-3 my-2 rounded-md text-white px-3 mx-8"
                 />
@@ -119,15 +164,16 @@ export default function AddGuardian() {
                   Phone Number
                 </Text>
                 <View className="flex-row mx-8 gap-2">
-                  <Text className="text-[#D9F5FF] bg-white/5 p-3 my-2 rounded-md">
-                    + 94  |
-                  </Text>
+                  <View className="bg-white/5 p-3 my-2 rounded-md justify-center">
+                    <Text className="text-[#D9F5FF]">+ 94 |</Text>
+                  </View>
                   <TextInput
                     value={contact.phone}
                     onChangeText={(text) =>
                       handleContactChange(index, "phone", text)
                     }
                     placeholder={`Guardian ${index + 1} Phone Number`}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
                     keyboardType="phone-pad"
                     className="bg-white/5 p-3 my-2 rounded-md text-white px-3 flex-1"
                   />
@@ -137,7 +183,7 @@ export default function AddGuardian() {
 
             {contacts.length < MAX_CONTACTS && (
               <Pressable
-                className="my-2 font-bold items-center flex-row mx-8 self-start"
+                className="my-2 font-bold items-center flex-row mx-8 self-start mt-6"
                 onPress={handleAddContact}
               >
                 <Image source={icons.addButton} />
@@ -150,13 +196,17 @@ export default function AddGuardian() {
         </KeyboardAvoidingView>
       </View>
 
-      <View className="bg-[#002747]">
+      <View className="bg-[#002747] pb-10">
         <Pressable
-          className="bg-[#011C33] px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3"
+          className={`px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3 ${
+            saving ? "opacity-50" : ""
+          } bg-[#011C33]`}
           onPress={handleConfirm}
-
+          disabled={saving}
         >
-          <Text className="text-[#DCDDE0]">Confirm All Contacts</Text>
+          <Text className="text-[#DCDDE0} text-lg font-semibold">
+            {saving ? "Saving..." : "Confirm All Contacts"}
+          </Text>
         </Pressable>
       </View>
     </>

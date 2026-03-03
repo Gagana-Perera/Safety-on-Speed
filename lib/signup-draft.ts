@@ -1,9 +1,3 @@
-export type GuardianContact = {
-  id: string;
-  name: string;
-  phone: string;
-};
-
 export type SignupDraft = {
   firstName: string;
   surname: string;
@@ -11,7 +5,6 @@ export type SignupDraft = {
   phoneNumber: string;
   email: string;
   password: string;
-  guardians: GuardianContact[];
 };
 
 let signupDraft: Partial<SignupDraft> = {};
