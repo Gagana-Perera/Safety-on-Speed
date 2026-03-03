@@ -1,20 +1,20 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
-import { saveGuardians } from "@/lib/guardians";
-import { supabase } from "@/lib/superbase";
+import { getCurrentUser } from "@/lib/auth";
+import { saveGuardians } from "@/lib/saveguardians";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 type Contact = {
@@ -69,19 +69,12 @@ export default function GuardianSetup() {
     setSaving(true);
     try {
       console.log("Attempting to get user...");
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error("Error fetching user:", userError);
-        throw userError;
-      }
+      const user = await getCurrentUser();
 
       if (!user) {
         console.error("No user found after signup.");
-        throw new Error("No authenticated user found.");
+        Alert.alert("Error", "You must be logged in to save guardians.");
+        return;
       }
 
       console.log("User found:", user.id);
@@ -137,7 +130,10 @@ export default function GuardianSetup() {
             </Text>
 
             {contacts.map((contact, index) => (
-              <View key={index}>
+              <View
+                key={index}
+                className="bg-black/20 rounded-2xl mx-4 mt-6 pb-8"
+              >
                 <View className="flex-row justify-between items-center px-8">
                   <Text className="text-[#D9F5FF] text-xl mt-8">
                     Contact {index + 1}
