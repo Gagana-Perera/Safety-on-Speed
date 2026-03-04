@@ -128,19 +128,22 @@ export default function EmergencyServices() {
       return;
     }
 
-    setLoadingStatus({ id: item.id, type: "call" }); // Specifically set 'call' loading
+    console.log(`[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    setLoadingStatus({ id: item.id, type: "call" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
         return;
       }
 
       const phoneNumber = await getPlaceMobileNumber(placeId);
+      console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
         makePhoneCall(phoneNumber);
       } else {
@@ -150,6 +153,7 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
+      console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
     } finally {
       setLoadingStatus(null);
@@ -159,19 +163,22 @@ export default function EmergencyServices() {
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
-    setLoadingStatus({ id: item.id, type: "map" }); // Specifically set 'map' loading
+    console.log(`[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`);
+    setLoadingStatus({ id: item.id, type: "map" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Map] PlaceId result:`, placeId);
 
       if (placeId) {
         // Open inside our app Map tab and load details for this placeId.
-        router.push({
+        console.log(`[Map] Navigating to map with placeId:`, placeId);
+        router.replace({
           pathname: "/(tabs)/map",
-          params: { placeId },
+          params: { placeId, t: Date.now().toString() },
         });
       } else {
         Alert.alert(
@@ -180,6 +187,7 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
+      console.error("[Map] Error:", error);
       Alert.alert("Error", "Could not open in-app map.");
     } finally {
       setLoadingStatus(null);
@@ -215,7 +223,9 @@ export default function EmergencyServices() {
           {/* Call Button */}
           <TouchableOpacity
             onPress={() => handleCallAction(item)}
-            disabled={loadingStatus?.id === item.id}
+            disabled={
+              loadingStatus?.id === item.id && loadingStatus?.type === "call"
+            }
             className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
           >
             {loadingStatus?.id === item.id && loadingStatus?.type === "call" ? (
@@ -234,7 +244,9 @@ export default function EmergencyServices() {
           {item.hasMap && (
             <TouchableOpacity
               onPress={() => handleMapAction(item)}
-              disabled={loadingStatus?.id === item.id}
+              disabled={
+                loadingStatus?.id === item.id && loadingStatus?.type === "map"
+              }
               className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1"
             >
               {loadingStatus?.id === item.id &&
