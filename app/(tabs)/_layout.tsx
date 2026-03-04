@@ -14,18 +14,12 @@ const IconC = ({ focused, icon, title }: any) => {
         //source={}
         className=""
       >
-        {icon === officialdoc.logo ? ( 
-          <Image 
-              source={icon} 
-              className="size-12 mt-14 rounded-full"
-          />) : (
-            <Image 
-              source={icon} 
-              className="size-12 mt-14"
-          />
-          )}
+        {icon === officialdoc.logo ? (
+          <Image source={icon} className="size-12 mt-14 rounded-full" />
+        ) : (
+          <Image source={icon} className="size-12 mt-14" />
+        )}
         {/* <Text className="pl-2 text-xs">{title}</Text> */}
-        
       </ImageBackground>
     );
   } else {
@@ -34,18 +28,12 @@ const IconC = ({ focused, icon, title }: any) => {
         //source={}
         className=""
       >
-        {icon === officialdoc.logo ? ( 
-          <Image 
-              source={icon} 
-              className="size-12 mt-14 rounded-full"
-          />) : (
-            <Image 
-              source={icon} 
-              className="size-12 mt-14"
-          />
-          )}
+        {icon === officialdoc.logo ? (
+          <Image source={icon} className="size-12 mt-14 rounded-full" />
+        ) : (
+          <Image source={icon} className="size-12 mt-14" />
+        )}
         {/* <Text className="pl-2 text-xl">{title}</Text> */}
-        
       </ImageBackground>
     );
   }
@@ -92,7 +80,7 @@ export default function _layout() {
   }
 
   return (
-    <Tabs 
+    <Tabs
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
@@ -106,6 +94,7 @@ export default function _layout() {
         headerTintColor: theme.text,
       }}
     >
+      <Tabs.Screen name="backbutton" options={{ href: null }} />
       <Tabs.Screen
         name="extra"
         options={{
@@ -113,10 +102,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
+            <IconC
+              focused={focused}
               icon={icons.home}
-              //title= "Extra" 
+              //title= "Extra"
             />
           ),
         }}
@@ -128,10 +117,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
+            <IconC
+              focused={focused}
               icon={icons.home}
-              //title= "Map" 
+              //title= "Map"
             />
           ),
         }}
@@ -143,9 +132,7 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={officialdoc.logo}/>
+            <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
       ></Tabs.Screen>
@@ -156,10 +143,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
+            <IconC
+              focused={focused}
               icon={icons.forum}
-              //title= "News" 
+              //title= "News"
             />
           ),
         }}
@@ -171,10 +158,10 @@ export default function _layout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
+            <IconC
+              focused={focused}
               icon={icons.person}
-              //title= "Profile" 
+              //title= "Profile"
             />
           ),
         }}
