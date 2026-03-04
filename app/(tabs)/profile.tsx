@@ -66,12 +66,12 @@ export default function Profile() {
             const displayEmail = data.email || session.user.email || "No Email";
             setEmail(displayEmail);
             if (data.avatar_url) setAvatarUrl(data.avatar_url);
-            setEmailNotif(data.email_notif || false);
-            setPushNotif(data.push_notif || false);
-            setAlertNotif(data.alert_notif || false);
-            setPersonalDataAccess(data.personal_data_access || false);
-            setCameraAccess(data.camera_access || false);
-            setLiveLocation(data.live_location || false);
+            setEmailNotif(data.email_notif || true);
+            setPushNotif(data.push_notif || true);
+            setAlertNotif(data.alert_notif || true);
+            setPersonalDataAccess(data.personal_data_access || true);
+            setCameraAccess(data.camera_access || true);
+            setLiveLocation(data.live_location || true);
           } else if (isActive) {
             setEmail(session.user.email || "No Email");
           }
