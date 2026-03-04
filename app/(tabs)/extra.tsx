@@ -324,6 +324,8 @@ export default function EmergencyServices() {
           {/* Call Button */}
           <TouchableOpacity
             onPress={() => handleCallAction(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} Call`}
             disabled={
               (loadingStatus?.id === item.id &&
                 loadingStatus?.type === "call") ||
@@ -347,6 +349,8 @@ export default function EmergencyServices() {
           {item.hasMap && (
             <TouchableOpacity
               onPress={() => handleMapAction(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name} Map`}
               disabled={
                 (loadingStatus?.id === item.id &&
                   loadingStatus?.type === "map") ||
@@ -377,6 +381,8 @@ export default function EmergencyServices() {
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Back Button"
           className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30"
         >
           <Ionicons name="chevron-back" size={20} color="#8FD3FF" />

@@ -220,7 +220,7 @@ export default function SignUpOtp() {
               className="mt-8"
             >
               <Text className="text-white/70 text-lg">
-                Didn't receive a OTP?{" "}
+                Didn&apos;t receive a OTP?{" "}
                 <Text className="text-white underline">
                   {sending ? "Sending..." : "Resend"}
                 </Text>

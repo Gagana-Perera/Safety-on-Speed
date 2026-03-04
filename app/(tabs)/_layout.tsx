@@ -1,57 +1,49 @@
 import { supabase } from "@/lib/superbase";
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ImageBackground, View } from "react-native";
+import { ActivityIndicator, Image, View } from "react-native";
 import { useTheme } from "../themeContext";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-const IconC = ({ focused, icon, title }: any) => {
-  if (focused) {
+const IconC = ({
+  icon,
+  color,
+  size,
+}: {
+  icon: any;
+  color: string;
+  size: number;
+}) => {
+  // `constants/icons.ts` exports SVGs as React components.
+  // The home logo is a normal image source.
+  if (icon === officialdoc.logo) {
     return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? ( 
-          <Image 
-              source={icon} 
-              className="size-12 mt-14 rounded-full"
-          />) : (
-            <Image 
-              source={icon} 
-              className="size-12 mt-14"
-          />
-          )}
-        {/* <Text className="pl-2 text-xs">{title}</Text> */}
-        
-      </ImageBackground>
-    );
-  } else {
-    return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? ( 
-          <Image 
-              source={icon} 
-              className="size-12 mt-14 rounded-full"
-          />) : (
-            <Image 
-              source={icon} 
-              className="size-12 mt-14"
-          />
-          )}
-        {/* <Text className="pl-2 text-xl">{title}</Text> */}
-        
-      </ImageBackground>
+      <Image
+        source={icon}
+        style={{
+          width: size + 10,
+          height: size + 10,
+          borderRadius: (size + 10) / 2,
+        }}
+        resizeMode="cover"
+      />
     );
   }
+
+  const SvgIcon = icon as React.ComponentType<{
+    width?: number;
+    height?: number;
+    fill?: string;
+    stroke?: string;
+  }>;
+  return (
+    <SvgIcon width={size + 6} height={size + 6} fill={color} stroke={color} />
+  );
 };
 
-export default function _layout() {
+export default function TabsLayout() {
   // 2. Grab the theme
   const { theme } = useTheme();
   const [session, setSession] = useState<any>(null);
@@ -92,13 +84,22 @@ export default function _layout() {
   }
 
   return (
-    <Tabs 
+    <Tabs
       initialRouteName="index"
       screenOptions={{
+        tabBarActiveTintColor: theme.text,
+        tabBarInactiveTintColor: theme.icon,
         tabBarStyle: {
           // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
           backgroundColor: theme.card,
           borderTopColor: theme.border,
+          height: 72,
+          paddingTop: 10,
+          paddingBottom: 12,
+        },
+        tabBarItemStyle: {
+          justifyContent: "center",
+          alignItems: "center",
         },
         headerStyle: {
           backgroundColor: theme.card,
@@ -112,12 +113,8 @@ export default function _layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={icons.home}
-              //title= "Extra" 
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.home} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -127,12 +124,8 @@ export default function _layout() {
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={icons.home}
-              //title= "Map" 
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.home} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -142,10 +135,8 @@ export default function _layout() {
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={officialdoc.logo}/>
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={officialdoc.logo} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -155,12 +146,8 @@ export default function _layout() {
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={icons.forum}
-              //title= "News" 
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.forum} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -170,12 +157,8 @@ export default function _layout() {
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC 
-              focused={focused} 
-              icon={icons.person}
-              //title= "Profile" 
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.person} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>

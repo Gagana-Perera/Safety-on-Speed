@@ -2316,469 +2316,465 @@ export default function MapScreen() {
               />
 
               {!selectedSheetMinimized && (
-                <View style={[styles.sheetInnerBox, { flex: 1 }]}>
-                  <ScrollView
-                    scrollEnabled={selectedSheetExpanded}
-                    showsVerticalScrollIndicator={false}
-                    onScroll={(e) => {
-                      selectedSheetScrollYRef.current =
-                        e.nativeEvent.contentOffset?.y ?? 0;
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ paddingBottom: 10 }}
+                  scrollEnabled={selectedSheetExpanded}
+                  showsVerticalScrollIndicator={false}
+                  onScroll={(e) => {
+                    selectedSheetScrollYRef.current =
+                      e.nativeEvent.contentOffset?.y ?? 0;
+                  }}
+                  scrollEventThrottle={16}
+                >
+                  <View
+                    onLayout={(e) => {
+                      const h = e.nativeEvent.layout.height;
+                      if (typeof h === "number" && h > 0) {
+                        setSelectedSheetContentHeight(h);
+                      }
                     }}
-                    scrollEventThrottle={16}
                   >
-                    <View
-                      onLayout={(e) => {
-                        const h = e.nativeEvent.layout.height;
-                        if (typeof h === "number" && h > 0) {
-                          setSelectedSheetContentHeight(h);
-                        }
-                      }}
-                    >
-                      {(placeLoading || directionsLoading) && (
-                        <View style={styles.sheetLoadingRow}>
-                          <ActivityIndicator size="small" color="#2F6FED" />
-                          <Text
-                            style={[
-                              styles.sheetLoadingText,
-                              isDark && { color: "rgba(255,255,255,0.7)" },
-                            ]}
-                          >
-                            {placeLoading
-                              ? "Loading details…"
-                              : "Loading route…"}
-                          </Text>
-                        </View>
-                      )}
-
-                      {placeError ? (
-                        <Text style={styles.sheetErrorText}>{placeError}</Text>
-                      ) : null}
-
-                      <View style={styles.sheetHeaderRow}>
-                        <View style={styles.sheetHeaderText}>
-                          <Text
-                            style={[
-                              styles.sheetTitle,
-                              isDark && { color: "#FFFFFF" },
-                            ]}
-                          >
-                            {selectedPlace.name}
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.sheetSubtitle,
-                              isDark && { color: "rgba(255,255,255,0.7)" },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {(() => {
-                              const cat = getCategoryLabel(selectedPlace.types);
-                              const dist = hasLocation
-                                ? `${formatDistance(
-                                    distanceMeters(coords, {
-                                      latitude: selectedPlace.latitude,
-                                      longitude: selectedPlace.longitude,
-                                    }),
-                                  )} away`
-                                : "";
-                              if (cat && dist) return `${cat} • ${dist}`;
-                              return cat || dist;
-                            })()}
-                          </Text>
-                        </View>
-
-                        <TouchableOpacity
-                          onPress={() => void sharePlace(selectedPlace)}
+                    {(placeLoading || directionsLoading) && (
+                      <View style={styles.sheetLoadingRow}>
+                        <ActivityIndicator size="small" color="#2F6FED" />
+                        <Text
                           style={[
-                            styles.sheetClose,
-                            isDark && {
-                              backgroundColor: "rgba(255,255,255,0.1)",
-                            },
+                            styles.sheetLoadingText,
+                            isDark && { color: "rgba(255,255,255,0.7)" },
                           ]}
                         >
-                          <Ionicons
-                            name="share-outline"
-                            size={20}
-                            color={isDark ? "#8FD3FF" : "#0B253A"}
-                          />
+                          {placeLoading ? "Loading details…" : "Loading route…"}
+                        </Text>
+                      </View>
+                    )}
+
+                    {placeError ? (
+                      <Text style={styles.sheetErrorText}>{placeError}</Text>
+                    ) : null}
+
+                    <View style={styles.sheetHeaderRow}>
+                      <View style={styles.sheetHeaderText}>
+                        <Text
+                          style={[
+                            styles.sheetTitle,
+                            isDark && { color: "#FFFFFF" },
+                          ]}
+                        >
+                          {selectedPlace.name}
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.sheetSubtitle,
+                            isDark && { color: "rgba(255,255,255,0.7)" },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {(() => {
+                            const cat = getCategoryLabel(selectedPlace.types);
+                            const dist = hasLocation
+                              ? `${formatDistance(
+                                  distanceMeters(coords, {
+                                    latitude: selectedPlace.latitude,
+                                    longitude: selectedPlace.longitude,
+                                  }),
+                                )} away`
+                              : "";
+                            if (cat && dist) return `${cat} • ${dist}`;
+                            return cat || dist;
+                          })()}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => void sharePlace(selectedPlace)}
+                        style={[
+                          styles.sheetClose,
+                          isDark && {
+                            backgroundColor: "rgba(255,255,255,0.1)",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="share-outline"
+                          size={20}
+                          color={isDark ? "#8FD3FF" : "#0B253A"}
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedPlace(null);
+                          setRoute(null);
+                        }}
+                        style={[
+                          styles.sheetClose,
+                          isDark && {
+                            backgroundColor: "rgba(255,255,255,0.1)",
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name="x"
+                          size={18}
+                          color={isDark ? "#8FD3FF" : "#0B253A"}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {selectedPlace.address ||
+                    typeof selectedPlace.rating === "number" ||
+                    typeof selectedPlace.isOpenNow === "boolean" ||
+                    route ? (
+                      <>
+                        {selectedPlace.address ? (
+                          <Text
+                            style={[
+                              styles.sheetAddress,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {selectedPlace.address}
+                          </Text>
+                        ) : null}
+
+                        <View
+                          style={[
+                            styles.sheetMetaRow,
+                            !selectedPlace.address && { marginTop: 0 },
+                          ]}
+                        >
+                          {typeof selectedPlace.rating === "number" ? (
+                            <Text
+                              style={[
+                                styles.sheetMetaPill,
+                                isDark && {
+                                  backgroundColor: "rgba(255,255,255,0.1)",
+                                  color: "rgba(255,255,255,0.8)",
+                                },
+                              ]}
+                            >
+                              ⭐ {selectedPlace.rating.toFixed(1)}
+                              {typeof selectedPlace.userRatingsTotal ===
+                              "number"
+                                ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
+                                : ""}
+                            </Text>
+                          ) : null}
+                          {typeof selectedPlace.isOpenNow === "boolean" ? (
+                            <Text
+                              style={[
+                                styles.sheetMetaPill,
+                                selectedPlace.isOpenNow
+                                  ? styles.openNow
+                                  : styles.closedNow,
+                              ]}
+                            >
+                              {selectedPlace.isOpenNow ? "Open now" : "Closed"}
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        {route ? (
+                          <Text
+                            style={[
+                              styles.sheetMeta,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                          >
+                            ETA: {route.durationText} • {route.distanceText}
+                          </Text>
+                        ) : null}
+                      </>
+                    ) : null}
+
+                    <View style={styles.sheetActionsRow}>
+                      <View style={styles.sheetActionsRowLine}>
+                        <TouchableOpacity
+                          style={[
+                            styles.sheetActionBtn,
+                            {
+                              backgroundColor: "#041424",
+                              borderColor: "rgba(143,211,255,0.4)",
+                            },
+                          ]}
+                          onPress={() => {
+                            if (!selectedPlace.phoneNumber) {
+                              Alert.alert(
+                                "No phone number",
+                                "This place doesn't have a phone number listed.",
+                              );
+                              return;
+                            }
+                            void makePhoneCall(selectedPlace.phoneNumber);
+                          }}
+                        >
+                          <Feather name="phone" size={16} color="#FFFFFF" />
+                          <Text
+                            style={[
+                              styles.sheetActionText,
+                              { fontSize: 14, color: "#FFFFFF" },
+                            ]}
+                            allowFontScaling={false}
+                          >
+                            Call
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          onPress={() => {
-                            setSelectedPlace(null);
-                            setRoute(null);
-                          }}
                           style={[
-                            styles.sheetClose,
+                            styles.sheetActionBtn,
+                            {
+                              backgroundColor: "#46AFFF",
+                              borderColor: "#46AFFF",
+                            },
+                          ]}
+                          onPress={() =>
+                            void openGoogleMapsDirections({
+                              latitude: selectedPlace.latitude,
+                              longitude: selectedPlace.longitude,
+                            })
+                          }
+                        >
+                          <Feather
+                            name="navigation"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+                          <Text
+                            style={[
+                              styles.sheetActionText,
+                              { fontSize: 14, color: "#FFFFFF" },
+                            ]}
+                            allowFontScaling={false}
+                          >
+                            Route
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.sheetActionsRowLine}>
+                        <TouchableOpacity
+                          style={[
+                            styles.sheetActionBtn,
+                            styles.actionRed,
+                            isDark && {
+                              backgroundColor: "rgba(239,68,68,0.2)",
+                              borderColor: "rgba(239,68,68,0.3)",
+                            },
+                          ]}
+                          onPress={() => {
+                            Alert.alert(
+                              "Emergency",
+                              "Open Emergency Services?",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Open",
+                                  style: "default",
+                                  onPress: () => router.push("/(tabs)/extra"),
+                                },
+                              ],
+                            );
+                          }}
+                        >
+                          <Feather
+                            name="alert-triangle"
+                            size={16}
+                            color={isDark ? "#FF8A80" : "#0B253A"}
+                          />
+                          <Text
+                            style={[
+                              styles.sheetActionText,
+                              { fontSize: 14 },
+                              isDark && { color: "#FF8A80" },
+                            ]}
+                          >
+                            SOS
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {selectedPlace.photos?.length ? (
+                      <FlatList
+                        horizontal
+                        data={selectedPlace.photos}
+                        keyExtractor={(p) => p.photoReference}
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.sheetPhotosRow}
+                        renderItem={({ item }) => {
+                          const url = getPlacePhotoUrl(
+                            item.photoReference,
+                            900,
+                          );
+                          if (!url) return null;
+                          return (
+                            <ExpoImage
+                              source={{ uri: url }}
+                              style={styles.sheetPhoto}
+                              onError={(e) => {
+                                console.error(
+                                  "[Place Photo] load error:",
+                                  url,
+                                  e,
+                                );
+                              }}
+                              contentFit="cover"
+                            />
+                          );
+                        }}
+                      />
+                    ) : null}
+
+                    {(selectedReviewSummary.rating !== null ||
+                      selectedReviewSummary.usedCount > 0) && (
+                      <View style={styles.reviewsCard}>
+                        <View style={styles.reviewsTopRow}>
+                          <Text style={styles.reviewsTitle}>
+                            Review summary
+                          </Text>
+                          {selectedPlace?.placeId ? (
+                            <TouchableOpacity
+                              onPress={() =>
+                                void openAddReview(selectedPlace.placeId)
+                              }
+                              hitSlop={{
+                                top: 10,
+                                bottom: 10,
+                                left: 10,
+                                right: 10,
+                              }}
+                            >
+                              <Text style={styles.reviewsAddReview}>
+                                Add review
+                              </Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.reviewsAddReview}>
+                              Add review
+                            </Text>
+                          )}
+                        </View>
+
+                        <View style={styles.reviewsMainRow}>
+                          <View style={styles.reviewsRatingBlock}>
+                            <Text style={styles.reviewsRatingValue}>
+                              {selectedReviewSummary.rating !== null
+                                ? selectedReviewSummary.rating.toFixed(1)
+                                : "—"}
+                            </Text>
+
+                            <View style={styles.reviewsStarsRow}>
+                              {Array.from({ length: 5 }).map((_, idx) => {
+                                const starIndex = idx + 1;
+                                const r =
+                                  selectedReviewSummary.rating !== null
+                                    ? selectedReviewSummary.rating
+                                    : 0;
+
+                                const name =
+                                  r >= starIndex
+                                    ? "star"
+                                    : r >= starIndex - 0.5
+                                      ? "star-half"
+                                      : "star-outline";
+
+                                return (
+                                  <Ionicons
+                                    key={starIndex}
+                                    name={name as any}
+                                    size={14}
+                                    color="#FFE082"
+                                  />
+                                );
+                              })}
+                            </View>
+
+                            {selectedReviewSummary.totalText ? (
+                              <Text style={styles.reviewsRatingCount}>
+                                ({selectedReviewSummary.totalText})
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <View style={styles.reviewsBars}>
+                            {([5, 4, 3, 2, 1] as const).map((star) => {
+                              const p = selectedReviewSummary.pct(star);
+                              return (
+                                <View key={star} style={styles.reviewsBarRow}>
+                                  <View style={styles.reviewsBarTrack}>
+                                    <View
+                                      style={[
+                                        styles.reviewsBarFill,
+                                        { width: `${Math.round(p * 100)}%` },
+                                      ]}
+                                    />
+                                  </View>
+                                </View>
+                              );
+                            })}
+                          </View>
+
+                          <Ionicons
+                            name="information-circle-outline"
+                            size={20}
+                            color="rgba(255,255,255,0.75)"
+                            style={styles.reviewsInfoIcon}
+                          />
+                        </View>
+                      </View>
+                    )}
+
+                    {getSafetyNote(selectedPlace.types) ? (
+                      <View
+                        style={[
+                          styles.sheetSafetyCard,
+                          isDark && {
+                            backgroundColor: "rgba(254,148,0,0.18)",
+                            borderColor: "rgba(254,148,0,0.3)",
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.sheetSafetyIcon,
                             isDark && {
                               backgroundColor: "rgba(255,255,255,0.1)",
                             },
                           ]}
                         >
                           <Feather
-                            name="x"
-                            size={18}
-                            color={isDark ? "#8FD3FF" : "#0B253A"}
+                            name="shield"
+                            size={16}
+                            color={isDark ? "#FFA500" : "#0B253A"}
                           />
-                        </TouchableOpacity>
-                      </View>
-
-                      {selectedPlace.address ||
-                      typeof selectedPlace.rating === "number" ||
-                      typeof selectedPlace.isOpenNow === "boolean" ||
-                      route ? (
-                        <>
-                          {selectedPlace.address ? (
-                            <Text
-                              style={[
-                                styles.sheetAddress,
-                                isDark && { color: "rgba(255,255,255,0.7)" },
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {selectedPlace.address}
-                            </Text>
-                          ) : null}
-
-                          <View
-                            style={[
-                              styles.sheetMetaRow,
-                              !selectedPlace.address && { marginTop: 0 },
-                            ]}
-                          >
-                            {typeof selectedPlace.rating === "number" ? (
-                              <Text
-                                style={[
-                                  styles.sheetMetaPill,
-                                  isDark && {
-                                    backgroundColor: "rgba(255,255,255,0.1)",
-                                    color: "rgba(255,255,255,0.8)",
-                                  },
-                                ]}
-                              >
-                                ⭐ {selectedPlace.rating.toFixed(1)}
-                                {typeof selectedPlace.userRatingsTotal ===
-                                "number"
-                                  ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
-                                  : ""}
-                              </Text>
-                            ) : null}
-                            {typeof selectedPlace.isOpenNow === "boolean" ? (
-                              <Text
-                                style={[
-                                  styles.sheetMetaPill,
-                                  selectedPlace.isOpenNow
-                                    ? styles.openNow
-                                    : styles.closedNow,
-                                ]}
-                              >
-                                {selectedPlace.isOpenNow
-                                  ? "Open now"
-                                  : "Closed"}
-                              </Text>
-                            ) : null}
-                          </View>
-
-                          {route ? (
-                            <Text
-                              style={[
-                                styles.sheetMeta,
-                                isDark && { color: "rgba(255,255,255,0.7)" },
-                              ]}
-                            >
-                              ETA: {route.durationText} • {route.distanceText}
-                            </Text>
-                          ) : null}
-                        </>
-                      ) : null}
-
-                      <View style={styles.sheetActionsRow}>
-                        <View style={styles.sheetActionsRowLine}>
-                          <TouchableOpacity
-                            style={[
-                              styles.sheetActionBtn,
-                              {
-                                backgroundColor: "#041424",
-                                borderColor: "rgba(143,211,255,0.4)",
-                              },
-                            ]}
-                            onPress={() => {
-                              if (!selectedPlace.phoneNumber) {
-                                Alert.alert(
-                                  "No phone number",
-                                  "This place doesn't have a phone number listed.",
-                                );
-                                return;
-                              }
-                              void makePhoneCall(selectedPlace.phoneNumber);
-                            }}
-                          >
-                            <Feather name="phone" size={16} color="#FFFFFF" />
-                            <Text
-                              style={[
-                                styles.sheetActionText,
-                                { fontSize: 14, color: "#FFFFFF" },
-                              ]}
-                              allowFontScaling={false}
-                            >
-                              Call
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.sheetActionBtn,
-                              {
-                                backgroundColor: "#46AFFF",
-                                borderColor: "#46AFFF",
-                              },
-                            ]}
-                            onPress={() =>
-                              void openGoogleMapsDirections({
-                                latitude: selectedPlace.latitude,
-                                longitude: selectedPlace.longitude,
-                              })
-                            }
-                          >
-                            <Feather
-                              name="navigation"
-                              size={16}
-                              color="#FFFFFF"
-                            />
-                            <Text
-                              style={[
-                                styles.sheetActionText,
-                                { fontSize: 14, color: "#FFFFFF" },
-                              ]}
-                              allowFontScaling={false}
-                            >
-                              Route
-                            </Text>
-                          </TouchableOpacity>
                         </View>
-
-                        <View style={styles.sheetActionsRowLine}>
-                          <TouchableOpacity
+                        <View style={styles.sheetSafetyTextWrap}>
+                          <Text
                             style={[
-                              styles.sheetActionBtn,
-                              styles.actionRed,
-                              isDark && {
-                                backgroundColor: "rgba(239,68,68,0.2)",
-                                borderColor: "rgba(239,68,68,0.3)",
-                              },
+                              styles.sheetSafetyTitle,
+                              isDark && { color: "#FFFFFF" },
                             ]}
-                            onPress={() => {
-                              Alert.alert(
-                                "Emergency",
-                                "Open Emergency Services?",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Open",
-                                    style: "default",
-                                    onPress: () => router.push("/(tabs)/extra"),
-                                  },
-                                ],
-                              );
-                            }}
                           >
-                            <Feather
-                              name="alert-triangle"
-                              size={16}
-                              color={isDark ? "#FF8A80" : "#0B253A"}
-                            />
-                            <Text
-                              style={[
-                                styles.sheetActionText,
-                                { fontSize: 14 },
-                                isDark && { color: "#FF8A80" },
-                              ]}
-                            >
-                              SOS
-                            </Text>
-                          </TouchableOpacity>
+                            Safe zone nearby.
+                          </Text>
+                          <Text
+                            style={[
+                              styles.sheetSafetyText,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {getSafetyNote(selectedPlace.types)}
+                          </Text>
                         </View>
                       </View>
-
-                      {selectedPlace.photos?.length ? (
-                        <FlatList
-                          horizontal
-                          data={selectedPlace.photos}
-                          keyExtractor={(p) => p.photoReference}
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.sheetPhotosRow}
-                          renderItem={({ item }) => {
-                            const url = getPlacePhotoUrl(
-                              item.photoReference,
-                              900,
-                            );
-                            if (!url) return null;
-                            return (
-                              <ExpoImage
-                                source={{ uri: url }}
-                                style={styles.sheetPhoto}
-                                onError={(e) => {
-                                  console.error(
-                                    "[Place Photo] load error:",
-                                    url,
-                                    e,
-                                  );
-                                }}
-                                contentFit="cover"
-                              />
-                            );
-                          }}
-                        />
-                      ) : null}
-
-                      {(selectedReviewSummary.rating !== null ||
-                        selectedReviewSummary.usedCount > 0) && (
-                        <View style={styles.reviewsCard}>
-                          <View style={styles.reviewsTopRow}>
-                            <Text style={styles.reviewsTitle}>
-                              Review summary
-                            </Text>
-                            {selectedPlace?.placeId ? (
-                              <TouchableOpacity
-                                onPress={() =>
-                                  void openAddReview(selectedPlace.placeId)
-                                }
-                                hitSlop={{
-                                  top: 10,
-                                  bottom: 10,
-                                  left: 10,
-                                  right: 10,
-                                }}
-                              >
-                                <Text style={styles.reviewsAddReview}>
-                                  Add review
-                                </Text>
-                              </TouchableOpacity>
-                            ) : (
-                              <Text style={styles.reviewsAddReview}>
-                                Add review
-                              </Text>
-                            )}
-                          </View>
-
-                          <View style={styles.reviewsMainRow}>
-                            <View style={styles.reviewsRatingBlock}>
-                              <Text style={styles.reviewsRatingValue}>
-                                {selectedReviewSummary.rating !== null
-                                  ? selectedReviewSummary.rating.toFixed(1)
-                                  : "—"}
-                              </Text>
-
-                              <View style={styles.reviewsStarsRow}>
-                                {Array.from({ length: 5 }).map((_, idx) => {
-                                  const starIndex = idx + 1;
-                                  const r =
-                                    selectedReviewSummary.rating !== null
-                                      ? selectedReviewSummary.rating
-                                      : 0;
-
-                                  const name =
-                                    r >= starIndex
-                                      ? "star"
-                                      : r >= starIndex - 0.5
-                                        ? "star-half"
-                                        : "star-outline";
-
-                                  return (
-                                    <Ionicons
-                                      key={starIndex}
-                                      name={name as any}
-                                      size={14}
-                                      color="#FFE082"
-                                    />
-                                  );
-                                })}
-                              </View>
-
-                              {selectedReviewSummary.totalText ? (
-                                <Text style={styles.reviewsRatingCount}>
-                                  ({selectedReviewSummary.totalText})
-                                </Text>
-                              ) : null}
-                            </View>
-
-                            <View style={styles.reviewsBars}>
-                              {([5, 4, 3, 2, 1] as const).map((star) => {
-                                const p = selectedReviewSummary.pct(star);
-                                return (
-                                  <View key={star} style={styles.reviewsBarRow}>
-                                    <View style={styles.reviewsBarTrack}>
-                                      <View
-                                        style={[
-                                          styles.reviewsBarFill,
-                                          { width: `${Math.round(p * 100)}%` },
-                                        ]}
-                                      />
-                                    </View>
-                                  </View>
-                                );
-                              })}
-                            </View>
-
-                            <Ionicons
-                              name="information-circle-outline"
-                              size={20}
-                              color="rgba(255,255,255,0.75)"
-                              style={styles.reviewsInfoIcon}
-                            />
-                          </View>
-                        </View>
-                      )}
-
-                      {getSafetyNote(selectedPlace.types) ? (
-                        <View
-                          style={[
-                            styles.sheetSafetyCard,
-                            isDark && {
-                              backgroundColor: "rgba(254,148,0,0.18)",
-                              borderColor: "rgba(254,148,0,0.3)",
-                            },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.sheetSafetyIcon,
-                              isDark && {
-                                backgroundColor: "rgba(255,255,255,0.1)",
-                              },
-                            ]}
-                          >
-                            <Feather
-                              name="shield"
-                              size={16}
-                              color={isDark ? "#FFA500" : "#0B253A"}
-                            />
-                          </View>
-                          <View style={styles.sheetSafetyTextWrap}>
-                            <Text
-                              style={[
-                                styles.sheetSafetyTitle,
-                                isDark && { color: "#FFFFFF" },
-                              ]}
-                            >
-                              Safe zone nearby.
-                            </Text>
-                            <Text
-                              style={[
-                                styles.sheetSafetyText,
-                                isDark && { color: "rgba(255,255,255,0.7)" },
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {getSafetyNote(selectedPlace.types)}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : null}
-                    </View>
-                  </ScrollView>
-                </View>
+                    ) : null}
+                  </View>
+                </ScrollView>
               )}
             </View>
           </AnimatedBlurView>
@@ -3582,7 +3578,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 12,
     right: 12,
-    bottom: 12,
+    // Keep the sheet above the bottom tab bar.
+    bottom: 84,
     backgroundColor: "rgba(255,255,255,0.55)",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
