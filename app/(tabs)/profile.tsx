@@ -9,10 +9,10 @@ import {
   ScrollView, 
   SafeAreaView, 
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import * as ImagePicker from 'expo-image-picker';
 import { Feather } from "@expo/vector-icons"; 
 import { useTheme } from "../themeContext";
 import BackButton from '../backButton'; 
@@ -27,6 +27,7 @@ export default function Profile() {
   const [fullName, setFullName] = useState("User Name");
   const [email, setEmail] = useState("user@example.com"); 
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [viewingAvatar, setViewingAvatar] = useState(false);
 
   // Toggles
   const [emailNotif, setEmailNotif] = useState(false);
@@ -38,6 +39,8 @@ export default function Profile() {
   const [language, setLanguage] = useState("English");
   const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
 
+  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
+
   // --- FETCH DATA ON FOCUS ---
   useFocusEffect(
     useCallback(() => {
@@ -45,14 +48,12 @@ export default function Profile() {
 
       const fetchProfileData = async () => {
         try {
-          // 1. Get Session
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
 
-          // 2. Fetch Profile Data from Database
           const { data, error } = await (supabase
             .from('profiles')
-            .select('full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location') // fetching email column
+            .select('full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location')
             .eq('id', session.user.id)
             .single() as any);
 
@@ -62,26 +63,16 @@ export default function Profile() {
 
           if (isActive && data) {
             setFullName(data.full_name || "User Name");
-            
-            // FIX: Priority Logic + Type Safety
-            // If DB has email, use it. Otherwise use session email. 
             const displayEmail = data.email || session.user.email || "No Email";
             setEmail(displayEmail);
-            
             if (data.avatar_url) setAvatarUrl(data.avatar_url);
-
-            // --- NEW: Set local state from database values ---
             setEmailNotif(data.email_notif || false);
             setPushNotif(data.push_notif || false);
             setAlertNotif(data.alert_notif || false);
-
-            // --- NEW: Set Permission States ---
             setPersonalDataAccess(data.personal_data_access || false);
             setCameraAccess(data.camera_access || false);
             setLiveLocation(data.live_location || false);
-
           } else if (isActive) {
-            // Fallback if no profile data found at all
             setEmail(session.user.email || "No Email");
           }
 
@@ -105,7 +96,6 @@ export default function Profile() {
     field: 'email_notif' | 'push_notif' | 'alert_notif' | 'personal_data_access' | 'camera_access' | 'live_location', 
     newValue: boolean
   ) => {
-    // 1. Instant UI update
     if (field === 'email_notif') setEmailNotif(newValue);
     if (field === 'push_notif') setPushNotif(newValue);
     if (field === 'alert_notif') setAlertNotif(newValue);
@@ -113,7 +103,6 @@ export default function Profile() {
     if (field === 'camera_access') setCameraAccess(newValue);
     if (field === 'live_location') setLiveLocation(newValue);
 
-    // 2. Push to Supabase
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -128,69 +117,6 @@ export default function Profile() {
       }
     } catch (error) {
       console.log("Unexpected error saving preference:", error);
-    }
-  };
-
-  // --- UPLOAD NEW AVATAR ---
-  const [uploading, setUploading] = useState(false); // Add this near your other state variables at the top
-
-  const changeAvatar = async () => {
-    try {
-      // 1. Open phone gallery
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, // Lets user crop the image
-        aspect: [1, 1],      // Forces a square crop
-        quality: 0.5,        // Compresses image to save database space
-      });
-
-      if (result.canceled) return;
-
-      setUploading(true);
-      const imageUri = result.assets[0].uri;
-
-      // 2. Convert image for upload
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      const arrayBuffer = await new Response(blob).arrayBuffer();
-
-      // 3. Get user session & create unique file name
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No session");
-      
-      const fileExt = imageUri.split('.').pop() || 'jpeg';
-      const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
-
-      // 4. Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, arrayBuffer, {
-          contentType: `image/${fileExt}`,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // 5. Get the new public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      // 6. Save the new URL to the user's profile table
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', session.user.id);
-
-      if (updateError) throw updateError;
-
-      // 7. Update the screen instantly
-      setAvatarUrl(publicUrl);
-
-    } catch (error) {
-      console.log("Error uploading image: ", error);
-      alert("Failed to upload image.");
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -239,6 +165,25 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+
+      {/* --- FULL SCREEN AVATAR VIEWER MODAL --- */}
+      <Modal visible={viewingAvatar} transparent animationType="fade" onRequestClose={() => setViewingAvatar(false)}>
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setViewingAvatar(false)}
+        >
+          <Image
+            source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+            style={styles.fullScreenAvatar}
+          />
+          <View style={styles.modalCloseHint}>
+            <Feather name="x-circle" size={20} color="white" />
+            <Text style={styles.modalCloseText}>Tap anywhere to close</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.content}>
 
         <View>
@@ -249,24 +194,15 @@ export default function Profile() {
         <View style={styles.header}>
           <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
             
-            {/* --- Image Upload Part --- */}
-            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
-              {uploading ? (
-                <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}>
-                  <ActivityIndicator size="large" color={theme.text} />
-                </View>
-              ) : (
-                <Image
-                  source={{ 
-                    uri: avatarUrl 
-                      ? avatarUrl 
-                      : "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80" 
-                  }}
-                  style={styles.avatar}
-                />
-              )}
+            {/* Tap avatar to VIEW full screen */}
+            <TouchableOpacity onPress={() => setViewingAvatar(true)}>
+              <Image
+                source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+                style={styles.avatar}
+              />
             </TouchableOpacity>
 
+            {/* Edit badge navigates to Edit Profile */}
             <TouchableOpacity 
               style={styles.editBadge} 
               onPress={() => router.push("/editProfile")}
@@ -479,5 +415,29 @@ const styles = StyleSheet.create({
     fontSize: 12, 
     opacity: 0.5, 
     marginBottom: 20 
+  },
+  // Modal styles
+  modalOverlay:
+  { flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenAvatar:
+  { width: 300,
+    height: 300,
+    borderRadius: 150,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  modalCloseHint:
+  { flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 8,
+  },
+  modalCloseText:
+  { color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
   },
 });

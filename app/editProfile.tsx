@@ -13,24 +13,23 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
 
-// 1. Import the Theme Hook
-import { useTheme } from "./themeContext"; // Ensure path is correct (e.g. "../themeContext" if this file is in app/)
-
-// Assuming BackButton is in the same folder, otherwise adjust path (e.g. "../components/backButton")
+import { useTheme } from "./themeContext";
 import BackButton from './backButton'; 
-
 import { supabase } from "../lib/superbase"; 
 import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
 
 export default function EditProfile() {
   const router = useRouter();
-  
-  // 2. Get the theme object
   const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
 
   const [form, setForm] = useState({
     firstName: "",
@@ -60,6 +59,9 @@ export default function EditProfile() {
               email: profile.email || user.email || "", 
               location: profile.location || "", 
             });
+
+            // Load actual avatar from profile
+            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
           }
         }
       } catch (error) {
@@ -70,6 +72,62 @@ export default function EditProfile() {
     }
     loadData();
   }, []);
+
+  // --- UPLOAD AVATAR ---
+  const changeAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (result.canceled) return;
+
+      const image = result.assets[0];
+      if (!image.base64) throw new Error("No base64 data");
+
+      setUploading(true);
+
+      const byteArray = Uint8Array.from(atob(image.base64), c => c.charCodeAt(0));
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      const fileExt = image.uri.split('.').pop() || 'jpeg';
+      const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, byteArray, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', session.user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+
+    } catch (error: any) {
+      console.log("Error uploading image:", error);
+      Alert.alert("Upload Failed", error?.message || "Could not upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (saving) return; 
@@ -112,33 +170,43 @@ export default function EditProfile() {
   }
 
   return (
-    // 3. Apply dynamic background color
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         
-        {/* Pass dynamic color to BackButton */}
         <View style={{ marginLeft: 16 }}>
-             <BackButton color={theme.text} size={24} />
+          <BackButton color={theme.text} size={24} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           
           {/* Photo Section */}
           <View style={styles.profileImageContainer}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
-              }}
-              // Use theme.border for the avatar border
-              style={[styles.profileAvatar, { borderColor: theme.border }]}
-            />
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              {uploading ? (
+                <View style={[styles.profileAvatar, { borderColor: theme.border, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.card }]}>
+                  <ActivityIndicator size="large" color={theme.text} />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+                  style={[styles.profileAvatar, { borderColor: theme.border }]}
+                />
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
-              onPress={() => Alert.alert("Upload Photo", "Open gallery or camera logic here")}
+              onPress={changeAvatar}
+              disabled={uploading}
             >
               <Feather name="camera" size={16} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              <Text style={styles.changePhotoText}>
+                {uploading ? "Uploading..." : "Change Profile Photo"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Form Section */}
@@ -207,8 +275,8 @@ export default function EditProfile() {
               </View>
             </View>
 
-             {/* Location Input */}
-             <View style={styles.inputGroup}>
+            {/* Location Input */}
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
               <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
                 <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
@@ -248,13 +316,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    paddingVertical: 12, // Reduced slightly to account for SafeAreaView
+    paddingVertical: 12,
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 40,
   },
-  /** Photo Section */
   profileImageContainer: {
     alignItems: "center",
     marginTop: 20,
@@ -264,6 +331,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 2,
   },
   cameraIconContainer: {
     position: "absolute",
@@ -280,7 +348,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  /** Form */
   form: {
     paddingHorizontal: 24,
   },
@@ -310,7 +377,6 @@ const styles = StyleSheet.create({
     height: "100%",
     fontSize: 16,
   },
-  /** Action Button */
   actionContainer: {
     marginTop: 10,
     paddingHorizontal: 24,
