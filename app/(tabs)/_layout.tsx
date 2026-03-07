@@ -1,42 +1,39 @@
 import { supabase } from "@/lib/superbase";
+import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ImageBackground, View } from "react-native";
+import { ActivityIndicator, Image, View } from "react-native";
 import { useTheme } from "../themeContext";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-const IconC = ({ focused, icon, title }: any) => {
-  if (focused) {
+const IconC = ({ focused, icon: IconComponent, title, ioniconName }: any) => {
+  const color = focused ? "#8FD3FF" : "#808080";
+
+  if (ioniconName) {
     return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? (
-          <Image source={icon} className="size-12 mt-14 rounded-full" />
-        ) : (
-          <Image source={icon} className="size-12 mt-14" />
-        )}
-        {/* <Text className="pl-2 text-xs">{title}</Text> */}
-      </ImageBackground>
-    );
-  } else {
-    return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? (
-          <Image source={icon} className="size-12 mt-14 rounded-full" />
-        ) : (
-          <Image source={icon} className="size-12 mt-14" />
-        )}
-        {/* <Text className="pl-2 text-xl">{title}</Text> */}
-      </ImageBackground>
+      <View className="items-center justify-center">
+        <Ionicons name={ioniconName} size={28} color={color} />
+      </View>
     );
   }
+
+  const isLogo = IconComponent === officialdoc.logo;
+
+  return (
+    <View className="items-center justify-center">
+      {isLogo ? (
+        <Image
+          source={IconComponent}
+          className="w-10 h-10 rounded-full"
+          style={focused ? { borderWidth: 2, borderColor: "#8FD3FF" } : {}}
+        />
+      ) : (
+        <IconComponent width={28} height={28} color={color} fill={color} />
+      )}
+    </View>
+  );
 };
 
 export default function _layout() {
@@ -104,7 +101,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
-              icon={icons.home}
+              ioniconName="grid"
               //title= "Extra"
             />
           ),
@@ -119,7 +116,7 @@ export default function _layout() {
           tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
-              icon={icons.home}
+              ioniconName="map"
               //title= "Map"
             />
           ),
