@@ -9,6 +9,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Platform,
   SafeAreaView,
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
 import {
@@ -90,9 +92,75 @@ const SERVICES: ServiceItem[] = [
   },
 ];
 
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
+
+function PopTouchableOpacity(
+  props: React.ComponentProps<typeof TouchableOpacity> & {
+    popScale?: number;
+    popTranslateY?: number;
+  },
+) {
+  const {
+    popScale = 1.04,
+    popTranslateY = -2,
+    disabled,
+    onPressIn,
+    onPressOut,
+    style,
+    activeOpacity,
+    ...rest
+  } = props;
+
+  const scale = React.useRef(new Animated.Value(1)).current;
+  const translateY = React.useRef(new Animated.Value(0)).current;
+
+  const animateTo = (nextScale: number, nextTranslateY: number) => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: nextScale,
+        speed: 28,
+        bounciness: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: nextTranslateY,
+        speed: 28,
+        bounciness: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  return (
+    <AnimatedTouchableOpacity
+      {...rest}
+      disabled={disabled}
+      activeOpacity={activeOpacity ?? 1}
+      onPressIn={(e) => {
+        if (!disabled) animateTo(popScale, popTranslateY);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        animateTo(1, 0);
+        onPressOut?.(e);
+      }}
+      style={[
+        style,
+        {
+          transform: [{ scale }, { translateY }],
+        },
+      ]}
+    />
+  );
+}
+
 export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
+
+  const visibleBorderColor = theme.mode === "light" ? theme.icon : theme.border;
+  const visibleBorderWidth = 1;
 
   // Tracks the loading spinner per-card and per-action.
   // This avoids locking the whole screen while one Places request is in flight.
@@ -106,6 +174,41 @@ export default function EmergencyServices() {
     lng: number;
   } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  const haversineMeters = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ) => {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const R = 6371_000;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const delay = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  // Cache nearest placeId/phone for "place" cards so buttons feel instant.
+  // (Prefetch is skipped in Jest tests to keep them deterministic.)
+  const placeCacheRef = React.useRef<
+    Record<string, { placeId?: string | null; phone?: string | null }>
+  >({});
+  const placeInFlightRef = React.useRef<
+    Record<string, Promise<string | null> | undefined>
+  >({});
+  const phoneInFlightRef = React.useRef<
+    Record<string, Promise<string | null> | undefined>
+  >({});
 
   // GPS bootstrap:
   // - Ask permission
@@ -168,12 +271,123 @@ export default function EmergencyServices() {
   const userLat = userLocation?.lat ?? null;
   const userLng = userLocation?.lng ?? null;
 
+  const lastPrefetchRef = React.useRef<{
+    lat: number;
+    lng: number;
+    at: number;
+  } | null>(null);
+
+  const ensureNearestPlaceId = async (item: ServiceItem) => {
+    if (item.category !== "place") return null;
+    const cached = placeCacheRef.current[item.id]?.placeId;
+    if (cached) return cached;
+
+    if (placeInFlightRef.current[item.id]) {
+      return await placeInFlightRef.current[item.id];
+    }
+
+    const promise = (async () => {
+      const placeId = await getNearbyPlaces(
+        userLat as number,
+        userLng as number,
+        item.searchKey || "",
+      );
+      placeCacheRef.current[item.id] = {
+        ...(placeCacheRef.current[item.id] || {}),
+        placeId,
+      };
+      return placeId;
+    })()
+      .catch((e) => {
+        console.error("[Prefetch] getNearbyPlaces failed:", e);
+        return null;
+      })
+      .finally(() => {
+        delete placeInFlightRef.current[item.id];
+      });
+
+    placeInFlightRef.current[item.id] = promise;
+    return await promise;
+  };
+
+  const ensurePlacePhone = async (item: ServiceItem, placeId: string) => {
+    const cached = placeCacheRef.current[item.id]?.phone;
+    if (cached) return cached;
+
+    const phoneKey = `${item.id}:${placeId}`;
+    if (phoneInFlightRef.current[phoneKey]) {
+      return await phoneInFlightRef.current[phoneKey];
+    }
+
+    const promise = (async () => {
+      const phone = await getPlaceMobileNumber(placeId);
+      placeCacheRef.current[item.id] = {
+        ...(placeCacheRef.current[item.id] || {}),
+        phone,
+      };
+      return phone;
+    })()
+      .catch((e) => {
+        console.error("[Prefetch] getPlaceMobileNumber failed:", e);
+        return null;
+      })
+      .finally(() => {
+        delete phoneInFlightRef.current[phoneKey];
+      });
+
+    phoneInFlightRef.current[phoneKey] = promise;
+    return await promise;
+  };
+
+  // Prefetch nearest Hospital/Police in the background once GPS is available.
+  // This makes the UI feel instant in an emergency scenario.
+  useEffect(() => {
+    if (process.env.NODE_ENV === "test") return;
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) return;
+    if (userLat === null || userLng === null) return;
+
+    const now = Date.now();
+    const prev = lastPrefetchRef.current;
+    if (prev) {
+      const moved = haversineMeters(prev.lat, prev.lng, userLat, userLng);
+      const stale = now - prev.at > 10 * 60_000;
+      // Only invalidate cache if the user has moved a meaningful distance
+      // or the cache is old. Avoid clearing on tiny GPS jitter.
+      if (moved > 1000 || stale) {
+        placeCacheRef.current = {};
+      }
+    }
+    lastPrefetchRef.current = { lat: userLat, lng: userLng, at: now };
+
+    let cancelled = false;
+    (async () => {
+      const placeItems = SERVICES.filter((s) => s.category === "place");
+      await Promise.allSettled(
+        placeItems.map(async (item) => {
+          const placeId = await ensureNearestPlaceId(item);
+          if (cancelled || !placeId) return;
+          await ensurePlacePhone(item, placeId);
+        }),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLat, userLng]);
+
   // "Call" action:
   // - Hotlines: dial the known number
   // - Places (Hospital/Police): find nearest placeId -> fetch phone -> dial
   const handleCallAction = async (item: ServiceItem) => {
     if (item.category === "hotline") {
-      makePhoneCall(item.phone);
+      setLoadingStatus({ id: item.id, type: "call" });
+      try {
+        await makePhoneCall(item.phone);
+      } finally {
+        setLoadingStatus(null);
+      }
       return;
     }
 
@@ -193,26 +407,27 @@ export default function EmergencyServices() {
       return;
     }
 
+    const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
+    const cachedPhone = placeCacheRef.current[item.id]?.phone || null;
+    const shouldShowLoading = !cachedPlaceId || !cachedPhone;
+
     console.log(
       `[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`,
     );
-    setLoadingStatus({ id: item.id, type: "call" });
+    if (shouldShowLoading) setLoadingStatus({ id: item.id, type: "call" });
     try {
-      const placeId = await getNearbyPlaces(
-        userLat,
-        userLng,
-        item.searchKey || "",
-      );
+      const placeId = cachedPlaceId ?? (await ensureNearestPlaceId(item));
       console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
         return;
       }
 
-      const phoneNumber = await getPlaceMobileNumber(placeId);
+      const phoneNumber =
+        cachedPhone ?? (await ensurePlacePhone(item, placeId));
       console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
-        makePhoneCall(phoneNumber);
+        await makePhoneCall(phoneNumber);
       } else {
         Alert.alert(
           "Not Available",
@@ -223,7 +438,7 @@ export default function EmergencyServices() {
       console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
     } finally {
-      setLoadingStatus(null);
+      if (shouldShowLoading) setLoadingStatus(null);
     }
   };
 
@@ -259,167 +474,278 @@ export default function EmergencyServices() {
       return;
     }
 
-    setLoadingStatus({ id: item.id, type: "map" });
-    try {
-      const placeId = await getNearbyPlaces(
-        userLat,
-        userLng,
-        item.searchKey || "",
-      );
-      console.log(`[Map] PlaceId result:`, placeId);
+    const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
+    const keyword = item.searchKey || item.name;
 
-      if (placeId) {
-        // Open inside our app Map tab and load details for this placeId.
-        console.log(`[Map] Navigating to map with placeId:`, placeId);
-        router.push({
+    // Fast path: if already cached, go straight to the place.
+    if (cachedPlaceId) {
+      router.push({
+        pathname: "/(tabs)/map",
+        params: { placeId: cachedPlaceId, t: Date.now().toString() },
+      });
+      return;
+    }
+
+    // Slow-network UX: if placeId isn't ready quickly, navigate immediately to
+    // the Map tab with a POI category so the user isn't stuck waiting.
+    const placeIdPromise = ensureNearestPlaceId(item);
+    const quick = await Promise.race([
+      placeIdPromise.then((placeId) => ({ done: true as const, placeId })),
+      delay(250).then(() => ({ done: false as const, placeId: null })),
+    ]);
+
+    if (!quick.done) {
+      router.push({
+        pathname: "/(tabs)/map",
+        params: { poi: keyword, t: Date.now().toString() },
+      });
+      void (async () => {
+        const placeId = await placeIdPromise;
+        if (!placeId) return;
+        router.replace({
           pathname: "/(tabs)/map",
           params: { placeId, t: Date.now().toString() },
         });
-      } else {
-        Alert.alert(
-          "Not Found",
-          `Could not locate the nearest ${item.name} on the map. Please try again or check your internet connection.`,
-        );
-      }
-    } catch (error) {
-      console.error("[Map] Error:", error);
-      Alert.alert(
-        "Error",
-        `Could not open in-app map: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setLoadingStatus(null);
+      })();
+      return;
     }
+
+    // If we got a placeId quickly, keep the original behavior.
+    const placeId = quick.placeId;
+    if (!placeId) {
+      Alert.alert(
+        "Not Found",
+        `Could not locate the nearest ${item.name} on the map. Please try again or check your internet connection.`,
+      );
+      return;
+    }
+
+    router.push({
+      pathname: "/(tabs)/map",
+      params: { placeId, t: Date.now().toString() },
+    });
+
+    return;
+
+    /*
+      Previous implementation used loadingStatus + awaited getNearbyPlaces.
+      The new approach makes the UI respond instantly on slow networks.
+    */
   };
 
   // Platform-specific dialing. (iOS uses telprompt for a better UX.)
-  const makePhoneCall = (phoneNumber: string) => {
-    const url =
-      Platform.OS === "ios" ? `telprompt:${phoneNumber}` : `tel:${phoneNumber}`;
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) Linking.openURL(url);
-      else Alert.alert("Error", "Device does not support phone calls.");
-    });
+  const makePhoneCall = async (phoneNumber: string) => {
+    const raw = typeof phoneNumber === "string" ? phoneNumber.trim() : "";
+    if (!raw) {
+      Alert.alert("Not Available", "No phone number available.");
+      return;
+    }
+
+    // Places often returns formatted numbers with spaces/parentheses.
+    // `tel:` URIs are much more reliable with a sanitized number.
+    const sanitized = raw.replace(/[^\d+]/g, "");
+    if (!sanitized || sanitized === "+") {
+      Alert.alert("Not Available", "Invalid phone number.");
+      return;
+    }
+
+    const urls =
+      Platform.OS === "ios"
+        ? [`telprompt:${sanitized}`, `tel:${sanitized}`]
+        : [`tel:${sanitized}`];
+
+    let lastError: unknown = null;
+    for (const url of urls) {
+      try {
+        // NOTE: canOpenURL is not always reliable on Android (package visibility),
+        // so we call it for signal but we don't block dialing on it.
+        try {
+          await Linking.canOpenURL(url);
+        } catch {
+          // ignore
+        }
+
+        await Linking.openURL(url);
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    console.error("[Call] Failed to open dialer:", lastError);
+    Alert.alert("Error", "Could not open phone dialer.");
   };
 
   // Renders a single service card.
   // For "place" cards, buttons are disabled until GPS is available.
-  const renderCard = (item: ServiceItem) => (
-    <View
-      key={item.id}
-      className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-white/10"
-    >
-      <View className="flex-row justify-between items-center min-h-[90px]">
-        <View className="flex-1 items-center justify-center pr-2">
-          <Ionicons name={item.icon} size={32} color="#8FD3FF" />
-          <Text
-            className="text-white text-[10px] mt-2 text-center font-bold"
-            numberOfLines={2}
-          >
-            {item.name}
-          </Text>
-        </View>
+  const renderCard = (item: ServiceItem, opts?: { marginBottom?: number }) => {
+    const isCallDisabled =
+      (loadingStatus?.id === item.id && loadingStatus?.type === "call") ||
+      (item.category === "place" && userLat === null);
 
-        <View className="flex-1 pl-2 space-y-2 justify-center">
-          {/* Call Button */}
-          <TouchableOpacity
-            onPress={() => handleCallAction(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`${item.name} Call`}
-            disabled={
-              (loadingStatus?.id === item.id &&
-                loadingStatus?.type === "call") ||
-              (item.category === "place" && userLat === null)
-            }
-            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-[#8FD3FF]/40"
-          >
-            {loadingStatus?.id === item.id && loadingStatus?.type === "call" ? (
-              <ActivityIndicator size="small" color="#8FD3FF" />
-            ) : (
-              <>
-                <Ionicons name="call" size={12} color="white" />
-                <Text className="text-white text-[10px] ml-1 font-bold uppercase">
-                  Call
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+    const isMapDisabled =
+      (loadingStatus?.id === item.id && loadingStatus?.type === "map") ||
+      (item.category === "place" && userLat === null);
 
-          {/* Map Button */}
-          {item.hasMap && (
-            <TouchableOpacity
-              onPress={() => handleMapAction(item)}
+    return (
+      <View
+        key={item.id}
+        className="rounded-3xl p-3"
+        style={{
+          width: "49%",
+          backgroundColor: theme.card,
+          marginBottom: opts?.marginBottom ?? 16,
+        }}
+      >
+        <View className="flex-row justify-between items-center min-h-[90px]">
+          <View className="flex-1 items-center justify-center pr-2">
+            <Ionicons name={item.icon} size={32} color={theme.icon} />
+            <Text
+              className="text-[12px] mt-2 text-center"
+              style={{ color: theme.text, fontWeight: "600" }}
+              numberOfLines={3}
+            >
+              {item.name}
+            </Text>
+          </View>
+
+          <View className="flex-1 pl-2 space-y-2 justify-center">
+            {/* Call Button */}
+            <PopTouchableOpacity
+              onPress={() => handleCallAction(item)}
               accessibilityRole="button"
-              accessibilityLabel={`${item.name} Map`}
-              disabled={
-                (loadingStatus?.id === item.id &&
-                  loadingStatus?.type === "map") ||
-                (item.category === "place" && userLat === null)
-              }
-              className="bg-[#0B253A]/50 border border-[#8FD3FF]/40 py-2 rounded-xl flex-row items-center justify-center mt-1"
+              accessibilityLabel={`${item.name} Call`}
+              disabled={isCallDisabled}
+              className="py-2 rounded-xl flex-row items-center justify-center"
+              style={{
+                backgroundColor: theme.background,
+                borderColor: visibleBorderColor,
+                borderWidth: visibleBorderWidth,
+                opacity: isCallDisabled ? 0.6 : 1,
+              }}
             >
               {loadingStatus?.id === item.id &&
-              loadingStatus?.type === "map" ? (
-                <ActivityIndicator size="small" color="#8FD3FF" />
+              loadingStatus?.type === "call" ? (
+                <ActivityIndicator size="small" color={theme.icon} />
               ) : (
                 <>
-                  <Ionicons name="location" size={12} color="#8FD3FF" />
-                  <Text className="text-[#8FD3FF] text-[10px] ml-1 uppercase">
-                    Map
+                  <Ionicons name="call" size={12} color={theme.text} />
+                  <Text
+                    className="text-[10px] ml-1 font-bold uppercase"
+                    style={{ color: theme.text }}
+                  >
+                    Call
                   </Text>
                 </>
               )}
-            </TouchableOpacity>
-          )}
+            </PopTouchableOpacity>
+
+            {/* Map Button */}
+            {item.hasMap && (
+              <PopTouchableOpacity
+                onPress={() => handleMapAction(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name} Map`}
+                disabled={isMapDisabled}
+                className="py-2 rounded-xl flex-row items-center justify-center mt-3"
+                style={{
+                  backgroundColor: theme.card,
+                  borderColor: visibleBorderColor,
+                  borderWidth: visibleBorderWidth,
+                  opacity: isMapDisabled ? 0.6 : 1,
+                }}
+              >
+                {loadingStatus?.id === item.id &&
+                loadingStatus?.type === "map" ? (
+                  <ActivityIndicator size="small" color={theme.icon} />
+                ) : (
+                  <>
+                    <Ionicons name="location" size={12} color={theme.icon} />
+                    <Text
+                      className="text-[10px] ml-1 font-bold uppercase"
+                      style={{ color: theme.icon }}
+                    >
+                      Map
+                    </Text>
+                  </>
+                )}
+              </PopTouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back Button"
-          className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30"
-        >
-          <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
-          <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
-        </TouchableOpacity>
+        <View className="mb-6">
+          <BackButton color={theme.text} accessibilityLabel="Back Button" />
+        </View>
 
         <View className="mb-8">
-          <Text className="text-white text-5xl font-bold leading-tight">
+          <Text
+            className="text-[36px] leading-[42px]"
+            style={{ color: theme.text, fontWeight: "700" }}
+          >
             Emergency
           </Text>
-          <Text className="text-white text-5xl font-bold leading-tight">
+          <Text
+            className="text-[36px] leading-[42px]"
+            style={{ color: theme.text, fontWeight: "700" }}
+          >
             Services
           </Text>
           {!userLocation && (
-            <Text className="text-orange-400 text-xs mt-2 italic">
+            <Text className="text-xs mt-2 italic" style={{ color: theme.icon }}>
               {gpsError ? `GPS issue: ${gpsError}` : "Waiting for GPS..."}
             </Text>
           )}
         </View>
 
-        <View className="mb-6">
-          <Text className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">
+        <View className="mb-8">
+          <Text
+            className="text-[13px] uppercase mb-2"
+            style={{
+              color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)",
+              fontWeight: "600",
+              letterSpacing: 1.8,
+            }}
+          >
             Emergency Hotlines
           </Text>
-          <View className="h-[1px] bg-white/10 mb-4" />
+          <View
+            className="h-[1px] mb-4"
+            style={{ backgroundColor: theme.border }}
+          />
           <View className="flex-row flex-wrap justify-between">
-            {SERVICES.filter((s) => s.category === "hotline").map(renderCard)}
+            {SERVICES.filter((s) => s.category === "hotline").map(
+              (item, index) =>
+                renderCard(item, { marginBottom: index < 2 ? 24 : 16 }),
+            )}
           </View>
         </View>
 
-        <View className="mb-10">
-          <Text className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">
+        <View className="mb-6">
+          <Text
+            className="text-[13px] uppercase mb-2"
+            style={{
+              color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)",
+              fontWeight: "600",
+              letterSpacing: 1.8,
+            }}
+          >
             Nearby safe places
           </Text>
-          <View className="h-[1px] bg-white/10 mb-4" />
+          <View
+            className="h-[1px] mb-4"
+            style={{ backgroundColor: theme.border }}
+          />
           <View className="flex-row flex-wrap justify-between">
-            {SERVICES.filter((s) => s.category === "place").map(renderCard)}
+            {SERVICES.filter((s) => s.category === "place").map((item) =>
+              renderCard(item),
+            )}
           </View>
         </View>
       </ScrollView>

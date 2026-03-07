@@ -150,9 +150,10 @@ export default function MapScreen() {
   const params = useLocalSearchParams<{
     placeId?: string | string[];
     t?: string | string[];
+    poi?: string | string[];
   }>();
   const router = useRouter();
-  const { isDark } = useTheme();
+  const { isDark, theme } = useTheme();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
@@ -177,7 +178,6 @@ export default function MapScreen() {
   const [placeLoading, setPlaceLoading] = useState(false);
   const [directionsLoading, setDirectionsLoading] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const [recenterPressed, setRecenterPressed] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
@@ -247,6 +247,7 @@ export default function MapScreen() {
   >(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [activePoiKey, setActivePoiKey] = useState<string | null>(null);
+  const [poiPressedKey, setPoiPressedKey] = useState<string | null>(null);
 
   // POI list controls.
   // Default behavior is randomized results; user can switch to distance sorting.
@@ -884,6 +885,7 @@ export default function MapScreen() {
   } | null>(null);
 
   const lastOpenedPlaceIdRef = useRef<string | null>(null);
+  const lastOpenedPoiKeyRef = useRef<string | null>(null);
 
   // Search History State
   const [showSearchHistory, setShowSearchHistory] = useState(false);
@@ -1102,7 +1104,6 @@ export default function MapScreen() {
       "hardwareBackPress",
       () => {
         if (showSearchHistory) {
-          console.log("Hardware back button pressed - closing modal");
           setShowSearchHistory(false);
           return true; // Prevent default behavior
         }
@@ -1764,6 +1765,12 @@ export default function MapScreen() {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
 
+    const selected = POI_CATEGORIES.find((c) => c.key === key);
+    setQuery(selected?.label ?? keyword);
+    setInputFocused(false);
+    setSuggestions([]);
+    Keyboard.dismiss();
+
     const base = hasLocation
       ? coords
       : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
@@ -1950,8 +1957,50 @@ export default function MapScreen() {
     })();
   }, [params?.placeId, params?.t]);
 
+  useEffect(() => {
+    const rawPoi = params?.poi;
+    const poi = Array.isArray(rawPoi) ? rawPoi[0] : rawPoi;
+    if (!poi) return;
+
+    // If a specific placeId is present, that takes precedence.
+    const rawPlace = params?.placeId;
+    const placeId = Array.isArray(rawPlace) ? rawPlace[0] : rawPlace;
+    if (placeId) return;
+
+    const normalized = String(poi).trim().toLowerCase();
+    const key = normalized.includes("police")
+      ? "police"
+      : normalized.includes("hospital")
+        ? "hospital"
+        : normalized.includes("pharmacy")
+          ? "pharmacy"
+          : null;
+    if (!key) return;
+
+    const hasTimestamp = params?.t;
+    if (!hasTimestamp && lastOpenedPoiKeyRef.current === key) return;
+    lastOpenedPoiKeyRef.current = key;
+
+    const cat = POI_CATEGORIES.find((c) => c.key === key);
+    if (!cat) return;
+
+    // Clear any selected place to show the nearby list.
+    setSelectedPlace(null);
+    setRoute(null);
+    setInputFocused(false);
+    Keyboard.dismiss();
+    setSuggestions([]);
+    setNearbyPlaces([]);
+
+    void loadPoiCategory(cat.key, cat.keyword);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.poi, params?.placeId, params?.t]);
+
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={["top", "left", "right"]}
+    >
       <View style={styles.mapWrap}>
         <MapView
           ref={(ref) => {
@@ -2155,9 +2204,11 @@ export default function MapScreen() {
                     })();
                   }}
                 >
-                  <View style={styles.poiMarker}>
+                  <View
+                    style={[styles.poiMarker, !isDark && styles.poiMarkerLight]}
+                  >
                     {IconComponent ? (
-                      <IconComponent width={18} height={18} fill="#E11D48" />
+                      <IconComponent width={18} height={18} fill="#FFFFFF" />
                     ) : null}
                   </View>
                 </Marker>
@@ -2175,6 +2226,7 @@ export default function MapScreen() {
         </MapView>
 
         <View
+          key={isDark ? "dark" : "light"}
           style={styles.searchWrap}
           onLayout={(e) => {
             const { y, height } = e.nativeEvent.layout;
@@ -2185,33 +2237,48 @@ export default function MapScreen() {
             <View
               style={[
                 styles.searchInputContainer,
+                !isDark && {
+                  backgroundColor: theme.background,
+                  borderColor: "transparent",
+                },
+                !isDark && styles.searchBarShadow,
                 inputFocused && styles.searchInputFocused,
+                inputFocused && !isDark && { borderColor: theme.icon },
               ]}
             >
               <TouchableOpacity
-                style={styles.clockButton}
                 onPress={() => setShowSearchHistory(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="time-outline" size={20} color="#fff" />
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color={isDark ? "#fff" : theme.icon}
+                />
               </TouchableOpacity>
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search places"
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                style={styles.searchInput}
+                placeholderTextColor={
+                  isDark ? "rgba(255,255,255,0.5)" : "#5F6368"
+                }
+                style={[styles.searchInput, !isDark && { color: "#5F6368" }]}
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="search"
                 onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
               />
               <TouchableOpacity
                 onPress={recenter}
-                onPressIn={() => setRecenterPressed(true)}
-                onPressOut={() => setRecenterPressed(false)}
-                disabled={loading}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.recenterText}>◎</Text>
+                <Ionicons
+                  name="locate-outline"
+                  size={20}
+                  color={isDark ? "#fff" : theme.icon}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -2228,14 +2295,41 @@ export default function MapScreen() {
                 <TouchableOpacity
                   key={c.key}
                   onPress={() => void loadPoiCategory(c.key, c.keyword)}
-                  style={[styles.poiChip, active && styles.poiChipActive]}
+                  onPressIn={() => setPoiPressedKey(c.key)}
+                  onPressOut={() => setPoiPressedKey(null)}
+                  style={[
+                    styles.poiChip,
+                    !isDark && {
+                      backgroundColor: theme.background,
+                      borderColor: "transparent",
+                      borderWidth: 1.5,
+                    },
+                    poiPressedKey === c.key &&
+                      !isDark && {
+                        backgroundColor: theme.card,
+                        borderColor: theme.icon,
+                        borderWidth: 2,
+                      },
+                    active && styles.poiChipActive,
+                    active &&
+                      !isDark && {
+                        backgroundColor: theme.card,
+                        borderColor: theme.icon,
+                        borderWidth: 2,
+                      },
+                  ]}
                   disabled={poiLoading}
                 >
-                  <IconComponent width={18} height={18} fill="#5FC9F1" />
+                  <IconComponent
+                    width={18}
+                    height={18}
+                    fill={isDark ? "#5FC9F1" : theme.icon}
+                  />
                   <Text
                     style={[
                       styles.poiChipText,
                       active && styles.poiChipTextActive,
+                      !isDark && { color: theme.text },
                     ]}
                   >
                     {c.label}
@@ -2250,6 +2344,12 @@ export default function MapScreen() {
               style={[
                 styles.suggestions,
                 isDark && { backgroundColor: "#031B2E" },
+                !isDark && {
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                },
+                !isDark && styles.floatingShadowStrong,
               ]}
             >
               {autoLoading && (
@@ -2257,6 +2357,7 @@ export default function MapScreen() {
                   style={[
                     styles.suggestionLoading,
                     isDark && { color: "rgba(255,255,255,0.9)" },
+                    !isDark && { color: theme.icon },
                   ]}
                 >
                   Searching…
@@ -2280,6 +2381,7 @@ export default function MapScreen() {
                       style={[
                         styles.suggestionText,
                         isDark && { color: "#fff" },
+                        !isDark && { color: "#5F6368" },
                       ]}
                       numberOfLines={2}
                     >
@@ -2359,6 +2461,7 @@ export default function MapScreen() {
                           style={[
                             styles.sheetTitle,
                             isDark && { color: "#FFFFFF" },
+                            !isDark && { color: theme.text },
                           ]}
                         >
                           {selectedPlace.name}
@@ -2368,6 +2471,7 @@ export default function MapScreen() {
                           style={[
                             styles.sheetSubtitle,
                             isDark && { color: "rgba(255,255,255,0.7)" },
+                            !isDark && { color: theme.icon },
                           ]}
                           numberOfLines={1}
                         >
@@ -2399,7 +2503,7 @@ export default function MapScreen() {
                         <Ionicons
                           name="share-outline"
                           size={20}
-                          color={isDark ? "#8FD3FF" : "#0B253A"}
+                          color={isDark ? "#8FD3FF" : theme.icon}
                         />
                       </TouchableOpacity>
 
@@ -2418,7 +2522,7 @@ export default function MapScreen() {
                         <Feather
                           name="x"
                           size={18}
-                          color={isDark ? "#8FD3FF" : "#0B253A"}
+                          color={isDark ? "#8FD3FF" : theme.icon}
                         />
                       </TouchableOpacity>
                     </View>
@@ -2495,10 +2599,15 @@ export default function MapScreen() {
                         <TouchableOpacity
                           style={[
                             styles.sheetActionBtn,
-                            {
-                              backgroundColor: "#041424",
-                              borderColor: "rgba(143,211,255,0.4)",
-                            },
+                            isDark
+                              ? {
+                                  backgroundColor: "#041424",
+                                  borderColor: "rgba(143,211,255,0.4)",
+                                }
+                              : {
+                                  backgroundColor: theme.card,
+                                  borderColor: theme.border,
+                                },
                           ]}
                           onPress={() => {
                             if (!selectedPlace.phoneNumber) {
@@ -2511,11 +2620,18 @@ export default function MapScreen() {
                             void makePhoneCall(selectedPlace.phoneNumber);
                           }}
                         >
-                          <Feather name="phone" size={16} color="#FFFFFF" />
+                          <Feather
+                            name="phone"
+                            size={16}
+                            color={isDark ? "#FFFFFF" : theme.text}
+                          />
                           <Text
                             style={[
                               styles.sheetActionText,
-                              { fontSize: 14, color: "#FFFFFF" },
+                              {
+                                fontSize: 14,
+                                color: isDark ? "#FFFFFF" : theme.text,
+                              },
                             ]}
                             allowFontScaling={false}
                           >
@@ -2583,13 +2699,14 @@ export default function MapScreen() {
                           <Feather
                             name="alert-triangle"
                             size={16}
-                            color={isDark ? "#FF8A80" : "#0B253A"}
+                            color={isDark ? "#FF8A80" : theme.text}
                           />
                           <Text
                             style={[
                               styles.sheetActionText,
                               { fontSize: 14 },
                               isDark && { color: "#FF8A80" },
+                              !isDark && { color: theme.text },
                             ]}
                           >
                             SOS
@@ -2631,9 +2748,22 @@ export default function MapScreen() {
 
                     {(selectedReviewSummary.rating !== null ||
                       selectedReviewSummary.usedCount > 0) && (
-                      <View style={styles.reviewsCard}>
+                      <View
+                        style={[
+                          styles.reviewsCard,
+                          !isDark && {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
                         <View style={styles.reviewsTopRow}>
-                          <Text style={styles.reviewsTitle}>
+                          <Text
+                            style={[
+                              styles.reviewsTitle,
+                              !isDark && { color: theme.text },
+                            ]}
+                          >
                             Review summary
                           </Text>
                           {selectedPlace?.placeId ? (
@@ -2661,7 +2791,12 @@ export default function MapScreen() {
 
                         <View style={styles.reviewsMainRow}>
                           <View style={styles.reviewsRatingBlock}>
-                            <Text style={styles.reviewsRatingValue}>
+                            <Text
+                              style={[
+                                styles.reviewsRatingValue,
+                                !isDark && { color: theme.text },
+                              ]}
+                            >
                               {selectedReviewSummary.rating !== null
                                 ? selectedReviewSummary.rating.toFixed(1)
                                 : "—"}
@@ -2694,7 +2829,12 @@ export default function MapScreen() {
                             </View>
 
                             {selectedReviewSummary.totalText ? (
-                              <Text style={styles.reviewsRatingCount}>
+                              <Text
+                                style={[
+                                  styles.reviewsRatingCount,
+                                  !isDark && { color: theme.icon },
+                                ]}
+                              >
                                 ({selectedReviewSummary.totalText})
                               </Text>
                             ) : null}
@@ -2705,7 +2845,14 @@ export default function MapScreen() {
                               const p = selectedReviewSummary.pct(star);
                               return (
                                 <View key={star} style={styles.reviewsBarRow}>
-                                  <View style={styles.reviewsBarTrack}>
+                                  <View
+                                    style={[
+                                      styles.reviewsBarTrack,
+                                      !isDark && {
+                                        backgroundColor: theme.border,
+                                      },
+                                    ]}
+                                  >
                                     <View
                                       style={[
                                         styles.reviewsBarFill,
@@ -2721,7 +2868,9 @@ export default function MapScreen() {
                           <Ionicons
                             name="information-circle-outline"
                             size={20}
-                            color="rgba(255,255,255,0.75)"
+                            color={
+                              isDark ? "rgba(255,255,255,0.75)" : theme.icon
+                            }
                             style={styles.reviewsInfoIcon}
                           />
                         </View>
@@ -2860,6 +3009,17 @@ export default function MapScreen() {
                   style={[
                     styles.filterChip,
                     sortMode !== "default" && styles.filterChipActive,
+                    !isDark && {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                    },
+                    !isDark &&
+                      sortMode !== "default" && {
+                        borderColor: theme.icon,
+                        borderWidth: 2,
+                        backgroundColor: theme.card,
+                      },
                   ]}
                   onPress={() => {
                     setSortMode((prev) =>
@@ -2867,7 +3027,13 @@ export default function MapScreen() {
                     );
                   }}
                 >
-                  <Text style={styles.filterChipText} allowFontScaling={false}>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      !isDark && { color: theme.text },
+                    ]}
+                    allowFontScaling={false}
+                  >
                     Sort by
                   </Text>
                 </TouchableOpacity>
@@ -2876,6 +3042,17 @@ export default function MapScreen() {
                   style={[
                     styles.filterChip,
                     filterOpenNow && styles.filterChipActive,
+                    !isDark && {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                    },
+                    !isDark &&
+                      filterOpenNow && {
+                        borderColor: theme.icon,
+                        borderWidth: 2,
+                        backgroundColor: theme.card,
+                      },
                   ]}
                   onPress={toggleOpenNow}
                 >
@@ -2883,12 +3060,15 @@ export default function MapScreen() {
                     {filterOpenNow && openNowHydrating ? (
                       <ActivityIndicator
                         size="small"
-                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        color={isDark ? "#8FD3FF" : theme.text}
                         style={{ marginRight: 8 }}
                       />
                     ) : null}
                     <Text
-                      style={styles.filterChipText}
+                      style={[
+                        styles.filterChipText,
+                        !isDark && { color: theme.text },
+                      ]}
                       allowFontScaling={false}
                     >
                       Open now
@@ -2900,6 +3080,17 @@ export default function MapScreen() {
                   style={[
                     styles.filterChip,
                     filterWheelchair && styles.filterChipActive,
+                    !isDark && {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                    },
+                    !isDark &&
+                      filterWheelchair && {
+                        borderColor: theme.icon,
+                        borderWidth: 2,
+                        backgroundColor: theme.card,
+                      },
                   ]}
                   onPress={toggleWheelchair}
                 >
@@ -2907,12 +3098,15 @@ export default function MapScreen() {
                     {wheelchairHydrating ? (
                       <ActivityIndicator
                         size="small"
-                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        color={isDark ? "#8FD3FF" : theme.text}
                         style={{ marginRight: 8 }}
                       />
                     ) : null}
                     <Text
-                      style={styles.filterChipText}
+                      style={[
+                        styles.filterChipText,
+                        !isDark && { color: theme.text },
+                      ]}
                       allowFontScaling={false}
                     >
                       Wheelchair accessible entrance
@@ -2940,11 +3134,21 @@ export default function MapScreen() {
                 scrollEventThrottle={16}
               >
                 {filteredNearbyPlaces.map((p) => (
-                  <View key={p.placeId} style={styles.nearbyCard}>
+                  <View
+                    key={p.placeId}
+                    style={[
+                      styles.nearbyCard,
+                      !isDark && {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.nearbyName,
                         isDark && { color: "#FFFFFF" },
+                        !isDark && { color: theme.text },
                       ]}
                       numberOfLines={2}
                     >
@@ -2955,6 +3159,7 @@ export default function MapScreen() {
                         style={[
                           styles.nearbyAddress,
                           isDark && { color: "rgba(255,255,255,0.7)" },
+                          !isDark && { color: theme.icon },
                         ]}
                         numberOfLines={2}
                       >
@@ -2983,7 +3188,13 @@ export default function MapScreen() {
                         ) : null}
 
                         {typeof p.rating === "number" ? (
-                          <Text style={styles.nearbyRating} numberOfLines={1}>
+                          <Text
+                            style={[
+                              styles.nearbyRating,
+                              !isDark && { color: theme.text },
+                            ]}
+                            numberOfLines={1}
+                          >
                             ⭐ {p.rating.toFixed(1)}
                             {typeof p.userRatingsTotal === "number"
                               ? ` (${formatCount(p.userRatingsTotal)})`
@@ -2992,7 +3203,12 @@ export default function MapScreen() {
                         ) : null}
                       </View>
                       {hasLocation && (
-                        <Text style={styles.nearbyDistance}>
+                        <Text
+                          style={[
+                            styles.nearbyDistance,
+                            !isDark && { color: theme.icon },
+                          ]}
+                        >
                           {formatDistance(
                             distanceMeters(coords, {
                               latitude: p.latitude,
@@ -3008,10 +3224,15 @@ export default function MapScreen() {
                       <TouchableOpacity
                         style={[
                           styles.sheetActionBtn,
-                          {
-                            backgroundColor: "#041424",
-                            borderColor: "rgba(143,211,255,0.4)",
-                          },
+                          isDark
+                            ? {
+                                backgroundColor: "#041424",
+                                borderColor: "rgba(143,211,255,0.4)",
+                              }
+                            : {
+                                backgroundColor: theme.card,
+                                borderColor: theme.border,
+                              },
                         ]}
                         onPress={async () => {
                           setNearbyLoadingPlaceId(p.placeId + "-call");
@@ -3032,14 +3253,23 @@ export default function MapScreen() {
                         disabled={nearbyLoadingPlaceId === p.placeId + "-call"}
                       >
                         {nearbyLoadingPlaceId === p.placeId + "-call" ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
+                          <ActivityIndicator
+                            size="small"
+                            color={isDark ? "#FFFFFF" : theme.text}
+                          />
                         ) : (
                           <>
-                            <Feather name="phone" size={16} color="#FFFFFF" />
+                            <Feather
+                              name="phone"
+                              size={16}
+                              color={isDark ? "#FFFFFF" : theme.text}
+                            />
                             <Text
                               style={[
                                 styles.sheetActionText,
-                                { color: "#FFFFFF" },
+                                styles.nearbyActionText,
+                                styles.nearbyActionText,
+                                { color: isDark ? "#FFFFFF" : theme.text },
                               ]}
                               allowFontScaling={false}
                             >
@@ -3117,9 +3347,8 @@ export default function MapScreen() {
       {/* Search History Modal */}
       <Modal
         visible={showSearchHistory}
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => {
-          console.log("Modal onRequestClose triggered");
           setShowSearchHistory(false);
         }}
         presentationStyle="fullScreen"
@@ -3128,7 +3357,6 @@ export default function MapScreen() {
           <View style={styles.historyHeader}>
             <TouchableOpacity
               onPress={() => {
-                console.log("Back button pressed - closing modal");
                 setShowSearchHistory(false);
               }}
               style={styles.historyBackButton}
@@ -3411,6 +3639,34 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
+  floatingShadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  floatingShadowStrong: {
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
+  searchBarShadow: {
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: "#000",
+          // Slightly stronger bottom shadow to lift the bar off the map.
+          shadowOpacity: 0.24,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        }
+      : {
+          // Small elevation for Android separation.
+          elevation: 3,
+        }),
+  },
   container: {
     flex: 1,
     backgroundColor: "#0B253A",
@@ -3434,13 +3690,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
   searchInputContainer: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#031B2E",
-    borderRadius: 14,
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 2,
@@ -3449,36 +3708,20 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 17,
+    fontWeight: "400",
+    lineHeight: 22,
     color: "#fff",
     paddingVertical: 4,
   },
   searchInputFocused: {
     borderColor: "#8FD3FF",
   },
-  clockButton: {
-    padding: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recenterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#031B2E",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
   toggleActive: {
     backgroundColor: "#031B2E",
     borderWidth: 2,
     borderColor: "#8FD3FF",
-  },
-  recenterText: {
-    fontSize: 18,
-    color: "#fff",
   },
   poiRow: {
     paddingTop: 8,
@@ -3492,8 +3735,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(3,27,46,0.95)",
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 36,
+    paddingVertical: 9,
+    minHeight: 38,
     borderWidth: 1.5,
     borderColor: "rgba(143,211,255,0.7)",
   },
@@ -3503,10 +3746,11 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.02 }],
   },
   poiChipText: {
-    fontSize: 11,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 14,
     color: "#FFFFFF",
-    fontWeight: "700",
-    lineHeight: 14,
+    fontWeight: "500",
+    lineHeight: 18,
     includeFontPadding: true,
   },
   poiChipTextActive: {
@@ -3518,9 +3762,16 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(3,27,46,0.95)",
-    borderWidth: 1.5,
-    borderColor: "#E11D48",
+    backgroundColor: "#E11D48",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
+  poiMarkerLight: {
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   suggestions: {
     marginTop: 8,
@@ -3528,6 +3779,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: "hidden",
     maxHeight: 260,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
   },
   suggestionLoading: {
     paddingHorizontal: 14,
@@ -3542,8 +3796,11 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(0,0,0,0.1)",
   },
   suggestionText: {
-    color: "#111",
-    fontSize: 14,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#5F6368",
+    fontSize: 17,
+    fontWeight: "400",
+    lineHeight: 22,
   },
   loadingOverlay: {
     position: "absolute",
@@ -3931,14 +4188,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   nearbyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
+    fontSize: 22,
+    fontWeight: "700",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#0B253A",
   },
   nearbySubtitle: {
     marginTop: 2,
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.7)",
   },
@@ -3951,8 +4208,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   nearbyList: {
-    marginTop: 10,
-    paddingTop: 6,
+    marginTop: 6,
+    paddingTop: 2,
   },
   nearbyCard: {
     borderRadius: 20,
@@ -3963,19 +4220,19 @@ const styles = StyleSheet.create({
     borderColor: "rgba(143,211,255,0.25)",
   },
   nearbyIndex: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(255,255,255,0.7)",
     marginBottom: 4,
   },
   nearbyName: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "900",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#FFFFFF",
   },
   nearbyAddress: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(255,255,255,0.7)",
   },
@@ -3993,7 +4250,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   nearbyRating: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#FFE082",
     fontWeight: "700",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
@@ -4001,7 +4258,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   nearbyStatus: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     flexShrink: 0,
@@ -4013,7 +4270,7 @@ const styles = StyleSheet.create({
     color: "#FF8A80",
   },
   nearbyDistance: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(255,255,255,0.8)",
   },
@@ -4024,7 +4281,7 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     marginTop: 12,
-    marginBottom: 14,
+    marginBottom: 8,
     paddingHorizontal: 12,
     height: 52,
   },
@@ -4060,16 +4317,19 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   filterChipText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#FFFFFF",
     fontWeight: "700",
     fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     textAlign: "center",
-    lineHeight: 13,
+    lineHeight: 16,
     includeFontPadding: true,
     textAlignVertical: "center",
     letterSpacing: 0.1,
     opacity: 1,
+  },
+  nearbyActionText: {
+    fontSize: 13,
   },
   voiceButton: {
     padding: 4,

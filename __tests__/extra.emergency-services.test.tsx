@@ -24,6 +24,8 @@ jest.mock("@expo/vector-icons", () => {
   return {
     Ionicons: ({ name }: { name: string }) =>
       React.createElement("Icon", { name }),
+    Feather: ({ name }: { name: string }) =>
+      React.createElement("Icon", { name }),
   };
 });
 
