@@ -161,8 +161,13 @@ export default function EmergencyServices() {
 
   const EMERGENCY_ICON_COLOR = "#8FD3FF";
 
-  const visibleBorderColor = theme.mode === "light" ? theme.icon : theme.border;
-  const visibleBorderWidth = 1;
+  const EMERGENCY_BORDER_COLOR = "#2A5068";
+  const EMERGENCY_BORDER_WIDTH = 2;
+  const EMERGENCY_BUTTON_BORDER_WIDTH = 1;
+
+  // Buttons should use the same border color as the icons (light blue).
+  const visibleBorderColor = EMERGENCY_ICON_COLOR;
+  const visibleBorderWidth = EMERGENCY_BUTTON_BORDER_WIDTH;
 
   // Tracks the loading spinner per-card and per-action.
   // This avoids locking the whole screen while one Places request is in flight.
@@ -718,6 +723,8 @@ export default function EmergencyServices() {
         style={{
           width: "49%",
           backgroundColor: theme.card,
+          borderColor: EMERGENCY_BORDER_COLOR,
+          borderWidth: EMERGENCY_BORDER_WIDTH,
           marginBottom: opts?.marginBottom ?? 16,
         }}
       >
