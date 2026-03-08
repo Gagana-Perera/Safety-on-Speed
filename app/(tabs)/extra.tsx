@@ -159,6 +159,8 @@ export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
 
+  const EMERGENCY_ICON_COLOR = "#8FD3FF";
+
   const visibleBorderColor = theme.mode === "light" ? theme.icon : theme.border;
   const visibleBorderWidth = 1;
 
@@ -174,6 +176,10 @@ export default function EmergencyServices() {
     lng: number;
   } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  const locationWatchRef = React.useRef<Location.LocationSubscription | null>(
+    null,
+  );
 
   const haversineMeters = (
     lat1: number,
@@ -197,6 +203,8 @@ export default function EmergencyServices() {
 
   const delay = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  const MAP_QUICK_NAV_MS = 75;
 
   // Cache nearest placeId/phone for "place" cards so buttons feel instant.
   // (Prefetch is skipped in Jest tests to keep them deterministic.)
@@ -249,6 +257,28 @@ export default function EmergencyServices() {
           });
         }
 
+        // Keep updating location while this screen is visible so "nearest" updates as the user moves.
+        // Skip in Jest tests (expo-location is mocked without watchPositionAsync).
+        if (process.env.NODE_ENV !== "test") {
+          try {
+            locationWatchRef.current?.remove();
+            locationWatchRef.current = await Location.watchPositionAsync(
+              {
+                accuracy: Location.Accuracy.High,
+                distanceInterval: 50,
+                timeInterval: 15_000,
+              },
+              (pos) => {
+                const c = pos?.coords;
+                if (!c) return;
+                setUserLocation({ lat: c.latitude, lng: c.longitude });
+              },
+            );
+          } catch (e) {
+            console.warn("[GPS] watchPositionAsync failed:", e);
+          }
+        }
+
         const locationData = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
@@ -266,21 +296,55 @@ export default function EmergencyServices() {
         );
       }
     })();
+
+    return () => {
+      locationWatchRef.current?.remove();
+      locationWatchRef.current = null;
+    };
   }, []);
 
   const userLat = userLocation?.lat ?? null;
   const userLng = userLocation?.lng ?? null;
 
-  const lastPrefetchRef = React.useRef<{
+  const cacheBasisRef = React.useRef<{
     lat: number;
     lng: number;
     at: number;
   } | null>(null);
 
-  const ensureNearestPlaceId = async (item: ServiceItem) => {
+  const refreshNeededRef = React.useRef(false);
+
+  const CACHE_INVALIDATE_MOVED_METERS = 250;
+  const CACHE_TTL_MS = 2 * 60_000;
+
+  const invalidatePlaceCacheIfNeeded = () => {
+    if (userLat === null || userLng === null) return;
+
+    const now = Date.now();
+    const basis = cacheBasisRef.current;
+    if (!basis) {
+      cacheBasisRef.current = { lat: userLat, lng: userLng, at: now };
+      return;
+    }
+
+    const moved = haversineMeters(basis.lat, basis.lng, userLat, userLng);
+    const stale = now - basis.at > CACHE_TTL_MS;
+
+    if (moved > CACHE_INVALIDATE_MOVED_METERS || stale) {
+      // Don't clear existing cached values immediately (keeps buttons snappy).
+      // Instead, mark for background refresh.
+      refreshNeededRef.current = true;
+      cacheBasisRef.current = { lat: userLat, lng: userLng, at: now };
+    }
+  };
+
+  const ensureNearestPlaceId = async (
+    item: ServiceItem,
+    opts?: { force?: boolean; includeSecondPage?: boolean },
+  ) => {
     if (item.category !== "place") return null;
     const cached = placeCacheRef.current[item.id]?.placeId;
-    if (cached) return cached;
+    if (!opts?.force && cached) return cached;
 
     if (placeInFlightRef.current[item.id]) {
       return await placeInFlightRef.current[item.id];
@@ -291,10 +355,15 @@ export default function EmergencyServices() {
         userLat as number,
         userLng as number,
         item.searchKey || "",
+        { includeSecondPage: opts?.includeSecondPage === true },
       );
+
+      const prev = placeCacheRef.current[item.id] || {};
       placeCacheRef.current[item.id] = {
-        ...(placeCacheRef.current[item.id] || {}),
+        ...prev,
         placeId,
+        // If the place changes, the previously cached phone is no longer valid.
+        phone: prev.placeId && prev.placeId !== placeId ? null : prev.phone,
       };
       return placeId;
     })()
@@ -310,9 +379,13 @@ export default function EmergencyServices() {
     return await promise;
   };
 
-  const ensurePlacePhone = async (item: ServiceItem, placeId: string) => {
+  const ensurePlacePhone = async (
+    item: ServiceItem,
+    placeId: string,
+    opts?: { force?: boolean },
+  ) => {
     const cached = placeCacheRef.current[item.id]?.phone;
-    if (cached) return cached;
+    if (!opts?.force && cached) return cached;
 
     const phoneKey = `${item.id}:${placeId}`;
     if (phoneInFlightRef.current[phoneKey]) {
@@ -339,6 +412,40 @@ export default function EmergencyServices() {
     return await promise;
   };
 
+  const refreshPlaceItem = (item: ServiceItem) => {
+    if (item.category !== "place") return;
+    if (userLat === null || userLng === null) return;
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) return;
+
+    // Quick refresh first (no page-2 wait) to keep UX smooth.
+    void (async () => {
+      try {
+        const quickPlaceId = await ensureNearestPlaceId(item, {
+          force: true,
+          includeSecondPage: false,
+        });
+        if (!quickPlaceId) return;
+        await ensurePlacePhone(item, quickPlaceId);
+
+        // Background refinement (may take longer due to next_page_token delay).
+        void (async () => {
+          try {
+            const refinedPlaceId = await ensureNearestPlaceId(item, {
+              force: true,
+              includeSecondPage: true,
+            });
+            if (!refinedPlaceId || refinedPlaceId === quickPlaceId) return;
+            await ensurePlacePhone(item, refinedPlaceId, { force: true });
+          } catch {
+            // ignore
+          }
+        })();
+      } catch {
+        // ignore
+      }
+    })();
+  };
+
   // Prefetch nearest Hospital/Police in the background once GPS is available.
   // This makes the UI feel instant in an emergency scenario.
   useEffect(() => {
@@ -346,22 +453,24 @@ export default function EmergencyServices() {
     if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) return;
     if (userLat === null || userLng === null) return;
 
-    const now = Date.now();
-    const prev = lastPrefetchRef.current;
-    if (prev) {
-      const moved = haversineMeters(prev.lat, prev.lng, userLat, userLng);
-      const stale = now - prev.at > 10 * 60_000;
-      // Only invalidate cache if the user has moved a meaningful distance
-      // or the cache is old. Avoid clearing on tiny GPS jitter.
-      if (moved > 1000 || stale) {
-        placeCacheRef.current = {};
-      }
-    }
-    lastPrefetchRef.current = { lat: userLat, lng: userLng, at: now };
+    invalidatePlaceCacheIfNeeded();
 
     let cancelled = false;
     (async () => {
       const placeItems = SERVICES.filter((s) => s.category === "place");
+
+      // If cache is missing or marked stale, refresh in the background.
+      const shouldRefresh =
+        refreshNeededRef.current ||
+        placeItems.some((it) => !placeCacheRef.current[it.id]?.placeId);
+      if (shouldRefresh) {
+        refreshNeededRef.current = false;
+        placeItems.forEach((it) => {
+          if (cancelled) return;
+          refreshPlaceItem(it);
+        });
+      }
+
       await Promise.allSettled(
         placeItems.map(async (item) => {
           const placeId = await ensureNearestPlaceId(item);
@@ -407,6 +516,8 @@ export default function EmergencyServices() {
       return;
     }
 
+    invalidatePlaceCacheIfNeeded();
+
     const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
     const cachedPhone = placeCacheRef.current[item.id]?.phone || null;
     const shouldShowLoading = !cachedPlaceId || !cachedPhone;
@@ -416,7 +527,12 @@ export default function EmergencyServices() {
     );
     if (shouldShowLoading) setLoadingStatus({ id: item.id, type: "call" });
     try {
-      const placeId = cachedPlaceId ?? (await ensureNearestPlaceId(item));
+      const placeId =
+        cachedPlaceId ??
+        (await ensureNearestPlaceId(item, {
+          force: true,
+          includeSecondPage: false,
+        }));
       console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
@@ -424,7 +540,7 @@ export default function EmergencyServices() {
       }
 
       const phoneNumber =
-        cachedPhone ?? (await ensurePlacePhone(item, placeId));
+        cachedPhone ?? (await ensurePlacePhone(item, placeId, { force: true }));
       console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
         await makePhoneCall(phoneNumber);
@@ -434,6 +550,9 @@ export default function EmergencyServices() {
           "This location does not have a public number listed.",
         );
       }
+
+      // If we moved enough to need refresh, don't block the call; refresh after.
+      if (refreshNeededRef.current) refreshPlaceItem(item);
     } catch (error) {
       console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
@@ -474,6 +593,8 @@ export default function EmergencyServices() {
       return;
     }
 
+    invalidatePlaceCacheIfNeeded();
+
     const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
     const keyword = item.searchKey || item.name;
 
@@ -491,7 +612,10 @@ export default function EmergencyServices() {
     const placeIdPromise = ensureNearestPlaceId(item);
     const quick = await Promise.race([
       placeIdPromise.then((placeId) => ({ done: true as const, placeId })),
-      delay(250).then(() => ({ done: false as const, placeId: null })),
+      delay(MAP_QUICK_NAV_MS).then(() => ({
+        done: false as const,
+        placeId: null,
+      })),
     ]);
 
     if (!quick.done) {
@@ -599,7 +723,7 @@ export default function EmergencyServices() {
       >
         <View className="flex-row justify-between items-center min-h-[90px]">
           <View className="flex-1 items-center justify-center pr-2">
-            <Ionicons name={item.icon} size={32} color={theme.icon} />
+            <Ionicons name={item.icon} size={32} color={EMERGENCY_ICON_COLOR} />
             <Text
               className="text-[12px] mt-2 text-center"
               style={{ color: theme.text, fontWeight: "600" }}
@@ -613,6 +737,15 @@ export default function EmergencyServices() {
             {/* Call Button */}
             <PopTouchableOpacity
               onPress={() => handleCallAction(item)}
+              onPressIn={() => {
+                if (item.category !== "place") return;
+                if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) return;
+                if (userLat === null || userLng === null) return;
+
+                // Start network work early (press-in) to reduce perceived latency.
+                invalidatePlaceCacheIfNeeded();
+                refreshPlaceItem(item);
+              }}
               accessibilityRole="button"
               accessibilityLabel={`${item.name} Call`}
               disabled={isCallDisabled}
@@ -626,10 +759,10 @@ export default function EmergencyServices() {
             >
               {loadingStatus?.id === item.id &&
               loadingStatus?.type === "call" ? (
-                <ActivityIndicator size="small" color={theme.icon} />
+                <ActivityIndicator size="small" color={EMERGENCY_ICON_COLOR} />
               ) : (
                 <>
-                  <Ionicons name="call" size={12} color={theme.text} />
+                  <Ionicons name="call" size={12} color="#FFFFFF" />
                   <Text
                     className="text-[10px] ml-1 font-bold uppercase"
                     style={{ color: theme.text }}
@@ -644,6 +777,14 @@ export default function EmergencyServices() {
             {item.hasMap && (
               <PopTouchableOpacity
                 onPress={() => handleMapAction(item)}
+                onPressIn={() => {
+                  if (item.category !== "place") return;
+                  if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) return;
+                  if (userLat === null || userLng === null) return;
+
+                  invalidatePlaceCacheIfNeeded();
+                  refreshPlaceItem(item);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`${item.name} Map`}
                 disabled={isMapDisabled}
@@ -657,10 +798,14 @@ export default function EmergencyServices() {
               >
                 {loadingStatus?.id === item.id &&
                 loadingStatus?.type === "map" ? (
-                  <ActivityIndicator size="small" color={theme.icon} />
+                  <ActivityIndicator size="small" color={EMERGENCY_ICON_COLOR} />
                 ) : (
                   <>
-                    <Ionicons name="location" size={12} color={theme.icon} />
+                    <Ionicons
+                      name="location"
+                      size={12}
+                      color={EMERGENCY_ICON_COLOR}
+                    />
                     <Text
                       className="text-[10px] ml-1 font-bold uppercase"
                       style={{ color: theme.icon }}

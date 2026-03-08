@@ -23,6 +23,26 @@ export type PlaceCoordinates = {
   longitude: number;
 };
 
+function isExactPoliceStationName(name: string): boolean {
+  const n = String(name ?? "").trim();
+  if (!n) return false;
+
+  // Must contain the exact phrase.
+  if (!/\bpolice\s+station\b/i.test(n)) return false;
+
+  // Exclude common non-station results that still get tagged as `police`.
+  if (/\bpolice\s+post\b/i.test(n)) return false;
+  if (
+    /\bpolice\s+station\b[^\n]*\b(basketball|ground|grounds|playground|court|stadium|field|park)\b/i.test(
+      n,
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export type PlaceDetails = {
   placeId: string;
   name: string;
@@ -78,7 +98,7 @@ const parseHhmmToMinutes = (hhmm: unknown): number | null => {
 };
 
 const formatMinutesTo12Hour = (minutes: number): string => {
-  const h24 = Math.floor(minutes / 60) % 24;
+  const h24 = Math.floor(minutes / 60);
   const m = minutes % 60;
   const suffix = h24 >= 12 ? "PM" : "AM";
   let h = h24 % 12;
@@ -222,6 +242,7 @@ export async function getNearbyPlaces(
   lat: number,
   lng: number,
   serviceType: string,
+  options?: { includeSecondPage?: boolean },
 ): Promise<string | null> {
   if (!GOOGLE_API_KEY) {
     console.error("[Google Search] Missing EXPO_PUBLIC_GOOGLE_API_KEY");
@@ -253,13 +274,34 @@ export async function getNearbyPlaces(
   // Normalize the service type from UI strings to Places "type".
   // (e.g. "police station" still maps to type="police".)
   const normalized = serviceType.trim().toLowerCase();
-  const type = normalized.includes("hospital")
-    ? "hospital"
-    : normalized.includes("police")
-      ? "police"
+  // NOTE: In the Emergency Services UX, people sometimes think in terms of
+  // "emergency" rather than "hospital". We treat that as a hospital search.
+  const type = normalized.includes("police")
+    ? "police"
+    : normalized.includes("hospital") || normalized.includes("emergency")
+      ? "hospital"
       : normalized.includes("pharmacy")
         ? "pharmacy"
         : null;
+
+  // Keyword strategies used on the Emergency Services page.
+  // - Hospitals: must bias toward emergency-capable facilities.
+  // - Police: must return actual police stations (not "emergency" anything).
+  // Keep this emergency-only (no plain hospital fallback), but try multiple common
+  // emergency-related terms because many ER-capable hospitals don't match the
+  // single keyword "emergency" reliably.
+  const hospitalEmergencyKeywords = [
+    // User expectation
+    "emergency",
+    // Common variants seen in Google Places data
+    "emergency department",
+    "emergency room",
+    "emergency unit",
+    "emergency hospital",
+    // UK / Commonwealth phrasing
+    "accident and emergency",
+    "a&e",
+  ];
 
   // We intentionally do NOT rely on Google's ordering. Instead:
   // 1) Fetch a set of candidates near the user
@@ -280,6 +322,17 @@ export async function getNearbyPlaces(
       const rLng = typeof loc?.lng === "number" ? loc.lng : null;
       if (!pid || rLat === null || rLng === null) continue;
 
+      // Defensive: ensure returned results still match the requested type.
+      // (This should normally be true, but prevents odd edge cases.)
+      if (type && Array.isArray(r?.types) && !r.types.includes(type)) {
+        continue;
+      }
+
+      if (type === "police") {
+        const name = String(r?.name ?? "");
+        if (!isExactPoliceStationName(name)) continue;
+      }
+
       const d = haversineMeters(lat, lng, rLat, rLng);
       if (d < bestDist) {
         bestDist = d;
@@ -288,6 +341,76 @@ export async function getNearbyPlaces(
     }
 
     return bestId;
+  };
+
+  const mergeResultsByPlaceId = (results: any[]): any[] => {
+    const map = new Map<string, any>();
+    for (const r of results) {
+      const pid = r?.place_id;
+      if (!pid) continue;
+      if (!map.has(String(pid))) map.set(String(pid), r);
+    }
+    return Array.from(map.values());
+  };
+
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  const includeSecondPage = options?.includeSecondPage === true;
+
+  const fetchNearbySearchResults = async (
+    params: URLSearchParams,
+    logLabel: string,
+  ): Promise<any[]> => {
+    const baseUrl =
+      "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+    const url = `${baseUrl}?${params.toString()}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const keyword = params.get("keyword");
+    console.log(
+      `[Google Search] Query: ${serviceType} | ${logLabel} | keyword=${keyword ?? "(none)"} | Status: ${data.status}`,
+    );
+
+    if (data.error_message) {
+      console.error("API Error Message:", data.error_message);
+    }
+
+    const out: any[] =
+      data.status === "OK" && Array.isArray(data.results) ? data.results : [];
+
+    // Optionally pull one more page. This helps when the best match isn't on the
+    // first page (rare, but it happens with keyword-based queries).
+    const token =
+      typeof data?.next_page_token === "string" ? data.next_page_token : "";
+    if (includeSecondPage && token) {
+      // Google requires a short delay before a next_page_token becomes valid.
+      // Skip the delay in tests to keep Jest fast.
+      if (process.env.NODE_ENV !== "test") {
+        await sleep(2000);
+      }
+
+      const tokenParams = new URLSearchParams({
+        pagetoken: token,
+        key: GOOGLE_API_KEY,
+      });
+      const tokenUrl = `${baseUrl}?${tokenParams.toString()}`;
+      const r2 = await fetch(tokenUrl);
+      const d2 = await r2.json();
+
+      console.log(
+        `[Google Search] Query: ${serviceType} | ${logLabel} | page=2 | Status: ${d2.status}`,
+      );
+      if (d2.error_message) {
+        console.error("API Error Message:", d2.error_message);
+      }
+      if (d2.status === "OK" && Array.isArray(d2.results)) {
+        out.push(...d2.results);
+      }
+    }
+
+    return out;
   };
 
   try {
@@ -308,13 +431,7 @@ export async function getNearbyPlaces(
       // - Hospitals: bias toward emergency-capable facilities.
       // - Police: use an explicit police-station keyword (never "emergency").
       if (type === "hospital") {
-        // `keyword=emergency` alone can match specialized clinics/hospitals (e.g., eye care).
-        // Try stricter ER terms first.
-        for (const kw of [
-          "emergency room",
-          "emergency department",
-          "emergency",
-        ]) {
+        for (const kw of hospitalEmergencyKeywords) {
           const withKeyword = new URLSearchParams(baseParams);
           withKeyword.set("keyword", kw);
           attemptParams.push(withKeyword);
@@ -325,30 +442,25 @@ export async function getNearbyPlaces(
         withPoliceStation.set("keyword", "police station");
         attemptParams.push(withPoliceStation);
       }
-      // Important: for hospitals on the Emergency Services page we do NOT fall back to a plain
-      // `type=hospital` query (too broad and can pick non-emergency/specialized hospitals).
-      if (type !== "hospital") {
+      // For Emergency Services, keep police/hospital strict (no broad fallbacks).
+      if (type !== "hospital" && type !== "police")
         attemptParams.push(baseParams);
+
+      const aggregated: any[] = [];
+      for (const params of attemptParams) {
+        const results = await fetchNearbySearchResults(
+          params,
+          "rankby=distance",
+        );
+        if (results.length) aggregated.push(...results);
       }
 
-      for (const params of attemptParams) {
-        const finalUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params.toString()}`;
-        const response = await fetch(finalUrl);
-        const data = await response.json();
-
-        const keyword = params.get("keyword");
-        console.log(
-          `[Google Search] Query: ${serviceType} | rankby=distance | keyword=${keyword ?? "(none)"} | Status: ${data.status}`,
-        );
-
-        if (data.status === "OK" && Array.isArray(data.results)) {
-          const bestId = pickClosestPlaceId(data.results);
-          if (bestId) return bestId;
-        }
-
-        if (data.error_message) {
-          console.error("API Error Message:", data.error_message);
-        }
+      // Emergency Services strict types: pick nearest across ALL keyword attempts.
+      // This prevents returning a farther result just because the first keyword
+      // query happened to return something.
+      if (aggregated.length) {
+        const bestId = pickClosestPlaceId(mergeResultsByPlaceId(aggregated));
+        if (bestId) return bestId;
       }
     }
 
@@ -368,14 +480,8 @@ export async function getNearbyPlaces(
         // Emergency Services page: keyword biasing.
         // - Hospitals: try `keyword=emergency` first.
         // - Police: try `keyword=police station` first (do NOT use "emergency").
-        // If it's too strict (0 results), fall back to the same query without a keyword.
         if (type === "hospital") {
-          // Try stricter ER terms first to reduce false positives.
-          for (const kw of [
-            "emergency room",
-            "emergency department",
-            "emergency",
-          ]) {
+          for (const kw of hospitalEmergencyKeywords) {
             const withKeyword = new URLSearchParams(baseParams);
             withKeyword.set("keyword", kw);
             attemptParams.push(withKeyword);
@@ -387,34 +493,26 @@ export async function getNearbyPlaces(
           attemptParams.push(withPoliceStation);
         }
 
-        // Same rationale as rank-by-distance: keep hospital results strict.
-        if (type !== "hospital") {
+        // Keep hospital/police strict; other types can fall back to plain typed query.
+        if (type !== "hospital" && type !== "police")
           attemptParams.push(baseParams);
-        }
       } else {
         baseParams.set("keyword", serviceType);
         attemptParams.push(baseParams);
       }
 
+      const aggregated: any[] = [];
       for (const params of attemptParams) {
-        const finalUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params.toString()}`;
-
-        const response = await fetch(finalUrl);
-        const data = await response.json();
-
-        const keyword = params.get("keyword");
-        console.log(
-          `[Google Search] Query: ${serviceType} | radius=${radius} | keyword=${keyword ?? "(none)"} | Status: ${data.status}`,
+        const results = await fetchNearbySearchResults(
+          params,
+          `radius=${radius}`,
         );
+        if (results.length) aggregated.push(...results);
+      }
 
-        if (data.status === "OK" && Array.isArray(data.results)) {
-          const bestId = pickClosestPlaceId(data.results);
-          if (bestId) return bestId;
-        }
-
-        if (data.error_message) {
-          console.error("API Error Message:", data.error_message);
-        }
+      if (aggregated.length) {
+        const bestId = pickClosestPlaceId(mergeResultsByPlaceId(aggregated));
+        if (bestId) return bestId;
       }
     }
 
@@ -657,12 +755,17 @@ export async function searchNearbyPlaces(
     keywordOrType === "hospital" ||
     keywordOrType === "pharmacy";
 
+  // Police is a broad category in Places, and can include sub-places around a
+  // station. Bias to the exact phrase users expect.
+  const strictPoliceStationKeywordParam =
+    keywordOrType === "police" ? "&keyword=police%20station" : "";
+
   if (useType) {
     url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
       `${lat},${lng}`,
     )}&rankby=distance&type=${encodeURIComponent(
       keywordOrType,
-    )}${openNowParam}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
+    )}${strictPoliceStationKeywordParam}${openNowParam}&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
   } else {
     url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(
       `${lat},${lng}`,
@@ -679,6 +782,22 @@ export async function searchNearbyPlaces(
       return data.results.slice(0, maxResults).flatMap((r: any) => {
         const loc = r?.geometry?.location;
         if (!loc) return [];
+
+        // Defensive: when we queried with a strict `type`, only keep results
+        // that actually advertise that type in `types`.
+        if (useType) {
+          const types: unknown = r?.types;
+          if (!Array.isArray(types) || !types.includes(keywordOrType)) {
+            return [];
+          }
+        }
+
+        // Further restrict police tab to exact Police Stations only.
+        if (keywordOrType === "police") {
+          const name = String(r?.name ?? "");
+          if (!isExactPoliceStationName(name)) return [];
+        }
+
         return [
           {
             placeId: r.place_id,
