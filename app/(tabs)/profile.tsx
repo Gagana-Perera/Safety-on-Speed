@@ -24,18 +24,18 @@ export default function Profile() {
 
   // --- STATE VARIABLES ---
   const [loading, setLoading] = useState(true);
-  const [fullName, setFullName] = useState("User Name");
-  const [email, setEmail] = useState("user@example.com"); 
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState(""); 
   const [avatarUrl, setAvatarUrl] = useState("");
   const [viewingAvatar, setViewingAvatar] = useState(false);
 
   // Toggles
-  const [emailNotif, setEmailNotif] = useState(false);
-  const [pushNotif, setPushNotif] = useState(false);
-  const [AlertNotif, setAlertNotif] = useState(false);
-  const [personalDataAccess, setPersonalDataAccess] = useState(false);
-  const [cameraAccess, setCameraAccess] = useState(false);
-  const [liveLocation, setLiveLocation] = useState(false);
+  const [emailNotif, setEmailNotif] = useState(true);
+  const [pushNotif, setPushNotif] = useState(true);
+  const [AlertNotif, setAlertNotif] = useState(true);
+  const [personalDataAccess, setPersonalDataAccess] = useState(true);
+  const [cameraAccess, setCameraAccess] = useState(true);
+  const [liveLocation, setLiveLocation] = useState(true);
   const [language, setLanguage] = useState("English");
   const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
 
@@ -48,32 +48,54 @@ export default function Profile() {
 
       const fetchProfileData = async () => {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return;
+          // 1. Get auth user
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          if (userError) throw userError;
+          if (!user) return;
 
-          const { data, error } = await (supabase
+          // 2. Get full_name and settings from profiles table
+          const { data: profileData, error: profileError } = await (supabase
             .from('profiles')
             .select('full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location')
-            .eq('id', session.user.id)
+            .eq('id', user.id)
             .single() as any);
 
-          if (error) {
-             console.log("Error fetching profile:", error);
+          if (profileError) {
+            console.log("Error fetching profile:", profileError);
           }
 
-          if (isActive && data) {
-            setFullName(data.full_name || "User Name");
-            const displayEmail = data.email || session.user.email || "No Email";
-            setEmail(displayEmail);
-            if (data.avatar_url) setAvatarUrl(data.avatar_url);
-            setEmailNotif(data.email_notif || true);
-            setPushNotif(data.push_notif || true);
-            setAlertNotif(data.alert_notif || true);
-            setPersonalDataAccess(data.personal_data_access || true);
-            setCameraAccess(data.camera_access || true);
-            setLiveLocation(data.live_location || true);
-          } else if (isActive) {
-            setEmail(session.user.email || "No Email");
+          if (isActive) {
+            // 3. Get name — priority: profiles table → user_metadata → empty
+            const nameFromDB = profileData?.full_name || "";
+            const metaFirst = user.user_metadata?.first_name || "";
+            const metaLast = user.user_metadata?.last_name || "";
+            const nameFromMeta = `${metaFirst} ${metaLast}`.trim();
+            const resolvedName = nameFromDB || nameFromMeta;
+
+            setFullName(resolvedName);
+
+            // 4. Only show alert if name is truly missing everywhere
+            if (!resolvedName) {
+              Alert.alert(
+                "Complete Your Profile",
+                "Please add your name in Edit Profile.",
+                [{ text: "Go to Edit Profile", onPress: () => router.push("/editProfile") }]
+              );
+            }
+
+            // 5. Email — priority: profiles table → auth email
+            setEmail(profileData?.email || user.email || "No Email");
+
+            // 6. Avatar
+            if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
+
+            // 7. Toggles
+            setEmailNotif(profileData?.email_notif || true);
+            setPushNotif(profileData?.push_notif || true);
+            setAlertNotif(profileData?.alert_notif || true);
+            setPersonalDataAccess(profileData?.personal_data_access || true);
+            setCameraAccess(profileData?.camera_access || true);
+            setLiveLocation(profileData?.live_location || true);
           }
 
         } catch (error) {
@@ -85,8 +107,16 @@ export default function Profile() {
 
       fetchProfileData();
 
+      // Listen for auth state changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user && isActive) {
+          setEmail(session.user.email || "No Email");
+        }
+      });
+
       return () => {
         isActive = false;
+        subscription.unsubscribe();
       };
     }, [])
   );
@@ -215,8 +245,12 @@ export default function Profile() {
              <ActivityIndicator size="small" color={theme.text} style={{marginTop: 10}}/>
           ) : (
             <>
-              <Text style={[styles.name, { color: theme.text }]}>{fullName}</Text>
-              <Text style={[styles.email, { color: theme.text }]}>{email}</Text>
+              <Text style={[styles.name, { color: theme.text }]}>
+                {fullName || "User Name"}
+              </Text>
+              <Text style={[styles.email, { color: theme.text }]}>
+                {email || "No Email"}
+              </Text>
             </>
           )}
         </View>  
@@ -416,7 +450,6 @@ const styles = StyleSheet.create({
     opacity: 0.5, 
     marginBottom: 20 
   },
-  // Modal styles
   modalOverlay:
   { flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',
