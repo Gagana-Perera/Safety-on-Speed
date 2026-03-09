@@ -2,15 +2,15 @@ import { Feather } from "@expo/vector-icons"; // Added MaterialIcons for more ic
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { supabase } from "../../lib/superbase";
 import { useTheme } from "../themeContext";
@@ -24,12 +24,12 @@ export default function Profile() {
   const [emailNotif, setEmailNotif] = useState(false);
   const [pushNotif, setPushNotif] = useState(false);
   const [AlertNotif, setAlertNotif] = useState(false);
-  
+
   // Privacy & Permissions
   const [personalDataAccess, setPersonalDataAccess] = useState(false);
   const [cameraAccess, setCameraAccess] = useState(false);
   const [liveLocation, setLiveLocation] = useState(false);
-  
+
   // General
   const [language, setLanguage] = useState("English");
   const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
@@ -37,19 +37,26 @@ export default function Profile() {
   const handleLogout = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
-      { 
-        text: "Sign Out", 
-        style: "destructive", 
+      {
+        text: "Sign Out",
+        style: "destructive",
         onPress: async () => {
           await supabase.auth.signOut();
           router.replace("/auth/login");
-        } 
+        },
       },
     ]);
   };
 
   // Reusable Row Component
-  const SettingRow = ({ icon, label, value, onValueChange, type = "switch", subText = "" }: any) => (
+  const SettingRow = ({
+    icon,
+    label,
+    value,
+    onValueChange,
+    type = "switch",
+    subText = "",
+  }: any) => (
     <View style={[styles.row, { borderBottomColor: theme.border }]}>
       <View style={styles.rowLeft}>
         <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
@@ -57,10 +64,12 @@ export default function Profile() {
         </View>
         <View>
           <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
-          {subText ? <Text style={{ fontSize: 12, color: theme.icon }}>{subText}</Text> : null}
+          {subText ? (
+            <Text style={{ fontSize: 12, color: theme.icon }}>{subText}</Text>
+          ) : null}
         </View>
       </View>
-      
+
       {/* Render Switch or Arrow based on type */}
       {type === "switch" ? (
         <Switch
@@ -70,8 +79,10 @@ export default function Profile() {
           thumbColor={"#f4f3f4"}
         />
       ) : (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>{value}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>
+            {value}
+          </Text>
           <Feather name="chevron-right" size={20} color={theme.icon} />
         </View>
       )}
@@ -80,117 +91,172 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-
       <ScrollView contentContainerStyle={styles.content}>
-        
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
             <Image
-              source={{ uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80" }}
+              source={{
+                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
+              }}
               style={styles.avatar}
             />
-            <TouchableOpacity 
-              style={styles.editBadge} 
+            <TouchableOpacity
+              style={styles.editBadge}
               onPress={() => router.push("/editProfile")}
             >
               <Feather name="edit-2" size={14} color="white" />
             </TouchableOpacity>
           </View>
           <Text style={[styles.name, { color: theme.text }]}>User Name</Text>
-          <Text style={[styles.email, { color: theme.text }]}>user@example.com</Text>
+          <Text style={[styles.email, { color: theme.text }]}>
+            user@example.com
+          </Text>
         </View>
 
         {/* --- 1. APPEARANCE --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>APPEARANCE</Text>
-          <SettingRow 
-            icon="moon" 
-            label="Dark Mode" 
-            value={isDark} 
-            onValueChange={toggleTheme} 
+        <View
+          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+            APPEARANCE
+          </Text>
+          <SettingRow
+            icon="moon"
+            label="Dark Mode"
+            value={isDark}
+            onValueChange={toggleTheme}
           />
         </View>
 
         {/* --- 4. GENERAL (Language & Region) --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>GENERAL</Text>
-          
-          <TouchableOpacity onPress={() => Alert.alert("Change Language", "Language picker would open here")}>
-            <SettingRow 
-              icon="globe" 
-              label="Language" 
-              value={language} 
-              type="link" 
+        <View
+          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+            GENERAL
+          </Text>
+
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert("Change Language", "Language picker would open here")
+            }
+          >
+            <SettingRow
+              icon="globe"
+              label="Language"
+              value={language}
+              type="link"
             />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => Alert.alert("Change Location", "Region picker would open here")}>
-            <SettingRow 
-              icon="map" 
-              label="Location" 
-              value={locationRegion} 
-              type="link" 
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert("Change Location", "Region picker would open here")
+            }
+          >
+            <SettingRow
+              icon="map"
+              label="Location"
+              value={locationRegion}
+              type="link"
             />
           </TouchableOpacity>
         </View>
 
         {/* --- 2. NOTIFICATIONS --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>NOTIFICATIONS</Text>
-          
-          <SettingRow 
-            icon="mail" 
-            label="Email Notifications" 
+        <View
+          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+            NOTIFICATIONS
+          </Text>
+
+          <SettingRow
+            icon="mail"
+            label="Email Notifications"
             subText="Receive daily summaries"
-            value={emailNotif} 
-            onValueChange={setEmailNotif} 
-          />
-          
-          <SettingRow 
-            icon="bell" 
-            label="Push Notification" 
-            subText="Security & Update alerts"
-            value={pushNotif} 
-            onValueChange={setPushNotif} 
+            value={emailNotif}
+            onValueChange={setEmailNotif}
           />
 
-          <SettingRow 
-            icon="alert-triangle" 
-            label="Alert Notification" 
+          <SettingRow
+            icon="bell"
+            label="Push Notification"
             subText="Security & Update alerts"
-            value={AlertNotif} 
-            onValueChange={setAlertNotif} 
+            value={pushNotif}
+            onValueChange={setPushNotif}
+          />
+
+          <SettingRow
+            icon="alert-triangle"
+            label="Alert Notification"
+            subText="Security & Update alerts"
+            value={AlertNotif}
+            onValueChange={setAlertNotif}
           />
         </View>
 
         {/* --- 3. PRIVACY & DATA --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>PRIVACY & PERMISSIONS</Text>
-          
-          <SettingRow 
-            icon="database" 
-            label="Personal Data Access" 
+        <View
+          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+            PRIVACY & PERMISSIONS
+          </Text>
+
+          <SettingRow
+            icon="database"
+            label="Personal Data Access"
             subText="Allow to use data customization"
-            value={personalDataAccess} 
-            onValueChange={setPersonalDataAccess} 
+            value={personalDataAccess}
+            onValueChange={setPersonalDataAccess}
           />
 
-          <SettingRow 
-            icon="camera" 
-            label="Camera Access" 
+          <SettingRow
+            icon="camera"
+            label="Camera Access"
             subText="Allow app to use camera"
-            value={cameraAccess} 
-            onValueChange={setCameraAccess} 
+            value={cameraAccess}
+            onValueChange={setCameraAccess}
           />
-          
-          <SettingRow 
-            icon="map-pin" 
-            label="Live Location Access" 
+
+          <SettingRow
+            icon="map-pin"
+            label="Live Location Access"
             subText="Share location in real-time"
-            value={liveLocation} 
-            onValueChange={setLiveLocation} 
+            value={liveLocation}
+            onValueChange={setLiveLocation}
           />
+        </View>
+
+        {/* --- ACCOUNT SECURITY --- */}
+        <View
+          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+            ACCOUNT
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => router.push("/auth/change-password")}
+          >
+            <SettingRow
+              icon="lock"
+              label="Change Password"
+              subText="Update your account password"
+              type="link"
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.push("/auth/addguardians")}>
+            <SettingRow
+              icon="users"
+              label="Manage Guardians"
+              subText="Add or edit emergency contacts"
+              type="link"
+            />
+          </TouchableOpacity>
         </View>
 
         {/* --- LOGOUT --- */}
@@ -199,8 +265,9 @@ export default function Profile() {
           <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.versionText, { color: theme.icon }]}>App Version 1.2.0</Text>
-
+        <Text style={[styles.versionText, { color: theme.icon }]}>
+          App Version 1.2.0
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,7 +1,7 @@
 // lib/profileService.ts
 import { supabase } from "./superbase";
 
-// 1. Define the shape of the data (TypeScript Interface)
+// Remote profiles table has: full_name, phone_number, email, avatar_url, location
 export interface UserProfile {
   full_name?: string;
   phone_number?: string;
@@ -41,14 +41,13 @@ export const updateUserProfile = async (
   updates: Partial<UserProfile>,
 ) => {
   try {
-    // 1. "upsert" means: Create if new, Update if exists.
     const { data, error } = await supabase
       .from("profiles")
       .upsert({
-        id: userId, // We MUST match the Auth ID
+        id: userId,
         ...updates,
-        updated_at: new Date().toISOString(), // Optional: track when they edited
-      })
+        updated_at: new Date().toISOString(),
+      } as any)
       .select()
       .single();
 

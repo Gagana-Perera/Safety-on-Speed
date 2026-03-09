@@ -9,7 +9,7 @@ import {
     ScrollView,
     Text,
     TextInput,
-    View
+    View,
 } from "react-native";
 
 export default function SignUp() {
@@ -169,14 +169,6 @@ export default function SignUp() {
             >
               <Text className="text-white text-2xl font-light">Next</Text>
             </Pressable>
-            <View className="h-[1px] bg-white/20 w-3/4 self-center mt-12 mb-8" />
-
-            {/* Pagination Dots (Visual only for now) */}
-            <View className="flex-row justify-center space-x-8 items-center">
-              <View className="w-16 h-16 rounded-full bg-white/90" />
-              <View className="w-16 h-16 rounded-full bg-white/80" />
-            </View>
-
             <View className="items-center mt-8">
               <Pressable
                 onPress={() => router.push("/auth/login")}

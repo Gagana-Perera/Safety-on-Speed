@@ -2,17 +2,18 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import BackButton from "../components/backButton";
 import { getUserProfile, updateUserProfile } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
 import { useTheme } from "./themeContext";
@@ -116,9 +117,9 @@ export default function EditProfile() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         {/* Pass dynamic color to BackButton */}
-        {/* <View style={{ margin: 20, marginTop: 10 }}>
+        <View style={{ margin: 20, marginTop: 10 }}>
           <BackButton color={theme.text} />
-        </View> */}
+        </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Photo Section */}

@@ -1,4 +1,4 @@
-import { setSignupDraft } from "@/lib/signup-draft";
+import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -12,36 +12,55 @@ import {
     View,
 } from "react-native";
 
-export default function SignUpPassword() {
+export default function ChangePassword() {
   const router = useRouter();
   const confirmPasswordInputRef = useRef<TextInput>(null);
 
-  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleNext() {
-    if (!password || !confirmPassword) {
-      Alert.alert("Missing info", "Please fill in all details.");
+  async function handleChangePassword() {
+    if (loading) return;
+
+    if (!newPassword || !confirmPassword) {
+      Alert.alert("Missing info", "Please fill in all fields.");
       return;
     }
 
-    if (password.length < 8) {
+    if (newPassword.length < 8) {
       Alert.alert("Weak password", "Password must be at least 8 characters.");
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       Alert.alert("Mismatch", "Passwords do not match.");
       return;
     }
 
-    setSignupDraft({
-      password: password,
-    });
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
 
-    router.push("/auth/sign-up-email");
+      if (error) throw error;
+
+      Alert.alert(
+        "Password updated",
+        "Your password has been changed successfully.",
+        [{ text: "OK", onPress: () => router.back() }],
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Failed to update",
+        error?.message ?? "Something went wrong. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -69,28 +88,31 @@ export default function SignUpPassword() {
           </View>
 
           {/* Title */}
-          <View className="items-center mb-10">
-            <Text className="text-white text-6xl font-light tracking-wider">
-              Sign up
+          <View className="mt-8 mb-12">
+            <Text className="text-white text-6xl font-light">
+              Change{"\n"}Password
+            </Text>
+            <Text className="text-white/70 text-xl mt-4 font-light leading-7">
+              Choose a strong password with at least 8 characters.
             </Text>
           </View>
 
-          {/* Password */}
-          <View className="mt-8">
-            <Text className="text-white text-2xl font-light mb-2">
-              Password
+          {/* New Password */}
+          <View className="mt-4">
+            <Text className="text-white/90 text-2xl font-light mb-2">
+              New Password
             </Text>
             <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
               <View className="flex-row items-center">
                 <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="New password"
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   textContentType="newPassword"
-                  className="flex-1 text-white text-lg"
+                  className="flex-1 text-white text-xl"
                   returnKeyType="next"
                   blurOnSubmit={false}
                   onSubmitEditing={() =>
@@ -106,13 +128,13 @@ export default function SignUpPassword() {
                   </Text>
                 </Pressable>
               </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
+              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
             </View>
           </View>
 
           {/* Confirm Password */}
           <View className="mt-8">
-            <Text className="text-white text-2xl font-light mb-2">
+            <Text className="text-white/90 text-2xl font-light mb-2">
               Confirm Password
             </Text>
             <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
@@ -126,9 +148,9 @@ export default function SignUpPassword() {
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   textContentType="password"
-                  className="flex-1 text-white text-lg"
+                  className="flex-1 text-white text-xl"
                   returnKeyType="done"
-                  onSubmitEditing={handleNext}
+                  onSubmitEditing={handleChangePassword}
                 />
                 <Pressable
                   onPress={() => setShowConfirmPassword((prev) => !prev)}
@@ -139,29 +161,21 @@ export default function SignUpPassword() {
                   </Text>
                 </Pressable>
               </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
+              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
             </View>
           </View>
 
-          {/* Bottom */}
-          <View className="flex-1 justify-end pb-10 mt-10">
+          {/* Submit */}
+          <View className="flex-1 justify-end pb-24 mt-10">
             <Pressable
-              onPress={handleNext}
-              className="self-center bg-black/40 border border-white/10 rounded-2xl px-12 py-3"
+              onPress={handleChangePassword}
+              disabled={loading}
+              className="self-center bg-black/25 border border-white/10 rounded-2xl px-10 py-4"
             >
-              <Text className="text-white text-2xl font-light">Next</Text>
+              <Text className="text-white text-3xl font-light text-center">
+                {loading ? "Updating..." : "Change Password"}
+              </Text>
             </Pressable>
-            <View className="items-center mt-8">
-              <Pressable
-                onPress={() => router.push("/auth/login")}
-                accessibilityRole="button"
-              >
-                <Text className="text-secondary text-lg">
-                  Already have an account?{" "}
-                  <Text className="underline text-accent">Sign in.</Text>
-                </Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       </ScrollView>
