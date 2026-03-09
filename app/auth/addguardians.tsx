@@ -95,7 +95,7 @@ export default function GuardianSetup() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, statusBarHidden: true }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <View className="flex-1 bg-[#002747] pt-14">
         <ImageBackground
           source={officialdoc.bgImage}
