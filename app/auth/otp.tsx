@@ -123,10 +123,8 @@ export default function SignUpOtp() {
       // 3. Save Profile
       const { error: profileError } = await supabase.from("profiles").insert({
         id: user.id,
-        first_name: draft.firstName || "",
-        surname: draft.surname || "",
+        full_name: `${draft.firstName || ""} ${draft.surname || ""}`.trim(),
         phone_number: draft.phoneNumber,
-        nic_number: draft.nicNumber,
         email: draft.email,
       } as any);
 
