@@ -151,15 +151,6 @@ export default function SignUpPassword() {
             >
               <Text className="text-white text-2xl font-light">Next</Text>
             </Pressable>
-            <View className="h-[1px] bg-white/20 w-3/4 self-center mt-12 mb-8" />
-
-            {/* Pagination Dots */}
-            <View className="flex-row justify-center space-x-8 items-center">
-              <View className="w-4 h-4 rounded-full bg-white/90" />
-              <View className="w-4 h-4 rounded-full bg-white/90" />
-              <View className="w-4 h-4 rounded-full bg-white/40" />
-            </View>
-
             <View className="items-center mt-8">
               <Pressable
                 onPress={() => router.push("/auth/login")}
