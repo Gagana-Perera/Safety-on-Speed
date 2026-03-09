@@ -13,10 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import {
-    getUserProfile,
-    updateUserProfile
-} from "../lib/profileService";
+import { getUserProfile, updateUserProfile } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
 import BackButton from "./backButton";
 import { useTheme } from "./themeContext";
@@ -48,9 +45,14 @@ export default function EditProfile() {
           const profile = await getUserProfile(user.id);
 
           if (profile) {
+            const fullName = profile.full_name || "";
+            const nameParts = fullName.split(" ");
+            const first = nameParts[0] || "";
+            const last = nameParts.slice(1).join(" ") || "";
+
             setForm({
-              firstName: profile.first_name || "",
-              lastName: profile.surname || "",
+              firstName: first,
+              lastName: last,
               phone: profile.phone_number || "",
               email: profile.email || user.email || "",
               location: profile.location || "",
@@ -76,9 +78,10 @@ export default function EditProfile() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
+      const full_name = `${form.firstName} ${form.lastName}`.trim();
+
       const updates = {
-        first_name: form.firstName.trim(),
-        surname: form.lastName.trim(),
+        full_name,
         phone_number: form.phone,
         email: form.email,
         location: form.location,
