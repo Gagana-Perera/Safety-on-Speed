@@ -39,13 +39,18 @@ export default function GuardianSetup() {
   useEffect(() => {
     async function loadGuardians() {
       try {
+        // Use getSession() — reads from local SecureStore, no network call needed
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user) {
+          console.log("loadGuardians: no session found");
           setLoading(false);
           return;
         }
+
+        console.log("loadGuardians: fetching for user", user.id);
 
         // Check if existing guardians row exists
         const { data, error } = await supabase
@@ -61,6 +66,8 @@ export default function GuardianSetup() {
           setLoading(false);
           return;
         }
+
+        console.log("loadGuardians: data =", JSON.stringify(data));
 
         if (data) {
           // We found an existing row → this is the manage flow
@@ -127,8 +134,9 @@ export default function GuardianSetup() {
     setSaving(true);
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
 
       if (!user) {
         Alert.alert("Error", "You must be logged in to save guardians.");
