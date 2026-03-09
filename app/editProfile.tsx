@@ -1,32 +1,35 @@
-import { Feather } from "@expo/vector-icons";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
+  View,
+  Text,
+  StyleSheet,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
-  Text,
+  Image,
   TextInput,
   TouchableOpacity,
-  View,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
-import { getUserProfile, updateUserProfile } from "../lib/profileService";
-import { supabase } from "../lib/superbase";
-import BackButton from "./backButton";
+import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
+
 import { useTheme } from "./themeContext";
+import BackButton from './backButton'; 
+import { supabase } from "../lib/superbase"; 
+import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
 
 export default function EditProfile() {
   const router = useRouter();
-
-  // Get the theme object
   const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
 
   const [form, setForm] = useState({
     firstName: "",
@@ -39,12 +42,10 @@ export default function EditProfile() {
   useEffect(() => {
     async function loadData() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const profile = await getUserProfile(user.id);
-
+          
           if (profile) {
             const fullName = profile.full_name || "";
             const nameParts = fullName.split(" ");
@@ -55,9 +56,12 @@ export default function EditProfile() {
               firstName: first,
               lastName: last,
               phone: profile.phone_number || "",
-              email: profile.email || user.email || "",
-              location: profile.location || "",
+              email: profile.email || user.email || "", 
+              location: profile.location || "", 
             });
+
+            // Load actual avatar from profile
+            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
           }
         }
       } catch (error) {
@@ -69,14 +73,68 @@ export default function EditProfile() {
     loadData();
   }, []);
 
+  // --- UPLOAD AVATAR ---
+  const changeAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (result.canceled) return;
+
+      const image = result.assets[0];
+      if (!image.base64) throw new Error("No base64 data");
+
+      setUploading(true);
+
+      const byteArray = Uint8Array.from(atob(image.base64), c => c.charCodeAt(0));
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      const fileExt = image.uri.split('.').pop() || 'jpeg';
+      const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, byteArray, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', session.user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+
+    } catch (error: any) {
+      console.log("Error uploading image:", error);
+      Alert.alert("Upload Failed", error?.message || "Could not upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSave = async () => {
-    if (saving) return;
+    if (saving) return; 
     setSaving(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
       const full_name = `${form.firstName} ${form.lastName}`.trim();
@@ -90,10 +148,11 @@ export default function EditProfile() {
       };
 
       await updateUserProfile(user.id, updates);
-
+      
       Alert.alert("Success", "Profile updated successfully!", [
-        { text: "OK", onPress: () => router.back() },
+        { text: "OK", onPress: () => router.back() }
       ]);
+
     } catch (error) {
       Alert.alert("Error", "Could not save profile.");
       console.log(error);
@@ -104,71 +163,64 @@ export default function EditProfile() {
 
   if (loading) {
     return (
-      <View
-        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
-      >
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
 
   return (
-    // Apply dynamic background color
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        {/* Pass dynamic color to BackButton */}
-        <View style={{ margin: 20, marginTop: 10 }}>
-          <BackButton color={theme.text} />
+        
+        <View style={{ marginLeft: 16 }}>
+          <BackButton color={theme.text} size={24} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          
           {/* Photo Section */}
           <View style={styles.profileImageContainer}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
-              }}
-              // Use theme.border for the avatar border
-              style={[styles.profileAvatar, { borderColor: theme.border }]}
-            />
-            <TouchableOpacity
-              style={[
-                styles.cameraIconContainer,
-                { borderColor: theme.background },
-              ]}
-              onPress={() =>
-                Alert.alert("Upload Photo", "Open gallery or camera logic here")
-              }
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              {uploading ? (
+                <View style={[styles.profileAvatar, { borderColor: theme.border, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.card }]}>
+                  <ActivityIndicator size="large" color={theme.text} />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+                  style={[styles.profileAvatar, { borderColor: theme.border }]}
+                />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
+              onPress={changeAvatar}
+              disabled={uploading}
             >
               <Feather name="camera" size={16} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              <Text style={styles.changePhotoText}>
+                {uploading ? "Uploading..." : "Change Profile Photo"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Form Section */}
           <View style={styles.form}>
+            
             {/* First Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  { backgroundColor: theme.card },
-                  focusedField === "firstName" && styles.inputFocused,
-                ]}
-              >
-                <Feather
-                  name="user"
-                  size={20}
-                  color={theme.icon}
-                  style={styles.inputIcon}
-                />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.firstName}
                   onChangeText={(text) => setForm({ ...form, firstName: text })}
-                  onFocus={() => setFocusedField("firstName")}
-                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter your name"
                   placeholderTextColor="#9CA3AF"
                 />
@@ -178,25 +230,12 @@ export default function EditProfile() {
             {/* Last Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  { backgroundColor: theme.card },
-                  focusedField === "lastName" && styles.inputFocused,
-                ]}
-              >
-                <Feather
-                  name="user"
-                  size={20}
-                  color={theme.icon}
-                  style={styles.inputIcon}
-                />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.lastName}
                   onChangeText={(text) => setForm({ ...form, lastName: text })}
-                  onFocus={() => setFocusedField("lastName")}
-                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter your name"
                   placeholderTextColor="#9CA3AF"
                 />
@@ -206,25 +245,12 @@ export default function EditProfile() {
             {/* Phone Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  { backgroundColor: theme.card },
-                  focusedField === "phone" && styles.inputFocused,
-                ]}
-              >
-                <Feather
-                  name="phone"
-                  size={20}
-                  color={theme.icon}
-                  style={styles.inputIcon}
-                />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="phone" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
-                  onFocus={() => setFocusedField("phone")}
-                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter phone number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
@@ -235,25 +261,12 @@ export default function EditProfile() {
             {/* Email Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  { backgroundColor: theme.card },
-                  focusedField === "email" && styles.inputFocused,
-                ]}
-              >
-                <Feather
-                  name="mail"
-                  size={20}
-                  color={theme.icon}
-                  style={styles.inputIcon}
-                />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="mail" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
-                  onFocus={() => setFocusedField("email")}
-                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter email"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
@@ -265,46 +278,31 @@ export default function EditProfile() {
             {/* Location Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  { backgroundColor: theme.card },
-                  focusedField === "location" && styles.inputFocused,
-                ]}
-              >
-                <Feather
-                  name="map-pin"
-                  size={20}
-                  color={theme.icon}
-                  style={styles.inputIcon}
-                />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.location}
                   onChangeText={(text) => setForm({ ...form, location: text })}
-                  onFocus={() => setFocusedField("location")}
-                  onBlur={() => setFocusedField(null)}
                   placeholder="City, Country"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
             </View>
+
           </View>
 
           {/* Save Button */}
           <View style={styles.actionContainer}>
-            {/* You can use a specific color like Blue (#2563eb) or use theme.card with a border */}
-            <TouchableOpacity
-              onPress={handleSave}
-              style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}
-            >
+            <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}>
               {saving ? (
-                <ActivityIndicator color="white" />
+                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={styles.saveBtnText}>Save Changes</Text>
+                 <Text style={styles.saveBtnText}>Save Changes</Text>
               )}
             </TouchableOpacity>
           </View>
+
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -314,17 +312,16 @@ export default function EditProfile() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   container: {
-    paddingVertical: 12, // Reduced slightly to account for SafeAreaView
+    paddingVertical: 12,
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 40,
   },
-  /** Photo Section */
   profileImageContainer: {
     alignItems: "center",
     marginTop: 20,
@@ -339,7 +336,7 @@ const styles = StyleSheet.create({
   cameraIconContainer: {
     position: "absolute",
     bottom: 25,
-    right: "36%",
+    right: "36%", 
     backgroundColor: "#2563eb",
     padding: 8,
     borderRadius: 20,
@@ -351,7 +348,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  /** Form */
   form: {
     paddingHorizontal: 24,
   },
@@ -372,11 +368,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 50,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  inputFocused: {
-    borderColor: "#60A5FA",
   },
   inputIcon: {
     marginRight: 10,
@@ -386,7 +377,6 @@ const styles = StyleSheet.create({
     height: "100%",
     fontSize: 16,
   },
-  /** Action Button */
   actionContainer: {
     marginTop: 10,
     paddingHorizontal: 24,

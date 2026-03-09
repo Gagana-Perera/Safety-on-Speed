@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/superbase";
+import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
@@ -107,7 +108,6 @@ export default function TabsLayout() {
         headerTintColor: theme.text,
       }}
     >
-      <Tabs.Screen name="backbutton" options={{ href: null }} />
       <Tabs.Screen
         name="extra"
         options={{
