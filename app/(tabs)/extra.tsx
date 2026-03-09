@@ -79,7 +79,7 @@ const SERVICES: ServiceItem[] = [
     icon: "add-circle-outline",
     hasMap: true,
     category: "place",
-    searchKey: "hospital",
+    searchKey: "emergency",
   },
   {
     id: "6",
@@ -523,29 +523,33 @@ export default function EmergencyServices() {
 
     invalidatePlaceCacheIfNeeded();
 
+    // Emergency UX: correctness > speed.
+    // Always re-check the nearest place on tap to avoid using a cached (and possibly wrong)
+    // placeId after GPS improvements (last-known -> high-accuracy) or subtle movements.
+    const mustRefreshNearest = true;
+
     const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
     const cachedPhone = placeCacheRef.current[item.id]?.phone || null;
-    const shouldShowLoading = !cachedPlaceId || !cachedPhone;
+    const shouldShowLoading = true;
 
     console.log(
       `[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`,
     );
     if (shouldShowLoading) setLoadingStatus({ id: item.id, type: "call" });
     try {
-      const placeId =
-        cachedPlaceId ??
-        (await ensureNearestPlaceId(item, {
-          force: true,
-          includeSecondPage: false,
-        }));
+      const placeId = await ensureNearestPlaceId(item, {
+        force: true,
+        includeSecondPage: false,
+      });
       console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
         return;
       }
 
-      const phoneNumber =
-        cachedPhone ?? (await ensurePlacePhone(item, placeId, { force: true }));
+      const phoneNumber = await ensurePlacePhone(item, placeId, {
+        force: true,
+      });
       console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
         await makePhoneCall(phoneNumber);
@@ -558,6 +562,8 @@ export default function EmergencyServices() {
 
       // If we moved enough to need refresh, don't block the call; refresh after.
       if (refreshNeededRef.current) refreshPlaceItem(item);
+      // We just forced a refresh on tap; clear the flag so subsequent taps can use cache.
+      if (mustRefreshNearest) refreshNeededRef.current = false;
     } catch (error) {
       console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
@@ -600,11 +606,14 @@ export default function EmergencyServices() {
 
     invalidatePlaceCacheIfNeeded();
 
+    // Same as Call: correctness > speed.
+    const mustRefreshNearest = true;
+
     const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
     const keyword = item.searchKey || item.name;
 
     // Fast path: if already cached, go straight to the place.
-    if (cachedPlaceId) {
+    if (cachedPlaceId && !mustRefreshNearest) {
       router.push({
         pathname: "/(tabs)/map",
         params: { placeId: cachedPlaceId, t: Date.now().toString() },
@@ -614,7 +623,10 @@ export default function EmergencyServices() {
 
     // Slow-network UX: if placeId isn't ready quickly, navigate immediately to
     // the Map tab with a POI category so the user isn't stuck waiting.
-    const placeIdPromise = ensureNearestPlaceId(item);
+    const placeIdPromise = ensureNearestPlaceId(item, {
+      force: mustRefreshNearest,
+      includeSecondPage: false,
+    });
     const quick = await Promise.race([
       placeIdPromise.then((placeId) => ({ done: true as const, placeId })),
       delay(MAP_QUICK_NAV_MS).then(() => ({
@@ -635,6 +647,8 @@ export default function EmergencyServices() {
           pathname: "/(tabs)/map",
           params: { placeId, t: Date.now().toString() },
         });
+
+        if (mustRefreshNearest) refreshNeededRef.current = false;
       })();
       return;
     }
@@ -653,6 +667,8 @@ export default function EmergencyServices() {
       pathname: "/(tabs)/map",
       params: { placeId, t: Date.now().toString() },
     });
+
+    if (mustRefreshNearest) refreshNeededRef.current = false;
 
     return;
 

@@ -301,6 +301,7 @@ export async function getNearbyPlaces(
   // Normalize the service type from UI strings to Places "type".
   // (e.g. "police station" still maps to type="police".)
   const normalized = serviceType.trim().toLowerCase();
+  const isEmergencySearch = normalized.includes("emergency");
   // NOTE: In the Emergency Services UX, people sometimes think in terms of
   // "emergency" rather than "hospital". We treat that as a hospital search.
   const type = normalized.includes("police")
@@ -336,6 +337,14 @@ export async function getNearbyPlaces(
     "base hospital",
     "teaching hospital",
   ];
+
+  // For Emergency Services "emergency" searches, keep the behavior literal:
+  // - First query must be keyword=emergency
+  // - Choose the nearest (Haversine) from that result set
+  // - Only fall back to a keyword-less hospital query if that returns nothing
+  const hospitalKeywordsForThisQuery = isEmergencySearch
+    ? ["emergency"]
+    : hospitalEmergencyKeywords;
 
   // We intentionally do NOT rely on Google's ordering. Instead:
   // 1) Fetch a set of candidates near the user
@@ -509,7 +518,7 @@ export async function getNearbyPlaces(
       // - Hospitals: bias toward emergency-capable facilities.
       // - Police: use an explicit police-station keyword (never "emergency").
       if (type === "hospital") {
-        for (const kw of hospitalEmergencyKeywords) {
+        for (const kw of hospitalKeywordsForThisQuery) {
           const withKeyword = new URLSearchParams(baseParams);
           withKeyword.set("keyword", kw);
           attemptParams.push(withKeyword);
@@ -534,17 +543,21 @@ export async function getNearbyPlaces(
         if (results.length) aggregated.push(...results);
       }
 
-      // Always include a plain typed hospital query (no keyword) as a fallback
-      // so we can still pick the truly nearest non-specialty hospital even when
-      // keyword searches omit it.
-      let typedFallbackResults: any[] | null = null;
+      // Hospital fallback behavior:
+      // - Non-emergency: always include a typed hospital query (no keyword) to avoid
+      //   missing nearby general hospitals.
+      // - Emergency: only do the typed fallback if keyword=emergency returned nothing.
       if (type === "hospital") {
-        typedFallbackResults = await fetchNearbySearchResults(
-          baseParams,
-          "rankby=distance:fallback",
-        );
-        if (typedFallbackResults.length)
-          aggregated.push(...typedFallbackResults);
+        const shouldFetchTypedFallback =
+          !isEmergencySearch || aggregated.length === 0;
+
+        if (shouldFetchTypedFallback) {
+          const typedFallbackResults = await fetchNearbySearchResults(
+            baseParams,
+            "rankby=distance:fallback",
+          );
+          if (typedFallbackResults.length) aggregated.push(...typedFallbackResults);
+        }
       }
 
       // Emergency Services strict types: pick nearest across ALL keyword attempts.
@@ -555,7 +568,10 @@ export async function getNearbyPlaces(
         const pick = pickClosestPlaceId(merged);
 
         if (type === "hospital") {
-          if (pick.bestEmergencyHospitalId) return pick.bestEmergencyHospitalId;
+          // For an "emergency" search, don't allow the emergency-like-name tier to
+          // override nearness; pick the nearest non-specialty hospital instead.
+          if (!isEmergencySearch && pick.bestEmergencyHospitalId)
+            return pick.bestEmergencyHospitalId;
           if (pick.bestGeneralHospitalId) return pick.bestGeneralHospitalId;
           if (pick.bestAnyId) return pick.bestAnyId;
         } else {
@@ -581,7 +597,7 @@ export async function getNearbyPlaces(
         // - Hospitals: try `keyword=emergency` first.
         // - Police: try `keyword=police station` first (do NOT use "emergency").
         if (type === "hospital") {
-          for (const kw of hospitalEmergencyKeywords) {
+          for (const kw of hospitalKeywordsForThisQuery) {
             const withKeyword = new URLSearchParams(baseParams);
             withKeyword.set("keyword", kw);
             attemptParams.push(withKeyword);
@@ -610,12 +626,16 @@ export async function getNearbyPlaces(
         if (results.length) aggregated.push(...results);
       }
 
-      if (type === "hospital" && aggregated.length === 0) {
-        const fallbackResults = await fetchNearbySearchResults(
-          baseParams,
-          `radius=${radius}:fallback`,
-        );
-        if (fallbackResults.length) aggregated.push(...fallbackResults);
+      if (type === "hospital") {
+        const shouldFetchTypedFallback =
+          !isEmergencySearch || aggregated.length === 0;
+        if (shouldFetchTypedFallback) {
+          const fallbackResults = await fetchNearbySearchResults(
+            baseParams,
+            `radius=${radius}:fallback`,
+          );
+          if (fallbackResults.length) aggregated.push(...fallbackResults);
+        }
       }
 
       if (aggregated.length) {
@@ -641,7 +661,8 @@ export async function getNearbyPlaces(
         }
 
         if (type === "hospital") {
-          if (pick.bestEmergencyHospitalId) return pick.bestEmergencyHospitalId;
+          if (!isEmergencySearch && pick.bestEmergencyHospitalId)
+            return pick.bestEmergencyHospitalId;
           if (pick.bestGeneralHospitalId) return pick.bestGeneralHospitalId;
           if (pick.bestAnyId) return pick.bestAnyId;
         } else {
