@@ -1,7 +1,7 @@
 // lib/profileService.ts
 import { supabase } from "./superbase";
 
-// Remote profiles table has: full_name, phone_number, email, avatar_url, location
+// 1. Define the shape of the data (TypeScript Interface)
 export interface UserProfile {
   full_name?: string;
   phone_number?: string;
@@ -12,42 +12,38 @@ export interface UserProfile {
 }
 
 // 2. The Logic to fetch data
-export const getUserProfile = async (
-  userId: string,
-): Promise<UserProfile | null> => {
+export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
     const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, phone_number, email, avatar_url, location")
-      .eq("id", userId)
+      .from('profiles')
+      .select('full_name, phone_number, email, avatar_url, location')
+      .eq('id', userId)
       .single(); // We expect only one result
 
     if (error) {
-      if (error.code !== "PGRST116") {
-        console.error("Error fetching profile:", error);
+      if (error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
       }
       return null;
     }
 
     return data as UserProfile;
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error('Unexpected error:', error);
     return null;
   }
 };
 
-export const updateUserProfile = async (
-  userId: string,
-  updates: Partial<UserProfile>,
-) => {
+export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>) => {
   try {
+    // 1. "upsert" means: Create if new, Update if exists.
     const { data, error } = await supabase
-      .from("profiles")
+      .from('profiles')
       .upsert({
-        id: userId,
+        id: userId, // We MUST match the Auth ID
         ...updates,
-        updated_at: new Date().toISOString(),
-      } as any)
+        updated_at: new Date().toISOString(), // Optional: track when they edited
+      })
       .select()
       .single();
 
@@ -56,7 +52,7 @@ export const updateUserProfile = async (
     }
     return data;
   } catch (error) {
-    console.error("Error updating profile:", error);
+    console.error('Error updating profile:', error);
     throw error;
   }
 };
