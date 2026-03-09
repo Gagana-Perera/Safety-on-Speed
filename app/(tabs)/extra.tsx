@@ -375,13 +375,6 @@ export default function EmergencyServices() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-[#8FD3FF]/30"
-        >
-          <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
-          <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
-        </TouchableOpacity>
 
         <View className="mb-8">
           <Text className="text-white text-5xl font-bold leading-tight">

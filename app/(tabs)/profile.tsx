@@ -1,20 +1,19 @@
-import React, { useState } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Image, 
-  TouchableOpacity, 
-  Switch, 
-  ScrollView, 
-  SafeAreaView, 
-  Alert 
-} from "react-native";
+import { Feather } from "@expo/vector-icons"; // Added MaterialIcons for more icons
 import { useRouter } from "expo-router";
-import { Feather, MaterialIcons } from "@expo/vector-icons"; // Added MaterialIcons for more icons
+import React, { useState } from "react";
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
+import { supabase } from "../../lib/superbase";
 import { useTheme } from "../themeContext";
-import BackButton from '../backButton'; 
-import { supabase } from "../../lib/superbase"; 
 
 export default function Profile() {
   const router = useRouter();
@@ -83,10 +82,6 @@ export default function Profile() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
 
       <ScrollView contentContainerStyle={styles.content}>
-
-        <View>
-          <BackButton color={theme.text} />
-        </View>
         
         {/* --- HEADER --- */}
         <View style={styles.header}>

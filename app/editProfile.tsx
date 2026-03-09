@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { getUserProfile, updateUserProfile } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
-import BackButton from "./backButton";
 import { useTheme } from "./themeContext";
 
 export default function EditProfile() {
@@ -117,9 +116,9 @@ export default function EditProfile() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         {/* Pass dynamic color to BackButton */}
-        <View style={{ margin: 20, marginTop: 10 }}>
+        {/* <View style={{ margin: 20, marginTop: 10 }}>
           <BackButton color={theme.text} />
-        </View>
+        </View> */}
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Photo Section */}
