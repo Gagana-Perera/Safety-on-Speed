@@ -1,12 +1,12 @@
 import { Stack } from "expo-router";
-import { ThemeProvider, useTheme } from "./themeContext";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
+import { ThemeProvider, useTheme } from "./themeContext";
 
 // 1. Create a component specifically to hold the logic that needs the Theme
 function RootLayoutNav() {
   // Now this works because this component is INSIDE the ThemeProvider
-  const { isDark } = useTheme(); 
+  const { isDark } = useTheme();
 
   return (
     <>
