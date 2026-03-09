@@ -75,62 +75,89 @@ export default function SignUpPassword() {
             </Text>
           </View>
 
-          {/* Inputs */}
+          {/* Password */}
           <View className="mt-8">
             <Text className="text-white text-2xl font-light mb-2">
               Password
             </Text>
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
               <View className="flex-row items-center">
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
                   secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  textContentType="newPassword"
                   className="flex-1 text-white text-lg"
                   returnKeyType="next"
+                  blurOnSubmit={false}
                   onSubmitEditing={() =>
                     confirmPasswordInputRef.current?.focus()
                   }
                 />
+                <Pressable
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  className="px-2 py-2"
+                >
+                  <Text className="text-secondary text-lg">
+                    {showPassword ? "Hide" : "Show"}
+                  </Text>
+                </Pressable>
               </View>
+              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
             </View>
-            <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
           </View>
 
+          {/* Confirm Password */}
           <View className="mt-8">
             <Text className="text-white text-2xl font-light mb-2">
               Confirm Password
             </Text>
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
               <View className="flex-row items-center">
                 <TextInput
                   ref={confirmPasswordInputRef}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
+                  placeholder="Confirm password"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
                   secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
                   className="flex-1 text-white text-lg"
                   returnKeyType="done"
                   onSubmitEditing={handleNext}
                 />
+                <Pressable
+                  onPress={() => setShowConfirmPassword((prev) => !prev)}
+                  className="px-2 py-2"
+                >
+                  <Text className="text-secondary text-lg">
+                    {showConfirmPassword ? "Hide" : "Show"}
+                  </Text>
+                </Pressable>
               </View>
+              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
             </View>
-            <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
           </View>
 
-          {/* Sign Up Button (Visual context says "Sign up" but next step is Email) */}
+          {/* Bottom */}
           <View className="flex-1 justify-end pb-10 mt-10">
             <Pressable
               onPress={handleNext}
               className="self-center bg-black/40 border border-white/10 rounded-2xl px-12 py-3"
             >
-              <Text className="text-white text-2xl font-light">Sign up</Text>
+              <Text className="text-white text-2xl font-light">Next</Text>
             </Pressable>
             <View className="h-[1px] bg-white/20 w-3/4 self-center mt-12 mb-8" />
 
             {/* Pagination Dots */}
             <View className="flex-row justify-center space-x-8 items-center">
-              <View className="w-16 h-16 rounded-full bg-white/90" />
-              <View className="w-16 h-16 rounded-full bg-white/90" />
+              <View className="w-4 h-4 rounded-full bg-white/90" />
+              <View className="w-4 h-4 rounded-full bg-white/90" />
+              <View className="w-4 h-4 rounded-full bg-white/40" />
             </View>
 
             <View className="items-center mt-8">
