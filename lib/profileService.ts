@@ -1,21 +1,14 @@
 // lib/profileService.ts
 import { supabase } from "./superbase";
 
-// The real profiles table schema: first_name, surname, phone_number, nic_number, email
+// Remote profiles table has: full_name, phone_number, email, avatar_url, location
 export interface UserProfile {
-  first_name?: string;
-  surname?: string;
+  full_name?: string;
   phone_number?: string;
-  nic_number?: string;
   email?: string;
   avatar_url?: string | null;
   location?: string;
   updated_at?: string;
-}
-
-// Convenience getter: builds a full_name string from first_name + surname
-export function getFullName(profile: UserProfile): string {
-  return `${profile.first_name || ""} ${profile.surname || ""}`.trim();
 }
 
 export const getUserProfile = async (
@@ -24,9 +17,7 @@ export const getUserProfile = async (
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select(
-        "first_name, surname, phone_number, nic_number, email, avatar_url, location",
-      )
+      .select("full_name, phone_number, email, avatar_url, location")
       .eq("id", userId)
       .single();
 
