@@ -13,8 +13,24 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/setup" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="auth/sign-up-password"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="auth/sign-up-email"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="auth/otp" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/setup" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="auth/addguardians"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="auth/change-password"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
