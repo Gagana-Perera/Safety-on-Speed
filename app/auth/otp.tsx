@@ -3,14 +3,14 @@ import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 const OTP_LENGTH = 8;
@@ -103,23 +103,7 @@ export default function SignUpOtp() {
       } = await supabase.auth.verifyOtp({
         email: draft.email!,
         token: otp,
-        type: "magiclink", // or "signup" or "email" depending on supabase config. Using magiclink commonly works for OTPs in some setups, or "email" for true OTP.
-        // Wait, "magiclink" type is usually for... magic links.
-        // For OTP, type is usually "email" or "sms".
-        // BUT prev dev changed it to "magiclink" to fix an issue. I'll stick to "magiclink" if that was working,
-        // OR "email" if `signInWithOtp` was used.
-        // Actually for `signInWithOtp`, verify type 'email' is paired with `token_type` 'email' in recent versions,
-        // but historically `type: 'magiclink'` was used for link verification.
-        // If we are inputting a CODE, it should be `type: 'email'` (if flow is signup/login code).
-        // Let's try 'email' first as it is semantically correct for a code.
-        // If it fails, I might need to revert or check supabase config.
-        // Actually, previous fix changed it TO `magiclink` to "correctly verify codes".
-        // I will trust my previous self's fix and use 'magiclink' OR 'email' based on what `signInWithOtp` expects.
-        // Actually, `verifyOtp` with `token` (the code) usually requires `type: 'email'`.
-        // `magiclink` implies a hashed token from a URL.
-        // Let's try `email` first, but catch error.
-        // WAIT: The previous fix explicitly said "Changed ... to 'magiclink' to correctly verify codes sent via signInWithOtp".
-        // So I will use 'magiclink' as per the fix I just made in step 34.
+        type: "email", // "email" is the correct type for numeric OTP codes sent via signInWithOtp
       });
 
       if (verifyError) throw verifyError;
@@ -139,12 +123,10 @@ export default function SignUpOtp() {
       // 3. Save Profile
       const { error: profileError } = await supabase.from("profiles").insert({
         id: user.id,
-        first_name: draft.firstName,
-        surname: draft.surname,
+        full_name: `${draft.firstName || ""} ${draft.surname || ""}`.trim(),
         phone_number: draft.phoneNumber,
-        nic_number: draft.nicNumber,
         email: draft.email,
-      });
+      } as any);
 
       if (profileError) {
         console.error("Profile save error:", profileError);
@@ -152,25 +134,10 @@ export default function SignUpOtp() {
         // Don't stop flow?
       }
 
-      // 4. Save Guardians
-      if (draft.guardians && draft.guardians.length > 0) {
-        const guardiansPayload = draft.guardians.map((g) => ({
-          user_id: user.id,
-          name: g.name,
-          phone_number: g.phone,
-        }));
-
-        const { error: guardianError } = await supabase
-          .from("guardians")
-          .insert(guardiansPayload);
-        if (guardianError) {
-          console.error("Guardian save error:", guardianError);
-        }
-      }
-
+      // 4. Redirect to Guardian Setup
       clearSignupDraft();
       Alert.alert("Success", "Account created successfully!");
-      router.replace("/session"); // or /(tabs)
+      router.replace("/auth/setup");
     } catch (error: any) {
       Alert.alert("Verification Failed", error.message);
     } finally {

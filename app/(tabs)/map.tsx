@@ -1,13 +1,28 @@
+import { Feather, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  BackHandler,
+  Dimensions,
+  Easing,
   FlatList,
   Keyboard,
   Linking,
+  Modal,
+  PanResponder,
   Platform,
   ScrollView,
   Share,
@@ -17,9 +32,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-import { Feather } from "@expo/vector-icons";
-
 import MapView, {
   LatLng,
   Marker,
@@ -28,7 +40,7 @@ import MapView, {
   Region,
 } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import { icons } from "../../constants/icons";
 import {
   autocompletePlaces,
   findNearestPlaceAt,
@@ -39,16 +51,113 @@ import {
   PlaceSuggestion,
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
+import { useTheme } from "../themeContext";
+
+// Map tab:
+// - Search + autocomplete
+// - POI category chips (police/hospital/pharmacy/etc.)
+// - Two bottom sheets:
+//   1) Nearby places list
+//   2) Selected place details (photos, actions, reviews)
+//
+// This file is intentionally "state heavy" because it coordinates map gestures,
+// Places API calls, and bottom-sheet snap/scroll interactions.
 
 type Coords = { latitude: number; longitude: number };
 
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+
+const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
+  android: "sans-serif",
+  ios: undefined,
+});
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
+// Shortens large counts for UI (e.g. 12500 -> 12.5K).
+const formatCount = (n?: number) => {
+  if (typeof n !== "number") return "";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+};
+
+// Fisher–Yates shuffle.
+// Used so POI results can be randomized by default (distance sorting is optional via UI).
+const shuffleArray = <T,>(items: T[]): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+};
+
+const estimateStarCountsMaxEntropy = (
+  averageRating: number,
+  totalReviews: number,
+): number[] => {
+  // Places Details does NOT provide the full star histogram.
+  // When we only have (averageRating, totalReviews), we approximate a plausible
+  // 1..5 distribution via a maximum-entropy model that matches the average.
+  const total = Math.max(0, Math.floor(totalReviews));
+  if (!total) return [0, 0, 0, 0, 0];
+
+  const mu = clamp(averageRating, 1, 5);
+  const stars = [1, 2, 3, 4, 5] as const;
+
+  const expectedForLambda = (lambda: number) => {
+    const weights = stars.map((s) => Math.exp(lambda * s));
+    const sumW = weights.reduce((a, b) => a + b, 0);
+    const sumSW = weights.reduce((a, w, idx) => a + w * stars[idx], 0);
+    return sumSW / sumW;
+  };
+
+  let lo = -10;
+  let hi = 10;
+  for (let i = 0; i < 48; i += 1) {
+    const mid = (lo + hi) / 2;
+    const e = expectedForLambda(mid);
+    if (e < mu) lo = mid;
+    else hi = mid;
+  }
+  const lambda = (lo + hi) / 2;
+
+  const rawWeights = stars.map((s) => Math.exp(lambda * s));
+  const sumW = rawWeights.reduce((a, b) => a + b, 0);
+  const p = rawWeights.map((w) => w / sumW);
+
+  const floors = p.map((x) => Math.floor(x * total));
+  let remaining = total - floors.reduce((a, b) => a + b, 0);
+
+  const frac = p.map((x, i) => ({
+    i,
+    f: x * total - floors[i],
+  }));
+  frac.sort((a, b) => b.f - a.f);
+  for (let k = 0; k < frac.length && remaining > 0; k += 1) {
+    floors[frac[k].i] += 1;
+    remaining -= 1;
+  }
+
+  return floors;
+};
+
 export default function MapScreen() {
-  const params = useLocalSearchParams<{ placeId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    placeId?: string | string[];
+    t?: string | string[];
+  }>();
   const router = useRouter();
+  const { isDark } = useTheme();
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
   const mapRef = useRef<MapView | null>(null);
+  const [dimensions, setDimensions] = useState(Dimensions.get("window"));
 
   const [coords, setCoords] = useState<Coords>(SRI_LANKA_CENTER);
   const [mapRegion, setMapRegion] = useState<Region>({
@@ -68,12 +177,700 @@ export default function MapScreen() {
   const [placeLoading, setPlaceLoading] = useState(false);
   const [directionsLoading, setDirectionsLoading] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [recenterPressed, setRecenterPressed] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
+  // Review summary model for the selected-place sheet.
+  // - If the API provided a small review sample, we can build a sample histogram.
+  // - If we also have userRatingsTotal + average rating, we can show an estimated
+  //   histogram that scales to the full review count.
+  const selectedReviewSummary = useMemo(() => {
+    const rating =
+      selectedPlace && typeof selectedPlace.rating === "number"
+        ? selectedPlace.rating
+        : null;
+
+    const totalReviews =
+      selectedPlace && typeof selectedPlace.userRatingsTotal === "number"
+        ? selectedPlace.userRatingsTotal
+        : null;
+
+    const raw = Array.isArray(selectedPlace?.reviews)
+      ? selectedPlace?.reviews
+      : [];
+
+    const sampleCounts = [0, 0, 0, 0, 0]; // 1..5
+    for (const r of raw) {
+      const v = typeof r?.rating === "number" ? r.rating : null;
+      if (v === null) continue;
+      const bucket = clamp(Math.round(v), 1, 5);
+      sampleCounts[bucket - 1] += 1;
+    }
+
+    const sampleTotal = sampleCounts.reduce((a, b) => a + b, 0);
+
+    const useEstimated =
+      rating !== null &&
+      totalReviews !== null &&
+      Number.isFinite(rating) &&
+      Number.isFinite(totalReviews) &&
+      totalReviews > 0;
+
+    const counts = useEstimated
+      ? estimateStarCountsMaxEntropy(rating, totalReviews)
+      : sampleCounts;
+
+    const denom = counts.reduce((a, b) => a + b, 0);
+    const pct = (star: 1 | 2 | 3 | 4 | 5) => {
+      if (!denom) return 0;
+      return counts[star - 1] / denom;
+    };
+
+    return {
+      rating,
+      totalText:
+        totalReviews !== null
+          ? formatCount(totalReviews)
+          : sampleTotal
+            ? String(sampleTotal)
+            : "",
+      source: useEstimated ? ("estimated" as const) : ("sample" as const),
+      usedCount: denom,
+      pct,
+    };
+  }, [selectedPlace]);
+
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+  const [nearbyLoadingPlaceId, setNearbyLoadingPlaceId] = useState<
+    string | null
+  >(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [activePoiKey, setActivePoiKey] = useState<string | null>(null);
+
+  // POI list controls.
+  // Default behavior is randomized results; user can switch to distance sorting.
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [filterWheelchair, setFilterWheelchair] = useState(false);
+  const [sortMode, setSortMode] = useState<"default" | "distance">("default");
+
+  const attemptedOpenNowRef = useRef<Set<string>>(new Set());
+  const [openNowHydrating, setOpenNowHydrating] = useState(false);
+
+  const attemptedWheelchairRef = useRef<Set<string>>(new Set());
+  const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
+
+  const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
+  const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
+
+  // Selected-place sheet state.
+  // Expanded: user is reading details and can scroll.
+  // Minimized: extra collapsed state ("second touch") for more map visibility.
+  const [selectedSheetExpanded, setSelectedSheetExpanded] = useState(false);
+  const [selectedSheetMinimized, setSelectedSheetMinimized] = useState(false);
+
+  const [selectedSheetContentHeight, setSelectedSheetContentHeight] =
+    useState(0);
+
+  const [nearbyDragZoneHeight, setNearbyDragZoneHeight] = useState(0);
+  const [nearbyFilterRowHeight, setNearbyFilterRowHeight] = useState(0);
+  const [topOverlayBottomY, setTopOverlayBottomY] = useState(0);
+
+  const nearbyListScrollYRef = useRef(0);
+
+  const selectedSheetScrollYRef = useRef(0);
+
+  const nearbySheetTranslateY = useRef(new Animated.Value(0)).current;
+  const nearbySheetTranslateYRef = useRef(0);
+  const wasNearbySheetVisibleRef = useRef(false);
+  const nearbySheetPanStartRef = useRef(0);
+  const nearbySheetDraggingRef = useRef(false);
+
+  const nearbySheetExpandedRef = useRef(false);
+  const nearbySheetChipsOnlyRef = useRef(false);
+
+  const selectedSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const selectedSheetTranslateYRef = useRef(0);
+  const wasSelectedSheetVisibleRef = useRef(false);
+  const selectedSheetPanStartRef = useRef(0);
+  const selectedSheetDraggingRef = useRef(false);
+
+  const selectedSheetExpandedRef = useRef(false);
+
+  const {
+    selectedSheetHeightPx,
+    selectedSheetExpandedTranslate,
+    selectedSheetCollapsedTranslate,
+    selectedSheetMinimizedTranslate,
+    selectedSheetHasMinimizedSnap,
+  } = useMemo(() => {
+    const h = dimensions.height || Dimensions.get("window").height;
+    const sheetHeightPx = Math.round(h * 0.95);
+    const defaultPeekVisiblePx = Math.round(h * 0.4);
+    const minPeekVisiblePx = 220;
+    const contentPeekVisiblePx = selectedSheetContentHeight
+      ? clamp(
+          selectedSheetContentHeight + 64,
+          minPeekVisiblePx,
+          defaultPeekVisiblePx,
+        )
+      : defaultPeekVisiblePx;
+    const peekVisiblePx = contentPeekVisiblePx;
+    const collapsedTranslate = Math.max(0, sheetHeightPx - peekVisiblePx);
+
+    const overlayMargin = 10;
+    const minTop = Math.max(0, topOverlayBottomY + overlayMargin);
+    const baseTop = h - sheetHeightPx;
+    const expandedTranslate = clamp(minTop - baseTop, 0, collapsedTranslate);
+
+    // Minimized: show just the handle area (and a little breathing room).
+    const minimizedVisiblePx = 160;
+    const minimizedTranslateRaw = Math.max(
+      0,
+      sheetHeightPx - minimizedVisiblePx,
+    );
+    const minimizedTranslate = Math.max(
+      collapsedTranslate,
+      minimizedTranslateRaw,
+    );
+    const hasMinimizedSnap = minimizedTranslate > collapsedTranslate + 4;
+
+    return {
+      selectedSheetHeightPx: sheetHeightPx,
+      selectedSheetExpandedTranslate: expandedTranslate,
+      selectedSheetCollapsedTranslate: collapsedTranslate,
+      selectedSheetMinimizedTranslate: minimizedTranslate,
+      selectedSheetHasMinimizedSnap: hasMinimizedSnap,
+    };
+  }, [dimensions.height, topOverlayBottomY, selectedSheetContentHeight]);
+
+  const updateSelectedSheetModeFromTranslate = useCallback(
+    (translateY: number) => {
+      const isExpanded = translateY <= selectedSheetExpandedTranslate + 0.5;
+      const isMinimized =
+        selectedSheetHasMinimizedSnap &&
+        translateY >= selectedSheetMinimizedTranslate - 8;
+
+      if (selectedSheetExpandedRef.current !== isExpanded) {
+        selectedSheetExpandedRef.current = isExpanded;
+        setSelectedSheetExpanded(isExpanded);
+      }
+
+      if (isMinimized !== selectedSheetMinimized) {
+        setSelectedSheetMinimized(isMinimized);
+      }
+    },
+    [
+      selectedSheetExpandedTranslate,
+      selectedSheetHasMinimizedSnap,
+      selectedSheetMinimizedTranslate,
+      selectedSheetMinimized,
+    ],
+  );
+
+  const animateSelectedSheetTo = useCallback(
+    (toValue: number) => {
+      updateSelectedSheetModeFromTranslate(toValue);
+      Animated.timing(selectedSheetTranslateY, {
+        toValue,
+        duration: 300,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1.0),
+        useNativeDriver: true,
+      }).start(() => {
+        selectedSheetTranslateYRef.current = toValue;
+        updateSelectedSheetModeFromTranslate(toValue);
+      });
+    },
+    [selectedSheetTranslateY, updateSelectedSheetModeFromTranslate],
+  );
+
+  useEffect(() => {
+    if (!selectedPlace) return;
+    if (selectedSheetDraggingRef.current) return;
+
+    if (selectedSheetMinimized) {
+      animateSelectedSheetTo(selectedSheetMinimizedTranslate);
+      return;
+    }
+
+    const current = selectedSheetTranslateYRef.current;
+    const isExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+    animateSelectedSheetTo(
+      isExpanded
+        ? selectedSheetExpandedTranslate
+        : selectedSheetCollapsedTranslate,
+    );
+  }, [
+    selectedPlace,
+    selectedSheetCollapsedTranslate,
+    selectedSheetExpandedTranslate,
+    selectedSheetMinimizedTranslate,
+    selectedSheetMinimized,
+    animateSelectedSheetTo,
+  ]);
+
+  const selectedSheetPanResponder = useMemo(() => {
+    const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
+      const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
+      if (!vertical) return false;
+
+      const isExpanded =
+        selectedSheetTranslateYRef.current <=
+        selectedSheetExpandedTranslate + 0.5;
+      if (!isExpanded) return true;
+
+      const listAtTop = selectedSheetScrollYRef.current <= 0;
+      return listAtTop && g.dy > 0;
+    };
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: shouldSet,
+      onMoveShouldSetPanResponderCapture: shouldSet,
+      onPanResponderGrant: () => {
+        selectedSheetDraggingRef.current = true;
+        selectedSheetPanStartRef.current = selectedSheetTranslateYRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        if (!selectedSheetCollapsedTranslate) return;
+        const next = clamp(
+          selectedSheetPanStartRef.current + g.dy,
+          selectedSheetExpandedTranslate,
+          selectedSheetCollapsedTranslate,
+        );
+        selectedSheetTranslateY.setValue(next);
+        selectedSheetTranslateYRef.current = next;
+        updateSelectedSheetModeFromTranslate(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        selectedSheetDraggingRef.current = false;
+        if (!selectedSheetCollapsedTranslate) return;
+        const current = selectedSheetTranslateYRef.current;
+        const vy = g.vy;
+
+        const snapPoints = selectedSheetHasMinimizedSnap
+          ? [
+              selectedSheetExpandedTranslate,
+              selectedSheetCollapsedTranslate,
+              selectedSheetMinimizedTranslate,
+            ]
+          : [selectedSheetExpandedTranslate, selectedSheetCollapsedTranslate];
+
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+
+        if (vy <= -0.8) {
+          if (!selectedSheetHasMinimizedSnap) {
+            animateSelectedSheetTo(selectedSheetExpandedTranslate);
+            return;
+          }
+
+          const isAtPeek =
+            Math.abs(current - selectedSheetCollapsedTranslate) <= 14;
+          const isAtMin =
+            Math.abs(current - selectedSheetMinimizedTranslate) <= 18;
+
+          // Swipe-up: minimized -> peek -> expanded.
+          if (isAtMin || current > selectedSheetCollapsedTranslate) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek || current <= selectedSheetCollapsedTranslate) {
+            animateSelectedSheetTo(selectedSheetExpandedTranslate);
+            return;
+          }
+
+          animateSelectedSheetTo(nearest);
+          return;
+        }
+        if (vy >= 0.8) {
+          if (!selectedSheetHasMinimizedSnap) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          const isExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+          const isAtPeek =
+            Math.abs(current - selectedSheetCollapsedTranslate) <= 14;
+
+          if (isExpanded) {
+            animateSelectedSheetTo(selectedSheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek) {
+            animateSelectedSheetTo(selectedSheetMinimizedTranslate);
+            return;
+          }
+
+          const mid =
+            selectedSheetCollapsedTranslate +
+            (selectedSheetMinimizedTranslate -
+              selectedSheetCollapsedTranslate) /
+              2;
+          animateSelectedSheetTo(
+            current >= mid
+              ? selectedSheetMinimizedTranslate
+              : selectedSheetCollapsedTranslate,
+          );
+          return;
+        }
+
+        animateSelectedSheetTo(nearest);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {
+        selectedSheetDraggingRef.current = false;
+        if (!selectedSheetCollapsedTranslate) return;
+        const current = selectedSheetTranslateYRef.current;
+
+        const snapPoints = selectedSheetHasMinimizedSnap
+          ? [
+              selectedSheetExpandedTranslate,
+              selectedSheetCollapsedTranslate,
+              selectedSheetMinimizedTranslate,
+            ]
+          : [selectedSheetExpandedTranslate, selectedSheetCollapsedTranslate];
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+        animateSelectedSheetTo(nearest);
+      },
+    });
+  }, [
+    animateSelectedSheetTo,
+    selectedSheetCollapsedTranslate,
+    selectedSheetExpandedTranslate,
+    selectedSheetHasMinimizedSnap,
+    selectedSheetMinimizedTranslate,
+    selectedSheetTranslateY,
+    updateSelectedSheetModeFromTranslate,
+  ]);
+
+  // Bottom-sheet snap points (Google Maps style):
+  // - Peek: 40% visible (map remains visible behind)
+  // - Expanded: 95% height
+  const {
+    nearbySheetHeightPx,
+    nearbySheetExpandedTranslate,
+    nearbySheetCollapsedTranslate,
+    nearbySheetChipsOnlyTranslate,
+    nearbySheetHasChipsOnlySnap,
+  } = useMemo(() => {
+    const h = dimensions.height || Dimensions.get("window").height;
+    const sheetHeightPx = Math.round(h * 0.95);
+    const peekVisiblePx = Math.round(h * 0.4);
+    const collapsedTranslate = Math.max(0, sheetHeightPx - peekVisiblePx);
+
+    // Expanded should not cover the search bar/top overlay.
+    // translateY moves the sheet DOWN (larger = lower). Sheet top is:
+    //   top = h - sheetHeightPx + translateY
+    // So to keep the top below the overlay bottom:
+    //   translateY >= overlayBottom + margin - (h - sheetHeightPx)
+    const overlayMargin = 10;
+    const minTop = Math.max(0, topOverlayBottomY + overlayMargin);
+    const baseTop = h - sheetHeightPx;
+    const expandedTranslate = clamp(minTop - baseTop, 0, collapsedTranslate);
+
+    // Chips-only: show just the drag handle + filter chips row.
+    // We measure these heights via onLayout; fall back to a reasonable minimum.
+    const dragH = nearbyDragZoneHeight || 24;
+    const chipsH = nearbyFilterRowHeight || 56;
+    // Extra space keeps chips comfortably visible and avoids bottom cut-off
+    // (home indicator / gesture bar area on some phones).
+    const chipsOnlyVisiblePx = Math.max(140, Math.round(dragH + chipsH + 64));
+    const chipsOnlyTranslateRaw = Math.max(
+      0,
+      sheetHeightPx - chipsOnlyVisiblePx,
+    );
+    const chipsOnlyTranslate = Math.max(
+      collapsedTranslate,
+      chipsOnlyTranslateRaw,
+    );
+    const hasChipsOnlySnap = chipsOnlyTranslate > collapsedTranslate + 4;
+
+    return {
+      nearbySheetHeightPx: sheetHeightPx,
+      nearbySheetExpandedTranslate: expandedTranslate,
+      nearbySheetCollapsedTranslate: collapsedTranslate,
+      nearbySheetChipsOnlyTranslate: chipsOnlyTranslate,
+      nearbySheetHasChipsOnlySnap: hasChipsOnlySnap,
+    };
+  }, [
+    dimensions.height,
+    nearbyDragZoneHeight,
+    nearbyFilterRowHeight,
+    topOverlayBottomY,
+  ]);
+
+  const updateNearbySheetModeFromTranslate = useCallback(
+    (translateY: number) => {
+      const isExpanded = translateY <= nearbySheetExpandedTranslate + 0.5;
+      const isChipsOnly =
+        nearbySheetHasChipsOnlySnap &&
+        translateY >= nearbySheetChipsOnlyTranslate - 8;
+
+      if (nearbySheetExpandedRef.current !== isExpanded) {
+        nearbySheetExpandedRef.current = isExpanded;
+        setNearbySheetExpanded(isExpanded);
+      }
+
+      if (nearbySheetChipsOnlyRef.current !== isChipsOnly) {
+        nearbySheetChipsOnlyRef.current = isChipsOnly;
+        setNearbySheetChipsOnly(isChipsOnly);
+      }
+    },
+    [
+      nearbySheetChipsOnlyTranslate,
+      nearbySheetExpandedTranslate,
+      nearbySheetHasChipsOnlySnap,
+    ],
+  );
+
+  const animateNearbySheetTo = useCallback(
+    (toValue: number) => {
+      // Update UI immediately so content doesn't "appear late" after snapping.
+      updateNearbySheetModeFromTranslate(toValue);
+      Animated.timing(nearbySheetTranslateY, {
+        toValue,
+        duration: 300,
+        easing: Easing.bezier(0.4, 0.0, 0.2, 1.0),
+        useNativeDriver: true,
+      }).start(() => {
+        nearbySheetTranslateYRef.current = toValue;
+        updateNearbySheetModeFromTranslate(toValue);
+      });
+    },
+    [nearbySheetTranslateY, updateNearbySheetModeFromTranslate],
+  );
+
+  const nearbySheetPanResponder = useMemo(() => {
+    const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
+      const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
+      if (!vertical) return false;
+
+      const isExpanded =
+        nearbySheetTranslateYRef.current <= nearbySheetExpandedTranslate + 0.5;
+      if (!isExpanded) return true;
+
+      // When expanded, allow collapsing only if the list is already at the top
+      // and the user is pulling down.
+      const listAtTop = nearbyListScrollYRef.current <= 0;
+      return listAtTop && g.dy > 0;
+    };
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: shouldSet,
+      onMoveShouldSetPanResponderCapture: shouldSet,
+      onPanResponderGrant: () => {
+        nearbySheetDraggingRef.current = true;
+        nearbySheetPanStartRef.current = nearbySheetTranslateYRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        if (!nearbySheetCollapsedTranslate) return;
+        const next = clamp(
+          nearbySheetPanStartRef.current + g.dy,
+          nearbySheetExpandedTranslate,
+          nearbySheetHasChipsOnlySnap
+            ? nearbySheetChipsOnlyTranslate
+            : nearbySheetCollapsedTranslate,
+        );
+        nearbySheetTranslateY.setValue(next);
+        nearbySheetTranslateYRef.current = next;
+
+        // Keep the content visibility in sync while dragging.
+        updateNearbySheetModeFromTranslate(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        nearbySheetDraggingRef.current = false;
+        if (!nearbySheetCollapsedTranslate) return;
+
+        const current = nearbySheetTranslateYRef.current;
+        const vy = g.vy;
+
+        const snapPoints = nearbySheetHasChipsOnlySnap
+          ? [
+              nearbySheetExpandedTranslate,
+              nearbySheetCollapsedTranslate,
+              nearbySheetChipsOnlyTranslate,
+            ]
+          : [nearbySheetExpandedTranslate, nearbySheetCollapsedTranslate];
+
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+
+        if (vy <= -0.8) {
+          if (!nearbySheetHasChipsOnlySnap) {
+            animateNearbySheetTo(nearbySheetExpandedTranslate);
+            return;
+          }
+
+          const isAtPeek =
+            Math.abs(current - nearbySheetCollapsedTranslate) <= 14;
+          const isAtChipsOnly =
+            Math.abs(current - nearbySheetChipsOnlyTranslate) <= 18;
+
+          // Swipe-up should not "over-scroll":
+          // chips-only -> Peek -> Expanded.
+          if (isAtChipsOnly || current > nearbySheetCollapsedTranslate) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          if (isAtPeek || current <= nearbySheetCollapsedTranslate) {
+            animateNearbySheetTo(nearbySheetExpandedTranslate);
+            return;
+          }
+
+          animateNearbySheetTo(nearest);
+          return;
+        }
+
+        if (vy >= 0.8) {
+          if (!nearbySheetHasChipsOnlySnap) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          const isExpanded = current <= nearbySheetExpandedTranslate + 0.5;
+          const isAtPeek =
+            Math.abs(current - nearbySheetCollapsedTranslate) <= 14;
+
+          // First swipe-down from Expanded -> Peek.
+          if (isExpanded) {
+            animateNearbySheetTo(nearbySheetCollapsedTranslate);
+            return;
+          }
+
+          // Second swipe-down from Peek -> Chips-only.
+          if (isAtPeek) {
+            animateNearbySheetTo(nearbySheetChipsOnlyTranslate);
+            return;
+          }
+
+          // Otherwise, snap toward the nearer downward stop.
+          const mid =
+            nearbySheetCollapsedTranslate +
+            (nearbySheetChipsOnlyTranslate - nearbySheetCollapsedTranslate) / 2;
+          animateNearbySheetTo(
+            current >= mid
+              ? nearbySheetChipsOnlyTranslate
+              : nearbySheetCollapsedTranslate,
+          );
+          return;
+        }
+
+        animateNearbySheetTo(nearest);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {
+        nearbySheetDraggingRef.current = false;
+        // Snap back to the nearest position if the gesture is interrupted.
+        if (!nearbySheetCollapsedTranslate) return;
+        const current = nearbySheetTranslateYRef.current;
+        const snapPoints = nearbySheetHasChipsOnlySnap
+          ? [
+              nearbySheetExpandedTranslate,
+              nearbySheetCollapsedTranslate,
+              nearbySheetChipsOnlyTranslate,
+            ]
+          : [nearbySheetExpandedTranslate, nearbySheetCollapsedTranslate];
+        const nearest = snapPoints.reduce(
+          (best, p) =>
+            Math.abs(p - current) < Math.abs(best - current) ? p : best,
+          snapPoints[0],
+        );
+        animateNearbySheetTo(nearest);
+      },
+    });
+  }, [
+    animateNearbySheetTo,
+    nearbySheetExpandedTranslate,
+    nearbySheetCollapsedTranslate,
+    nearbySheetChipsOnlyTranslate,
+    nearbySheetHasChipsOnlySnap,
+    nearbySheetTranslateY,
+    updateNearbySheetModeFromTranslate,
+  ]);
+
+  // If the expanded snap point changes (e.g., after measuring the search bar),
+  // keep the sheet from overlapping the top overlay.
+  useEffect(() => {
+    const visible = !selectedPlace && nearbyPlaces.length > 0;
+    if (!visible) return;
+    if (nearbySheetDraggingRef.current) return;
+
+    const current = nearbySheetTranslateYRef.current;
+    const isAtExpanded = current <= nearbySheetExpandedTranslate + 0.5;
+    const delta = Math.abs(current - nearbySheetExpandedTranslate);
+    if (isAtExpanded && delta > 2) {
+      animateNearbySheetTo(nearbySheetExpandedTranslate);
+    }
+  }, [
+    animateNearbySheetTo,
+    nearbyPlaces.length,
+    nearbySheetExpandedTranslate,
+    selectedPlace,
+  ]);
+
+  // Reset to expanded when the sheet becomes visible.
+  useEffect(() => {
+    const visible = !selectedPlace && nearbyPlaces.length > 0;
+    if (visible && !wasNearbySheetVisibleRef.current) {
+      // Default to collapsed (same feel as before); user can drag up to expand.
+      nearbySheetTranslateY.setValue(nearbySheetCollapsedTranslate);
+      nearbySheetTranslateYRef.current = nearbySheetCollapsedTranslate;
+      setNearbySheetExpanded(false);
+      setNearbySheetChipsOnly(false);
+      nearbySheetExpandedRef.current = false;
+      nearbySheetChipsOnlyRef.current = false;
+    }
+    wasNearbySheetVisibleRef.current = visible;
+  }, [
+    selectedPlace,
+    nearbyPlaces.length,
+    nearbySheetTranslateY,
+    nearbySheetCollapsedTranslate,
+  ]);
+
+  // Keep the selected-place sheet from overlapping the top overlay.
+  useEffect(() => {
+    const visible = !!selectedPlace;
+    if (!visible) return;
+    if (selectedSheetDraggingRef.current) return;
+
+    const current = selectedSheetTranslateYRef.current;
+    const isAtExpanded = current <= selectedSheetExpandedTranslate + 0.5;
+    const delta = Math.abs(current - selectedSheetExpandedTranslate);
+    if (isAtExpanded && delta > 2) {
+      animateSelectedSheetTo(selectedSheetExpandedTranslate);
+    }
+  }, [animateSelectedSheetTo, selectedPlace, selectedSheetExpandedTranslate]);
+
+  // Reset to collapsed when a place sheet becomes visible.
+  useEffect(() => {
+    const visible = !!selectedPlace;
+    if (visible && !wasSelectedSheetVisibleRef.current) {
+      selectedSheetTranslateY.setValue(selectedSheetCollapsedTranslate);
+      selectedSheetTranslateYRef.current = selectedSheetCollapsedTranslate;
+      setSelectedSheetExpanded(false);
+      selectedSheetExpandedRef.current = false;
+      setSelectedSheetMinimized(false);
+    }
+    wasSelectedSheetVisibleRef.current = visible;
+  }, [selectedPlace, selectedSheetTranslateY, selectedSheetCollapsedTranslate]);
 
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
@@ -87,6 +884,37 @@ export default function MapScreen() {
   } | null>(null);
 
   const lastOpenedPlaceIdRef = useRef<string | null>(null);
+
+  // Search History State
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<
+    Array<{
+      query: string;
+      timestamp: number;
+      placeId?: string;
+      address?: string;
+      isOpen?: boolean;
+    }>
+  >([]);
+
+  // Voice Search State
+  const [isListening, setIsListening] = useState(false);
+
+  const getPoiKeyForPlace = (p: NearbyPlace): string | null => {
+    if (activePoiKey) return activePoiKey;
+    const types = Array.isArray(p.types) ? p.types : [];
+    if (types.includes("police")) return "police";
+    if (types.includes("hospital")) return "hospital";
+    if (types.includes("pharmacy")) return "pharmacy";
+    return null;
+  };
+
+  const getPoiMarkerIcon = (p: NearbyPlace) => {
+    const key = getPoiKeyForPlace(p);
+    if (!key) return null;
+    const cat = POI_CATEGORIES.find((c) => c.key === key);
+    return cat?.icon ?? null;
+  };
 
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
@@ -147,6 +975,144 @@ export default function MapScreen() {
     }
   };
 
+  // Search History Functions
+  const loadSearchHistory = async () => {
+    try {
+      const history = await AsyncStorage.getItem("mapSearchHistory");
+      if (history) {
+        setSearchHistory(JSON.parse(history));
+      }
+    } catch (error) {
+      console.error("Error loading search history:", error);
+    }
+  };
+
+  const saveSearchToHistory = async (
+    searchQuery: string,
+    place?: PlaceDetails,
+  ) => {
+    try {
+      const newEntry = {
+        query: searchQuery,
+        timestamp: Date.now(),
+        placeId: place?.placeId,
+        address: place?.address,
+        isOpen: place?.isOpenNow,
+      };
+
+      const updatedHistory = [
+        newEntry,
+        ...searchHistory.filter(
+          (item) => item.query.toLowerCase() !== searchQuery.toLowerCase(),
+        ),
+      ].slice(0, 50); // Keep last 50 searches
+
+      setSearchHistory(updatedHistory);
+      await AsyncStorage.setItem(
+        "mapSearchHistory",
+        JSON.stringify(updatedHistory),
+      );
+    } catch (error) {
+      console.error("Error saving search history:", error);
+    }
+  };
+
+  const clearSearchHistory = async () => {
+    try {
+      setSearchHistory([]);
+      await AsyncStorage.removeItem("mapSearchHistory");
+    } catch (error) {
+      console.error("Error clearing search history:", error);
+    }
+  };
+
+  const categorizeSearchHistory = () => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const oneWeek = 7 * oneDay;
+
+    const today: typeof searchHistory = [];
+    const yesterday: typeof searchHistory = [];
+    const thisWeek: typeof searchHistory = [];
+    const lastWeek: typeof searchHistory = [];
+    const older: typeof searchHistory = [];
+
+    searchHistory.forEach((item) => {
+      const diff = now - item.timestamp;
+
+      if (diff < oneDay) {
+        today.push(item);
+      } else if (diff < 2 * oneDay) {
+        yesterday.push(item);
+      } else if (diff < oneWeek) {
+        thisWeek.push(item);
+      } else if (diff < 2 * oneWeek) {
+        lastWeek.push(item);
+      } else {
+        older.push(item);
+      }
+    });
+
+    return { today, yesterday, thisWeek, lastWeek, older };
+  };
+
+  // Voice Search Handler
+  const handleVoiceSearch = async () => {
+    if (Platform.OS === "web") {
+      // Web Speech API implementation
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        Alert.alert(
+          "Not Supported",
+          "Voice search is not supported in this browser. Please use Chrome, Edge, or Safari.",
+        );
+        return;
+      }
+
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.start();
+      } catch (error) {
+        console.error("Error starting voice recognition:", error);
+        setIsListening(false);
+      }
+    } else {
+      // Mobile voice search - requires native rebuild
+      Alert.alert(
+        "Voice Search",
+        "Voice search is currently available on web only. Mobile voice search requires the app to be rebuilt with native modules.",
+        [{ text: "OK" }],
+      );
+    }
+  };
+
+  useEffect(() => {
+    void loadSearchHistory();
+  }, []);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (showSearchHistory) {
+          console.log("Hardware back button pressed - closing modal");
+          setShowSearchHistory(false);
+          return true; // Prevent default behavior
+        }
+        return false; // Let default behavior happen
+      },
+    );
+
+    return () => backHandler.remove();
+  }, [showSearchHistory]);
+  //get the current location through the expo location(this location then we use to show the user's poistion on the map and to search for nearby places)
   useEffect(() => {
     (async () => {
       try {
@@ -188,6 +1154,15 @@ export default function MapScreen() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    // Handle dimension changes (device rotation, split screen, etc.)
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
   }, []);
 
   useEffect(() => {
@@ -300,6 +1275,15 @@ export default function MapScreen() {
   }, [query, mapRegion.latitude, mapRegion.longitude]);
 
   const recenter = () => {
+    // Recenter should not leave the search UI focused (which can feel like the
+    // map can't be panned/zoomed because overlays/keyboard steal gestures).
+    setInputFocused(false);
+    setSuggestions([]);
+    Keyboard.dismiss();
+
+    // Defensive: ensure we aren't in any implicit follow mode.
+    setFollowUser(false);
+
     const nextRegion: Region = {
       latitude: displayCenter.latitude,
       longitude: displayCenter.longitude,
@@ -310,19 +1294,25 @@ export default function MapScreen() {
     mapRef.current?.animateToRegion(nextRegion, 450);
   };
 
-  const formatCount = (n?: number) => {
-    if (typeof n !== "number") return "";
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
+  const openAddReview = async (placeId: string) => {
+    const url = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
+      placeId,
+    )}`;
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      console.error("[Add review] openURL failed", url, e);
+    }
   };
 
   const selectPlaceById = async (
     placeId: string,
     fallback?: PlaceDetails,
   ): Promise<PlaceDetails | null> => {
+    console.log("[selectPlaceById] Starting with placeId:", placeId);
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) {
+      console.error("[selectPlaceById] No API key available");
       if (fallback) setSelectedPlace(fallback);
       return fallback || null;
     }
@@ -332,18 +1322,24 @@ export default function MapScreen() {
     setPlaceError(null);
     setPlaceLoading(true);
     try {
+      console.log("[selectPlaceById] Fetching place details...");
       const details = await getPlaceDetails(placeId);
+      console.log(
+        "[selectPlaceById] Details received:",
+        details ? details.name : "null",
+      );
       if (!details) {
-        setPlaceError(
-          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.",
-        );
+        const errorMsg =
+          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
+        console.error("[selectPlaceById]", errorMsg);
+        setPlaceError(errorMsg);
       } else {
         setSelectedPlace(details);
       }
       setRoute(null);
       return details || fallback || null;
     } catch (e) {
-      console.error("selectPlaceById error:", e);
+      console.error("[selectPlaceById] error:", e);
       setPlaceError("Unexpected error while loading place details.");
       return fallback || null;
     } finally {
@@ -352,6 +1348,7 @@ export default function MapScreen() {
   };
 
   const moveToPlace = (p: { latitude: number; longitude: number }) => {
+    console.log("[moveToPlace] Moving map to:", p.latitude, p.longitude);
     const nextRegion: Region = {
       latitude: p.latitude,
       longitude: p.longitude,
@@ -431,6 +1428,226 @@ export default function MapScreen() {
     }
     return key;
   };
+
+  useEffect(() => {
+    // Hydrate "open now" status so cards can show Open/Closed.
+    // We do this when the Open-now filter is enabled OR when a POI category list
+    // is visible (activePoiKey), so every card can be labeled.
+    if (!filterOpenNow && !activePoiKey) return;
+    if (!nearbyPlaces.length) return;
+
+    const pending = nearbyPlaces.filter((p) => {
+      if (attemptedOpenNowRef.current.has(p.placeId)) return false;
+      const needsOpenNow = typeof p.isOpenNow !== "boolean";
+      const needsNextOpen =
+        p.isOpenNow === false && typeof p.nextOpenTimeText !== "string";
+      return needsOpenNow || needsNextOpen;
+    });
+
+    if (!pending.length) return;
+
+    // Mark as attempted immediately to avoid duplicate requests if state changes mid-flight.
+    for (const p of pending) attemptedOpenNowRef.current.add(p.placeId);
+
+    let cancelled = false;
+    setOpenNowHydrating(true);
+
+    void (async () => {
+      const results = new Map<
+        string,
+        {
+          isOpenNow?: boolean;
+          nextOpenTimeText?: string;
+        }
+      >();
+      const batchSize = 6;
+
+      for (let i = 0; i < pending.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = pending.slice(i, i + batchSize);
+
+        const settled = await Promise.all(
+          batch.map(async (p) => {
+            try {
+              const details = await getPlaceDetails(p.placeId);
+              if (!details) return null;
+
+              const patch: {
+                placeId: string;
+                isOpenNow?: boolean;
+                nextOpenTimeText?: string;
+              } = { placeId: p.placeId };
+
+              if (typeof details.isOpenNow === "boolean") {
+                patch.isOpenNow = details.isOpenNow;
+              }
+              if (typeof details.nextOpenTimeText === "string") {
+                patch.nextOpenTimeText = details.nextOpenTimeText;
+              }
+
+              return patch.isOpenNow !== undefined ||
+                patch.nextOpenTimeText !== undefined
+                ? patch
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        for (const item of settled) {
+          if (item)
+            results.set(item.placeId, {
+              isOpenNow: item.isOpenNow,
+              nextOpenTimeText: item.nextOpenTimeText,
+            });
+        }
+      }
+
+      if (cancelled) return;
+
+      if (results.size) {
+        setNearbyPlaces((prev) =>
+          prev.map((p) => {
+            const v = results.get(p.placeId);
+            if (!v) return p;
+            return {
+              ...p,
+              ...(typeof v.isOpenNow === "boolean"
+                ? { isOpenNow: v.isOpenNow }
+                : {}),
+              ...(typeof v.nextOpenTimeText === "string"
+                ? { nextOpenTimeText: v.nextOpenTimeText }
+                : {}),
+            };
+          }),
+        );
+      }
+    })().finally(() => {
+      if (!cancelled) setOpenNowHydrating(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterOpenNow, activePoiKey, nearbyPlaces]);
+
+  useEffect(() => {
+    if (!filterWheelchair) return;
+    if (!nearbyPlaces.length) return;
+
+    const pending = nearbyPlaces.filter(
+      (p) =>
+        typeof p.wheelchairAccessibleEntrance !== "boolean" &&
+        !attemptedWheelchairRef.current.has(p.placeId),
+    );
+
+    if (!pending.length) return;
+
+    // Mark as attempted immediately to avoid duplicate requests if state changes mid-flight.
+    for (const p of pending) attemptedWheelchairRef.current.add(p.placeId);
+
+    let cancelled = false;
+    setWheelchairHydrating(true);
+
+    void (async () => {
+      const results = new Map<string, boolean>();
+      const batchSize = 6;
+
+      for (let i = 0; i < pending.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = pending.slice(i, i + batchSize);
+
+        const settled = await Promise.all(
+          batch.map(async (p) => {
+            try {
+              const details = await getPlaceDetails(p.placeId);
+              return typeof details?.wheelchairAccessibleEntrance === "boolean"
+                ? {
+                    placeId: p.placeId,
+                    wheelchairAccessibleEntrance:
+                      details.wheelchairAccessibleEntrance,
+                  }
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        for (const item of settled) {
+          if (item)
+            results.set(item.placeId, item.wheelchairAccessibleEntrance);
+        }
+      }
+
+      if (cancelled) return;
+
+      if (results.size) {
+        setNearbyPlaces((prev) =>
+          prev.map((p) => {
+            const v = results.get(p.placeId);
+            return typeof v === "boolean"
+              ? { ...p, wheelchairAccessibleEntrance: v }
+              : p;
+          }),
+        );
+      }
+    })().finally(() => {
+      if (!cancelled) setWheelchairHydrating(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterWheelchair, nearbyPlaces]);
+
+  const filteredNearbyPlaces = useMemo(() => {
+    let list = [...nearbyPlaces];
+
+    if (filterOpenNow) {
+      // Keep only places we know are open right now.
+      list = list.filter((p) => p.isOpenNow === true);
+    }
+
+    if (filterWheelchair && !wheelchairHydrating) {
+      // Keep only places we know have a wheelchair-accessible entrance.
+      list = list.filter((p) => p.wheelchairAccessibleEntrance === true);
+    }
+
+    if (sortMode === "distance") {
+      const base = hasLocation
+        ? coords
+        : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
+      list.sort((a, b) => {
+        const da = distanceMeters(base, {
+          latitude: a.latitude,
+          longitude: a.longitude,
+        });
+        const db = distanceMeters(base, {
+          latitude: b.latitude,
+          longitude: b.longitude,
+        });
+
+        const aVal = Number.isFinite(da) ? da : Number.POSITIVE_INFINITY;
+        const bVal = Number.isFinite(db) ? db : Number.POSITIVE_INFINITY;
+        if (aVal !== bVal) return aVal - bVal;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    return list;
+  }, [
+    nearbyPlaces,
+    filterOpenNow,
+    filterWheelchair,
+    wheelchairHydrating,
+    sortMode,
+    hasLocation,
+    coords,
+    mapRegion,
+  ]);
 
   const decodePolyline = (encoded: string): LatLng[] => {
     let index = 0;
@@ -523,26 +1740,54 @@ export default function MapScreen() {
   };
 
   const POI_CATEGORIES = [
-    { key: "police", label: "Police", keyword: "police station" },
-    { key: "hospital", label: "Hospitals", keyword: "hospital" },
-    { key: "pharmacy", label: "Pharmacies", keyword: "pharmacy" },
-    { key: "fuel", label: "Fuel", keyword: "gas station" },
+    {
+      key: "police",
+      label: "Police Stations",
+      keyword: "police",
+      icon: icons.police,
+    },
+    {
+      key: "hospital",
+      label: "Hospitals",
+      keyword: "hospital",
+      icon: icons.hospital,
+    },
+    {
+      key: "pharmacy",
+      label: "Pharmacies",
+      keyword: "pharmacy",
+      icon: icons.pharmacy,
+    },
   ] as const;
 
   const loadPoiCategory = async (key: string, keyword: string) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
 
+    const base = hasLocation
+      ? coords
+      : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
+    // Reset filters whenever a new tab/category is chosen
+    setFilterOpenNow(false);
+    setFilterWheelchair(false);
+    setSortMode("default");
+
+    attemptedOpenNowRef.current.clear();
+    attemptedWheelchairRef.current.clear();
+
     setActivePoiKey(key);
     setPoiLoading(true);
     try {
       const list = await searchNearbyPlaces(
-        mapRegion.latitude,
-        mapRegion.longitude,
+        base.latitude,
+        base.longitude,
         keyword,
+        20,
       );
 
-      setNearbyPlaces(list);
+      setNearbyPlaces(shuffleArray(list));
+      // Reset any previously selected place/route so we can show the nearby list
       setSelectedPlace(null);
       setRoute(null);
 
@@ -565,6 +1810,65 @@ export default function MapScreen() {
     }
   };
 
+  const toggleOpenNow = () => {
+    const apiKey = ensureGoogleApiKey();
+    if (!apiKey) return;
+
+    const base = hasLocation
+      ? coords
+      : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+
+    const next = !filterOpenNow;
+    setFilterOpenNow(next);
+
+    // Only the bottom-sheet POI list needs this behavior.
+    if (!activePoiKey) return;
+    const cat = POI_CATEGORIES.find((c) => c.key === activePoiKey);
+    if (!cat) return;
+
+    // Re-query using Places' built-in open-now filter for reliability.
+    attemptedOpenNowRef.current.clear();
+
+    setOpenNowHydrating(true);
+    setPoiLoading(true);
+    void (async () => {
+      try {
+        const list = await searchNearbyPlaces(
+          base.latitude,
+          base.longitude,
+          cat.keyword,
+          20,
+          { openNow: next },
+        );
+        setNearbyPlaces(shuffleArray(list));
+        setSelectedPlace(null);
+        setRoute(null);
+      } catch (e) {
+        console.error(e);
+        Alert.alert("Error", "Could not apply Open now filter.");
+      } finally {
+        setPoiLoading(false);
+        setOpenNowHydrating(false);
+      }
+    })();
+  };
+
+  const toggleWheelchair = () => {
+    const next = !filterWheelchair;
+    setFilterWheelchair(next);
+
+    if (!next) {
+      setWheelchairHydrating(false);
+      return;
+    }
+
+    // Allow re-trying details hydration when the user toggles the filter on.
+    attemptedWheelchairRef.current.clear();
+
+    // Prevent the list from instantly going empty while we fetch details.
+    setWheelchairHydrating(true);
+  };
+
   const onPickSuggestion = async (s: PlaceSuggestion) => {
     setQuery(s.description);
     setSuggestions([]);
@@ -585,6 +1889,9 @@ export default function MapScreen() {
       return;
     }
 
+    // Save to search history
+    await saveSearchToHistory(s.description, details);
+
     setNearbyPlaces([]);
     setActivePoiKey(null);
     moveToPlace(details);
@@ -594,22 +1901,54 @@ export default function MapScreen() {
     const raw = params?.placeId;
     const placeId = Array.isArray(raw) ? raw[0] : raw;
     if (!placeId) return;
-    if (lastOpenedPlaceIdRef.current === placeId) return;
+
+    console.log("[Map useEffect] Received placeId:", placeId);
+
+    // Allow re-opening if timestamp parameter is present
+    const hasTimestamp = params?.t;
+    if (!hasTimestamp && lastOpenedPlaceIdRef.current === placeId) {
+      console.log("[Map useEffect] Skipping - same placeId without timestamp");
+      return;
+    }
 
     lastOpenedPlaceIdRef.current = placeId;
+
+    // Reset state to ensure fresh load
+    console.log("[Map useEffect] Resetting state and loading place details");
+    setSelectedPlace(null);
+    setRoute(null);
     setInputFocused(false);
     Keyboard.dismiss();
     setSuggestions([]);
+    setNearbyPlaces([]);
+    setActivePoiKey(null);
 
     void (async () => {
-      const details = await selectPlaceById(placeId);
-      if (details) {
-        setNearbyPlaces([]);
-        setActivePoiKey(null);
-        moveToPlace(details);
+      try {
+        console.log("[Map useEffect] Calling selectPlaceById...");
+        const details = await selectPlaceById(placeId);
+        if (details) {
+          console.log(
+            "[Map useEffect] Place details loaded successfully:",
+            details.name,
+          );
+          moveToPlace(details);
+        } else {
+          console.error("[Map useEffect] No place details returned");
+          Alert.alert(
+            "Place Not Found",
+            "Could not load details for this location. Please try again.",
+          );
+        }
+      } catch (error) {
+        console.error("[Map useEffect] Error loading place:", error);
+        Alert.alert(
+          "Error",
+          "Failed to load place details. Please check your internet connection.",
+        );
       }
     })();
-  }, [params?.placeId]);
+  }, [params?.placeId, params?.t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -618,10 +1957,28 @@ export default function MapScreen() {
           ref={(ref) => {
             mapRef.current = ref;
           }}
-          style={styles.map}
+          style={[
+            styles.map,
+            { width: dimensions.width, height: dimensions.height },
+          ]}
+          userInterfaceStyle={isDark ? "dark" : "light"}
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
-          onRegionChangeComplete={(r) => setMapRegion(r)}
+          onRegionChangeComplete={(
+            r,
+            details?: { isGesture?: boolean } | undefined,
+          ) => {
+            setMapRegion(r);
+
+            // If the user manually pans/zooms, stop following/recentering.
+            if (details?.isGesture) {
+              setFollowUser(false);
+            }
+          }}
+          onPanDrag={() => {
+            // Some platforms don't populate `details.isGesture`.
+            setFollowUser(false);
+          }}
           showsUserLocation={hasLocation}
           showsMyLocationButton={Platform.OS === "android"}
           showsCompass
@@ -631,6 +1988,10 @@ export default function MapScreen() {
           pitchEnabled
           zoomEnabled
           scrollEnabled
+          minZoomLevel={3}
+          maxZoomLevel={20}
+          zoomControlEnabled={true}
+          zoomTapEnabled={true}
           onPress={(e) => {
             // Make single-tap feel like Google Maps: try to open nearest place.
             // (Especially useful on iOS where POI taps don't provide a placeId.)
@@ -745,46 +2106,64 @@ export default function MapScreen() {
             />
           )}
 
-          {nearbyPlaces.map((p) => (
-            <Marker
-              key={p.placeId}
-              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-              title={p.name}
-              description={p.vicinity}
-              onPress={() => {
-                const fallback: PlaceDetails = {
-                  placeId: p.placeId,
-                  name: p.name,
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  address: p.vicinity,
-                  rating: p.rating,
-                  userRatingsTotal: p.userRatingsTotal,
-                  types: p.types,
-                };
-                void (async () => {
-                  const details = await selectPlaceById(p.placeId, fallback);
-                  if (details) moveToPlace(details);
-                })();
-              }}
-              onCalloutPress={() => {
-                const fallback: PlaceDetails = {
-                  placeId: p.placeId,
-                  name: p.name,
-                  latitude: p.latitude,
-                  longitude: p.longitude,
-                  address: p.vicinity,
-                  rating: p.rating,
-                  userRatingsTotal: p.userRatingsTotal,
-                  types: p.types,
-                };
-                void (async () => {
-                  const details = await selectPlaceById(p.placeId, fallback);
-                  if (details) moveToPlace(details);
-                })();
-              }}
-            />
-          ))}
+          {nearbyPlaces.map((p) =>
+            (() => {
+              const IconComponent = getPoiMarkerIcon(p);
+              return (
+                <Marker
+                  key={p.placeId}
+                  coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+                  title={p.name}
+                  description={p.vicinity}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  onPress={() => {
+                    const fallback: PlaceDetails = {
+                      placeId: p.placeId,
+                      name: p.name,
+                      latitude: p.latitude,
+                      longitude: p.longitude,
+                      address: p.vicinity,
+                      rating: p.rating,
+                      userRatingsTotal: p.userRatingsTotal,
+                      types: p.types,
+                    };
+                    void (async () => {
+                      const details = await selectPlaceById(
+                        p.placeId,
+                        fallback,
+                      );
+                      if (details) moveToPlace(details);
+                    })();
+                  }}
+                  onCalloutPress={() => {
+                    const fallback: PlaceDetails = {
+                      placeId: p.placeId,
+                      name: p.name,
+                      latitude: p.latitude,
+                      longitude: p.longitude,
+                      address: p.vicinity,
+                      rating: p.rating,
+                      userRatingsTotal: p.userRatingsTotal,
+                      types: p.types,
+                    };
+                    void (async () => {
+                      const details = await selectPlaceById(
+                        p.placeId,
+                        fallback,
+                      );
+                      if (details) moveToPlace(details);
+                    })();
+                  }}
+                >
+                  <View style={styles.poiMarker}>
+                    {IconComponent ? (
+                      <IconComponent width={18} height={18} fill="#E11D48" />
+                    ) : null}
+                  </View>
+                </Marker>
+              );
+            })(),
+          )}
 
           {route?.polyline?.length ? (
             <Polyline
@@ -795,50 +2174,46 @@ export default function MapScreen() {
           ) : null}
         </MapView>
 
-        <View style={styles.searchWrap}>
+        <View
+          style={styles.searchWrap}
+          onLayout={(e) => {
+            const { y, height } = e.nativeEvent.layout;
+            setTopOverlayBottomY(y + height);
+          }}
+        >
           <View style={styles.searchRow}>
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search places"
-              placeholderTextColor="rgba(0,0,0,0.45)"
-              style={styles.searchInput}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
-              onSubmitEditing={() => {
-                if (suggestions.length) {
-                  void onPickSuggestion(suggestions[0]);
-                }
-              }}
-            />
-            <TouchableOpacity
-              style={styles.recenterButton}
-              onPress={recenter}
-              disabled={loading}
-            >
-              <Text style={styles.recenterText}>◎</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.recenterButton, followUser && styles.toggleActive]}
-              onPress={() => setFollowUser((v) => !v)}
-              disabled={locationDenied}
-            >
-              <Text style={styles.recenterText}>F</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
+            <View
               style={[
-                styles.recenterButton,
-                trafficEnabled && styles.toggleActive,
+                styles.searchInputContainer,
+                inputFocused && styles.searchInputFocused,
               ]}
-              onPress={() => setTrafficEnabled((v) => !v)}
             >
-              <Text style={styles.recenterText}>T</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clockButton}
+                onPress={() => setShowSearchHistory(true)}
+              >
+                <Ionicons name="time-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search places"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={styles.searchInput}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                onFocus={() => setInputFocused(true)}
+              />
+              <TouchableOpacity
+                onPress={recenter}
+                onPressIn={() => setRecenterPressed(true)}
+                onPressOut={() => setRecenterPressed(false)}
+                disabled={loading}
+              >
+                <Text style={styles.recenterText}>◎</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView
@@ -848,6 +2223,7 @@ export default function MapScreen() {
           >
             {POI_CATEGORIES.map((c) => {
               const active = activePoiKey === c.key;
+              const IconComponent = c.icon;
               return (
                 <TouchableOpacity
                   key={c.key}
@@ -855,6 +2231,7 @@ export default function MapScreen() {
                   style={[styles.poiChip, active && styles.poiChipActive]}
                   disabled={poiLoading}
                 >
+                  <IconComponent width={18} height={18} fill="#5FC9F1" />
                   <Text
                     style={[
                       styles.poiChipText,
@@ -869,9 +2246,21 @@ export default function MapScreen() {
           </ScrollView>
 
           {inputFocused && (autoLoading || suggestions.length > 0) && (
-            <View style={styles.suggestions}>
+            <View
+              style={[
+                styles.suggestions,
+                isDark && { backgroundColor: "#031B2E" },
+              ]}
+            >
               {autoLoading && (
-                <Text style={styles.suggestionLoading}>Searching…</Text>
+                <Text
+                  style={[
+                    styles.suggestionLoading,
+                    isDark && { color: "rgba(255,255,255,0.9)" },
+                  ]}
+                >
+                  Searching…
+                </Text>
               )}
               <FlatList
                 keyboardShouldPersistTaps="handled"
@@ -879,10 +2268,21 @@ export default function MapScreen() {
                 keyExtractor={(item) => item.placeId}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.suggestionItem}
+                    style={[
+                      styles.suggestionItem,
+                      isDark && {
+                        borderTopColor: "rgba(255,255,255,0.2)",
+                      },
+                    ]}
                     onPress={() => onPickSuggestion(item)}
                   >
-                    <Text style={styles.suggestionText} numberOfLines={2}>
+                    <Text
+                      style={[
+                        styles.suggestionText,
+                        isDark && { color: "#fff" },
+                      ]}
+                      numberOfLines={2}
+                    >
                       {item.description}
                     </Text>
                   </TouchableOpacity>
@@ -893,198 +2293,814 @@ export default function MapScreen() {
         </View>
 
         {selectedPlace && (
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-
-            {(placeLoading || directionsLoading) && (
-              <View style={styles.sheetLoadingRow}>
-                <ActivityIndicator size="small" color="#2F6FED" />
-                <Text style={styles.sheetLoadingText}>
-                  {placeLoading ? "Loading details…" : "Loading route…"}
-                </Text>
-              </View>
-            )}
-
-            {placeError ? (
-              <Text style={styles.sheetErrorText}>{placeError}</Text>
-            ) : null}
-
-            {selectedPlace.photos?.length ? (
-              <FlatList
-                horizontal
-                data={selectedPlace.photos}
-                keyExtractor={(p) => p.photoReference}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.sheetPhotosRow}
-                renderItem={({ item }) => {
-                  const url = getPlacePhotoUrl(item.photoReference, 900);
-                  if (!url) return null;
-                  return (
-                    <ExpoImage
-                      source={{ uri: url }}
-                      style={styles.sheetPhoto}
-                      onError={(e) => {
-                        console.error("[Place Photo] load error:", url, e);
-                      }}
-                      contentFit="cover"
-                    />
-                  );
-                }}
+          <AnimatedBlurView
+            intensity={60}
+            tint={isDark ? "dark" : "light"}
+            style={[
+              styles.sheet,
+              isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
+              !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+              { height: selectedSheetHeightPx },
+              { transform: [{ translateY: selectedSheetTranslateY }] },
+            ]}
+          >
+            <View
+              style={{ flex: 1 }}
+              {...selectedSheetPanResponder.panHandlers}
+            >
+              <View
+                style={[
+                  styles.sheetHandle,
+                  isDark && { backgroundColor: "rgba(255,255,255,0.2)" },
+                ]}
               />
-            ) : (
-              <Text style={styles.sheetPhotosEmpty}>
-                No photos available for this place.
-              </Text>
-            )}
 
-            <View style={styles.sheetHeaderRow}>
-              <View style={styles.sheetHeaderIcon}>
-                <Feather
-                  name={
-                    getCategoryLabel(selectedPlace.types) === "Hospital"
-                      ? "plus"
-                      : getCategoryLabel(selectedPlace.types) === "Police"
-                        ? "shield"
-                        : "map-pin"
-                  }
-                  size={18}
-                  color="#0B253A"
-                />
-              </View>
+              {!selectedSheetMinimized && (
+                <View style={[styles.sheetInnerBox, { flex: 1 }]}>
+                  <ScrollView
+                    scrollEnabled={selectedSheetExpanded}
+                    showsVerticalScrollIndicator={false}
+                    onScroll={(e) => {
+                      selectedSheetScrollYRef.current =
+                        e.nativeEvent.contentOffset?.y ?? 0;
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    <View
+                      onLayout={(e) => {
+                        const h = e.nativeEvent.layout.height;
+                        if (typeof h === "number" && h > 0) {
+                          setSelectedSheetContentHeight(h);
+                        }
+                      }}
+                    >
+                      {(placeLoading || directionsLoading) && (
+                        <View style={styles.sheetLoadingRow}>
+                          <ActivityIndicator size="small" color="#2F6FED" />
+                          <Text
+                            style={[
+                              styles.sheetLoadingText,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                          >
+                            {placeLoading
+                              ? "Loading details…"
+                              : "Loading route…"}
+                          </Text>
+                        </View>
+                      )}
 
-              <View style={styles.sheetHeaderText}>
-                <Text style={styles.sheetTitle} numberOfLines={1}>
-                  {selectedPlace.name}
-                </Text>
+                      {placeError ? (
+                        <Text style={styles.sheetErrorText}>{placeError}</Text>
+                      ) : null}
 
-                <Text style={styles.sheetSubtitle} numberOfLines={1}>
-                  {getCategoryLabel(selectedPlace.types)}
-                  {hasLocation
-                    ? ` • ${formatDistance(
-                        distanceMeters(coords, {
-                          latitude: selectedPlace.latitude,
-                          longitude: selectedPlace.longitude,
-                        }),
-                      )} away`
-                    : ""}
-                </Text>
-              </View>
+                      <View style={styles.sheetHeaderRow}>
+                        <View style={styles.sheetHeaderText}>
+                          <Text
+                            style={[
+                              styles.sheetTitle,
+                              isDark && { color: "#FFFFFF" },
+                            ]}
+                          >
+                            {selectedPlace.name}
+                          </Text>
 
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedPlace(null);
-                  setRoute(null);
-                }}
-                style={styles.sheetClose}
-              >
-                <Feather name="x" size={18} color="#0B253A" />
-              </TouchableOpacity>
-            </View>
+                          <Text
+                            style={[
+                              styles.sheetSubtitle,
+                              isDark && { color: "rgba(255,255,255,0.7)" },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {(() => {
+                              const cat = getCategoryLabel(selectedPlace.types);
+                              const dist = hasLocation
+                                ? `${formatDistance(
+                                    distanceMeters(coords, {
+                                      latitude: selectedPlace.latitude,
+                                      longitude: selectedPlace.longitude,
+                                    }),
+                                  )} away`
+                                : "";
+                              if (cat && dist) return `${cat} • ${dist}`;
+                              return cat || dist;
+                            })()}
+                          </Text>
+                        </View>
 
-            {selectedPlace.address ? (
-              <Text style={styles.sheetAddress} numberOfLines={2}>
-                {selectedPlace.address}
-              </Text>
-            ) : null}
+                        <TouchableOpacity
+                          onPress={() => void sharePlace(selectedPlace)}
+                          style={[
+                            styles.sheetClose,
+                            isDark && {
+                              backgroundColor: "rgba(255,255,255,0.1)",
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="share-outline"
+                            size={20}
+                            color={isDark ? "#8FD3FF" : "#0B253A"}
+                          />
+                        </TouchableOpacity>
 
-            <View style={styles.sheetMetaRow}>
-              {typeof selectedPlace.rating === "number" ? (
-                <Text style={styles.sheetMetaPill}>
-                  ⭐ {selectedPlace.rating.toFixed(1)}
-                  {typeof selectedPlace.userRatingsTotal === "number"
-                    ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
-                    : ""}
-                </Text>
-              ) : null}
-              {typeof selectedPlace.isOpenNow === "boolean" ? (
-                <Text
-                  style={[
-                    styles.sheetMetaPill,
-                    selectedPlace.isOpenNow ? styles.openNow : styles.closedNow,
-                  ]}
-                >
-                  {selectedPlace.isOpenNow ? "Open now" : "Closed"}
-                </Text>
-              ) : null}
-            </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setSelectedPlace(null);
+                            setRoute(null);
+                          }}
+                          style={[
+                            styles.sheetClose,
+                            isDark && {
+                              backgroundColor: "rgba(255,255,255,0.1)",
+                            },
+                          ]}
+                        >
+                          <Feather
+                            name="x"
+                            size={18}
+                            color={isDark ? "#8FD3FF" : "#0B253A"}
+                          />
+                        </TouchableOpacity>
+                      </View>
 
-            {route ? (
-              <Text style={styles.sheetMeta}>
-                ETA: {route.durationText} • {route.distanceText}
-              </Text>
-            ) : null}
+                      {selectedPlace.address ||
+                      typeof selectedPlace.rating === "number" ||
+                      typeof selectedPlace.isOpenNow === "boolean" ||
+                      route ? (
+                        <>
+                          {selectedPlace.address ? (
+                            <Text
+                              style={[
+                                styles.sheetAddress,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {selectedPlace.address}
+                            </Text>
+                          ) : null}
 
-            <View style={styles.sheetActionsRow}>
-              <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionNeutral]}
-                onPress={() => {
-                  if (!selectedPlace.phoneNumber) {
-                    Alert.alert(
-                      "No phone number",
-                      "This place doesn't have a phone number listed.",
-                    );
-                    return;
-                  }
-                  void makePhoneCall(selectedPlace.phoneNumber);
-                }}
-              >
-                <Feather name="phone" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Call</Text>
-              </TouchableOpacity>
+                          <View
+                            style={[
+                              styles.sheetMetaRow,
+                              !selectedPlace.address && { marginTop: 0 },
+                            ]}
+                          >
+                            {typeof selectedPlace.rating === "number" ? (
+                              <Text
+                                style={[
+                                  styles.sheetMetaPill,
+                                  isDark && {
+                                    backgroundColor: "rgba(255,255,255,0.1)",
+                                    color: "rgba(255,255,255,0.8)",
+                                  },
+                                ]}
+                              >
+                                ⭐ {selectedPlace.rating.toFixed(1)}
+                                {typeof selectedPlace.userRatingsTotal ===
+                                "number"
+                                  ? ` (${formatCount(selectedPlace.userRatingsTotal)})`
+                                  : ""}
+                              </Text>
+                            ) : null}
+                            {typeof selectedPlace.isOpenNow === "boolean" ? (
+                              <Text
+                                style={[
+                                  styles.sheetMetaPill,
+                                  selectedPlace.isOpenNow
+                                    ? styles.openNow
+                                    : styles.closedNow,
+                                ]}
+                              >
+                                {selectedPlace.isOpenNow
+                                  ? "Open now"
+                                  : "Closed"}
+                              </Text>
+                            ) : null}
+                          </View>
 
-              <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionBlue]}
-                onPress={() =>
-                  void openGoogleMapsDirections({
-                    latitude: selectedPlace.latitude,
-                    longitude: selectedPlace.longitude,
-                  })
-                }
-              >
-                <Feather name="navigation" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Route</Text>
-              </TouchableOpacity>
+                          {route ? (
+                            <Text
+                              style={[
+                                styles.sheetMeta,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                            >
+                              ETA: {route.durationText} • {route.distanceText}
+                            </Text>
+                          ) : null}
+                        </>
+                      ) : null}
 
-              <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionRed]}
-                onPress={() => {
-                  Alert.alert("Emergency", "Open Emergency Services?", [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Open",
-                      style: "default",
-                      onPress: () => router.push("/(tabs)/extra"),
-                    },
-                  ]);
-                }}
-              >
-                <Feather name="alert-triangle" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>SOS</Text>
-              </TouchableOpacity>
+                      <View style={styles.sheetActionsRow}>
+                        <View style={styles.sheetActionsRowLine}>
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              {
+                                backgroundColor: "#041424",
+                                borderColor: "rgba(143,211,255,0.4)",
+                              },
+                            ]}
+                            onPress={() => {
+                              if (!selectedPlace.phoneNumber) {
+                                Alert.alert(
+                                  "No phone number",
+                                  "This place doesn't have a phone number listed.",
+                                );
+                                return;
+                              }
+                              void makePhoneCall(selectedPlace.phoneNumber);
+                            }}
+                          >
+                            <Feather name="phone" size={16} color="#FFFFFF" />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14, color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Call
+                            </Text>
+                          </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.sheetActionBtn, styles.actionGreen]}
-                onPress={() => void sharePlace(selectedPlace)}
-              >
-                <Feather name="share-2" size={16} color="#0B253A" />
-                <Text style={styles.sheetActionText}>Share</Text>
-              </TouchableOpacity>
-            </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              {
+                                backgroundColor: "#46AFFF",
+                                borderColor: "#46AFFF",
+                              },
+                            ]}
+                            onPress={() =>
+                              void openGoogleMapsDirections({
+                                latitude: selectedPlace.latitude,
+                                longitude: selectedPlace.longitude,
+                              })
+                            }
+                          >
+                            <Feather
+                              name="navigation"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14, color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Route
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
 
-            {getSafetyNote(selectedPlace.types) ? (
-              <View style={styles.sheetSafetyCard}>
-                <View style={styles.sheetSafetyIcon}>
-                  <Feather name="shield" size={16} color="#0B253A" />
+                        <View style={styles.sheetActionsRowLine}>
+                          <TouchableOpacity
+                            style={[
+                              styles.sheetActionBtn,
+                              styles.actionRed,
+                              isDark && {
+                                backgroundColor: "rgba(239,68,68,0.2)",
+                                borderColor: "rgba(239,68,68,0.3)",
+                              },
+                            ]}
+                            onPress={() => {
+                              Alert.alert(
+                                "Emergency",
+                                "Open Emergency Services?",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Open",
+                                    style: "default",
+                                    onPress: () => router.push("/(tabs)/extra"),
+                                  },
+                                ],
+                              );
+                            }}
+                          >
+                            <Feather
+                              name="alert-triangle"
+                              size={16}
+                              color={isDark ? "#FF8A80" : "#0B253A"}
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { fontSize: 14 },
+                                isDark && { color: "#FF8A80" },
+                              ]}
+                            >
+                              SOS
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {selectedPlace.photos?.length ? (
+                        <FlatList
+                          horizontal
+                          data={selectedPlace.photos}
+                          keyExtractor={(p) => p.photoReference}
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.sheetPhotosRow}
+                          renderItem={({ item }) => {
+                            const url = getPlacePhotoUrl(
+                              item.photoReference,
+                              900,
+                            );
+                            if (!url) return null;
+                            return (
+                              <ExpoImage
+                                source={{ uri: url }}
+                                style={styles.sheetPhoto}
+                                onError={(e) => {
+                                  console.error(
+                                    "[Place Photo] load error:",
+                                    url,
+                                    e,
+                                  );
+                                }}
+                                contentFit="cover"
+                              />
+                            );
+                          }}
+                        />
+                      ) : null}
+
+                      {(selectedReviewSummary.rating !== null ||
+                        selectedReviewSummary.usedCount > 0) && (
+                        <View style={styles.reviewsCard}>
+                          <View style={styles.reviewsTopRow}>
+                            <Text style={styles.reviewsTitle}>
+                              Review summary
+                            </Text>
+                            {selectedPlace?.placeId ? (
+                              <TouchableOpacity
+                                onPress={() =>
+                                  void openAddReview(selectedPlace.placeId)
+                                }
+                                hitSlop={{
+                                  top: 10,
+                                  bottom: 10,
+                                  left: 10,
+                                  right: 10,
+                                }}
+                              >
+                                <Text style={styles.reviewsAddReview}>
+                                  Add review
+                                </Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <Text style={styles.reviewsAddReview}>
+                                Add review
+                              </Text>
+                            )}
+                          </View>
+
+                          <View style={styles.reviewsMainRow}>
+                            <View style={styles.reviewsRatingBlock}>
+                              <Text style={styles.reviewsRatingValue}>
+                                {selectedReviewSummary.rating !== null
+                                  ? selectedReviewSummary.rating.toFixed(1)
+                                  : "—"}
+                              </Text>
+
+                              <View style={styles.reviewsStarsRow}>
+                                {Array.from({ length: 5 }).map((_, idx) => {
+                                  const starIndex = idx + 1;
+                                  const r =
+                                    selectedReviewSummary.rating !== null
+                                      ? selectedReviewSummary.rating
+                                      : 0;
+
+                                  const name =
+                                    r >= starIndex
+                                      ? "star"
+                                      : r >= starIndex - 0.5
+                                        ? "star-half"
+                                        : "star-outline";
+
+                                  return (
+                                    <Ionicons
+                                      key={starIndex}
+                                      name={name as any}
+                                      size={14}
+                                      color="#FFE082"
+                                    />
+                                  );
+                                })}
+                              </View>
+
+                              {selectedReviewSummary.totalText ? (
+                                <Text style={styles.reviewsRatingCount}>
+                                  ({selectedReviewSummary.totalText})
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            <View style={styles.reviewsBars}>
+                              {([5, 4, 3, 2, 1] as const).map((star) => {
+                                const p = selectedReviewSummary.pct(star);
+                                return (
+                                  <View key={star} style={styles.reviewsBarRow}>
+                                    <View style={styles.reviewsBarTrack}>
+                                      <View
+                                        style={[
+                                          styles.reviewsBarFill,
+                                          { width: `${Math.round(p * 100)}%` },
+                                        ]}
+                                      />
+                                    </View>
+                                  </View>
+                                );
+                              })}
+                            </View>
+
+                            <Ionicons
+                              name="information-circle-outline"
+                              size={20}
+                              color="rgba(255,255,255,0.75)"
+                              style={styles.reviewsInfoIcon}
+                            />
+                          </View>
+                        </View>
+                      )}
+
+                      {getSafetyNote(selectedPlace.types) ? (
+                        <View
+                          style={[
+                            styles.sheetSafetyCard,
+                            isDark && {
+                              backgroundColor: "rgba(254,148,0,0.18)",
+                              borderColor: "rgba(254,148,0,0.3)",
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.sheetSafetyIcon,
+                              isDark && {
+                                backgroundColor: "rgba(255,255,255,0.1)",
+                              },
+                            ]}
+                          >
+                            <Feather
+                              name="shield"
+                              size={16}
+                              color={isDark ? "#FFA500" : "#0B253A"}
+                            />
+                          </View>
+                          <View style={styles.sheetSafetyTextWrap}>
+                            <Text
+                              style={[
+                                styles.sheetSafetyTitle,
+                                isDark && { color: "#FFFFFF" },
+                              ]}
+                            >
+                              Safe zone nearby.
+                            </Text>
+                            <Text
+                              style={[
+                                styles.sheetSafetyText,
+                                isDark && { color: "rgba(255,255,255,0.7)" },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {getSafetyNote(selectedPlace.types)}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  </ScrollView>
                 </View>
-                <View style={styles.sheetSafetyTextWrap}>
-                  <Text style={styles.sheetSafetyTitle}>Safe zone nearby.</Text>
-                  <Text style={styles.sheetSafetyText} numberOfLines={2}>
-                    {getSafetyNote(selectedPlace.types)}
+              )}
+            </View>
+          </AnimatedBlurView>
+        )}
+
+        {!selectedPlace && nearbyPlaces.length > 0 && (
+          <AnimatedBlurView
+            intensity={60}
+            tint={isDark ? "dark" : "light"}
+            style={[
+              styles.nearbySheet,
+              isDark && { backgroundColor: "rgba(2,18,33,0.7)" },
+              !isDark && { backgroundColor: "rgba(255,255,255,0.55)" },
+              { height: nearbySheetHeightPx },
+              { transform: [{ translateY: nearbySheetTranslateY }] },
+            ]}
+          >
+            <View style={{ flex: 1 }} {...nearbySheetPanResponder.panHandlers}>
+              <View
+                style={styles.nearbyDragZone}
+                onLayout={(e) => {
+                  setNearbyDragZoneHeight(e.nativeEvent.layout.height);
+                }}
+              >
+                <View style={styles.nearbyHandle} />
+              </View>
+
+              <View
+                style={[
+                  styles.nearbyHeaderRow,
+                  nearbySheetChipsOnly && {
+                    opacity: 0,
+                    height: 0,
+                    overflow: "hidden",
+                  },
+                ]}
+                pointerEvents={nearbySheetChipsOnly ? "none" : "auto"}
+              >
+                <View>
+                  <Text
+                    style={[styles.nearbyTitle, isDark && { color: "#FFFFFF" }]}
+                  >
+                    {`Nearby ${
+                      POI_CATEGORIES.find((c) => c.key === activePoiKey)
+                        ?.label ?? "Places"
+                    }`}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.nearbySubtitle,
+                      isDark && { color: "rgba(255,255,255,0.7)" },
+                    ]}
+                  >
+                    {`${filteredNearbyPlaces.length} places found`}
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setNearbyPlaces([]);
+                    setActivePoiKey(null);
+                  }}
+                  style={styles.nearbyClose}
+                >
+                  <Feather
+                    name="x"
+                    size={18}
+                    color={isDark ? "#8FD3FF" : "#0B253A"}
+                  />
+                </TouchableOpacity>
               </View>
-            ) : null}
-          </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterRow}
+                contentContainerStyle={styles.filterRowContent}
+                onLayout={(e) => {
+                  setNearbyFilterRowHeight(e.nativeEvent.layout.height);
+                }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    sortMode !== "default" && styles.filterChipActive,
+                  ]}
+                  onPress={() => {
+                    setSortMode((prev) =>
+                      prev === "default" ? "distance" : "default",
+                    );
+                  }}
+                >
+                  <Text style={styles.filterChipText} allowFontScaling={false}>
+                    Sort by
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filterOpenNow && styles.filterChipActive,
+                  ]}
+                  onPress={toggleOpenNow}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {filterOpenNow && openNowHydrating ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        style={{ marginRight: 8 }}
+                      />
+                    ) : null}
+                    <Text
+                      style={styles.filterChipText}
+                      allowFontScaling={false}
+                    >
+                      Open now
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filterWheelchair && styles.filterChipActive,
+                  ]}
+                  onPress={toggleWheelchair}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {wheelchairHydrating ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={isDark ? "#8FD3FF" : "#0B253A"}
+                        style={{ marginRight: 8 }}
+                      />
+                    ) : null}
+                    <Text
+                      style={styles.filterChipText}
+                      allowFontScaling={false}
+                    >
+                      Wheelchair accessible entrance
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </ScrollView>
+
+              <ScrollView
+                style={[
+                  styles.nearbyList,
+                  nearbySheetChipsOnly && {
+                    opacity: 0,
+                    height: 0,
+                    overflow: "hidden",
+                  },
+                ]}
+                pointerEvents={nearbySheetChipsOnly ? "none" : "auto"}
+                scrollEnabled={nearbySheetExpanded && !nearbySheetChipsOnly}
+                showsVerticalScrollIndicator={false}
+                onScroll={(e) => {
+                  nearbyListScrollYRef.current =
+                    e.nativeEvent.contentOffset?.y ?? 0;
+                }}
+                scrollEventThrottle={16}
+              >
+                {filteredNearbyPlaces.map((p) => (
+                  <View key={p.placeId} style={styles.nearbyCard}>
+                    <Text
+                      style={[
+                        styles.nearbyName,
+                        isDark && { color: "#FFFFFF" },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {p.name}
+                    </Text>
+                    {p.vicinity ? (
+                      <Text
+                        style={[
+                          styles.nearbyAddress,
+                          isDark && { color: "rgba(255,255,255,0.7)" },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {p.vicinity}
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.nearbyMetaRow}>
+                      <View style={styles.nearbyMetaLeft}>
+                        {typeof p.isOpenNow === "boolean" ? (
+                          <Text
+                            style={[
+                              styles.nearbyStatus,
+                              p.isOpenNow
+                                ? styles.nearbyStatusOpen
+                                : styles.nearbyStatusClosed,
+                            ]}
+                            allowFontScaling={false}
+                          >
+                            {p.isOpenNow
+                              ? "Open"
+                              : typeof p.nextOpenTimeText === "string"
+                                ? `Closed • Opens ${p.nextOpenTimeText}`
+                                : "Closed"}
+                          </Text>
+                        ) : null}
+
+                        {typeof p.rating === "number" ? (
+                          <Text style={styles.nearbyRating} numberOfLines={1}>
+                            ⭐ {p.rating.toFixed(1)}
+                            {typeof p.userRatingsTotal === "number"
+                              ? ` (${formatCount(p.userRatingsTotal)})`
+                              : ""}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {hasLocation && (
+                        <Text style={styles.nearbyDistance}>
+                          {formatDistance(
+                            distanceMeters(coords, {
+                              latitude: p.latitude,
+                              longitude: p.longitude,
+                            }),
+                          )}{" "}
+                          away
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={styles.nearbyActionsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.sheetActionBtn,
+                          {
+                            backgroundColor: "#041424",
+                            borderColor: "rgba(143,211,255,0.4)",
+                          },
+                        ]}
+                        onPress={async () => {
+                          setNearbyLoadingPlaceId(p.placeId + "-call");
+                          try {
+                            const details = await getPlaceDetails(p.placeId);
+                            if (details?.phoneNumber) {
+                              await makePhoneCall(details.phoneNumber);
+                            } else {
+                              Alert.alert(
+                                "No phone number",
+                                "This place doesn't have a phone number listed.",
+                              );
+                            }
+                          } finally {
+                            setNearbyLoadingPlaceId(null);
+                          }
+                        }}
+                        disabled={nearbyLoadingPlaceId === p.placeId + "-call"}
+                      >
+                        {nearbyLoadingPlaceId === p.placeId + "-call" ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Feather name="phone" size={16} color="#FFFFFF" />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Call
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.sheetActionBtn,
+                          {
+                            backgroundColor: "#46AFFF",
+                            borderColor: "#46AFFF",
+                          },
+                        ]}
+                        onPress={async () => {
+                          setNearbyLoadingPlaceId(p.placeId + "-map");
+                          try {
+                            await openGoogleMapsDirections({
+                              latitude: p.latitude,
+                              longitude: p.longitude,
+                            });
+                          } finally {
+                            setNearbyLoadingPlaceId(null);
+                          }
+                        }}
+                        disabled={nearbyLoadingPlaceId === p.placeId + "-map"}
+                      >
+                        {nearbyLoadingPlaceId === p.placeId + "-map" ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Feather
+                              name="navigation"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text
+                              style={[
+                                styles.sheetActionText,
+                                { color: "#FFFFFF" },
+                              ]}
+                              allowFontScaling={false}
+                            >
+                              Route
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          </AnimatedBlurView>
         )}
       </View>
 
@@ -1101,14 +3117,317 @@ export default function MapScreen() {
           <ActivityIndicator size="small" color="#FF0000" />
         </View>
       )}
+
+      {/* Search History Modal */}
+      <Modal
+        visible={showSearchHistory}
+        animationType="slide"
+        onRequestClose={() => {
+          console.log("Modal onRequestClose triggered");
+          setShowSearchHistory(false);
+        }}
+        presentationStyle="fullScreen"
+      >
+        <SafeAreaView style={styles.historyModalContainer}>
+          <View style={styles.historyHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                console.log("Back button pressed - closing modal");
+                setShowSearchHistory(false);
+              }}
+              style={styles.historyBackButton}
+              activeOpacity={0.5}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Feather name="arrow-left" size={28} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.historyTitle}>Recent searches</Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          <ScrollView style={styles.historyContent}>
+            {(() => {
+              const { today, yesterday, thisWeek, lastWeek, older } =
+                categorizeSearchHistory();
+
+              return (
+                <>
+                  {today.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Today</Text>
+                      {today.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                            {item.isOpen !== undefined && (
+                              <Text
+                                style={[
+                                  styles.historyStatusText,
+                                  item.isOpen && styles.historyStatusOpen,
+                                ]}
+                              >
+                                {item.isOpen
+                                  ? "Open 24 hours"
+                                  : `Closes ${new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {yesterday.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Yesterday</Text>
+                      {yesterday.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {thisWeek.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>This week</Text>
+                      {thisWeek.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {lastWeek.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>Last week</Text>
+                      {lastWeek.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {older.length > 0 && (
+                    <View style={styles.historySection}>
+                      <Text style={styles.historySectionTitle}>
+                        Previous searches
+                      </Text>
+                      {older.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.historyItem}
+                          onPress={async () => {
+                            setShowSearchHistory(false);
+                            setQuery(item.query);
+                            if (item.placeId) {
+                              const details = await selectPlaceById(
+                                item.placeId,
+                                {
+                                  placeId: item.placeId,
+                                  name: item.query,
+                                  latitude: mapRegion.latitude,
+                                  longitude: mapRegion.longitude,
+                                  address: item.address,
+                                },
+                              );
+                              if (details) moveToPlace(details);
+                            }
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={24}
+                            color="#666"
+                            style={styles.historyIcon}
+                          />
+                          <View style={styles.historyTextContainer}>
+                            <Text style={styles.historyQueryText}>
+                              {item.query}
+                            </Text>
+                            {item.address && (
+                              <Text style={styles.historyAddressText}>
+                                {item.address}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {searchHistory.length === 0 && (
+                    <View style={styles.emptyHistoryContainer}>
+                      <Ionicons name="time-outline" size={64} color="#ccc" />
+                      <Text style={styles.emptyHistoryText}>
+                        No recent searches
+                      </Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B253A" },
-  mapWrap: { flex: 1 },
-  map: { ...StyleSheet.absoluteFillObject },
+  container: {
+    flex: 1,
+    backgroundColor: "#0B253A",
+  },
+  mapWrap: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    overflow: "hidden",
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
   searchWrap: {
     position: "absolute",
     top: 10,
@@ -1120,55 +3439,92 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: "center",
   },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#031B2E",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+    gap: 8,
+  },
   searchInput: {
     flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
     fontSize: 14,
+    color: "#fff",
+    paddingVertical: 4,
+  },
+  searchInputFocused: {
+    borderColor: "#8FD3FF",
+  },
+  clockButton: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   recenterButton: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: "#031B2E",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   toggleActive: {
-    backgroundColor: "#DCEBFF",
-    borderWidth: 1,
-    borderColor: "#2F6FED",
+    backgroundColor: "#031B2E",
+    borderWidth: 2,
+    borderColor: "#8FD3FF",
   },
   recenterText: {
     fontSize: 18,
-    color: "#0B253A",
+    color: "#fff",
   },
   poiRow: {
-    paddingTop: 10,
+    paddingTop: 8,
     paddingHorizontal: 2,
-    gap: 8,
+    gap: 6,
   },
   poiChip: {
-    backgroundColor: "rgba(255,255,255,0.92)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(3,27,46,0.95)",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
+    minHeight: 36,
+    borderWidth: 1.5,
+    borderColor: "rgba(143,211,255,0.7)",
   },
   poiChipActive: {
-    backgroundColor: "#2F6FED",
-    borderColor: "#2F6FED",
+    borderColor: "#8FD3FF",
+    borderWidth: 2,
+    transform: [{ scale: 1.02 }],
   },
   poiChipText: {
-    fontSize: 12,
-    color: "#0B253A",
-    fontWeight: "600",
+    fontSize: 11,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    lineHeight: 14,
+    includeFontPadding: true,
   },
   poiChipTextActive: {
     color: "#fff",
+  },
+  poiMarker: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(3,27,46,0.95)",
+    borderWidth: 1.5,
+    borderColor: "#E11D48",
   },
   suggestions: {
     marginTop: 8,
@@ -1227,9 +3583,13 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "rgba(255,255,255,0.98)",
-    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.55)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
     padding: 14,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -1243,6 +3603,13 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     backgroundColor: "rgba(0,0,0,0.18)",
     marginBottom: 10,
+  },
+  sheetInnerBox: {
+    backgroundColor: "#06243F",
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: "rgba(143,211,255,0.25)",
   },
   sheetHeaderRow: {
     flexDirection: "row",
@@ -1272,7 +3639,20 @@ const styles = StyleSheet.create({
   sheetAddress: {
     marginTop: 6,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.75)",
+  },
+  sheetInfoCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  sheetInfoCardDark: {
+    backgroundColor: "rgba(26,59,84,0.7)",
+    borderColor: "rgba(143,211,255,0.25)",
   },
   sheetLoadingRow: {
     flexDirection: "row",
@@ -1284,42 +3664,138 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(0,0,0,0.6)",
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetErrorText: {
     marginBottom: 8,
     color: "rgba(185,28,28,0.95)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhotosRow: {
-    gap: 10,
-    paddingBottom: 10,
+    gap: 12,
+    paddingTop: 12,
+    paddingBottom: 6,
   },
   sheetPhotosEmpty: {
     paddingBottom: 10,
     color: "rgba(0,0,0,0.55)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetPhoto: {
-    width: 120,
-    height: 74,
-    borderRadius: 12,
+    width: 260,
+    height: 150,
+    borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  reviewsCard: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#041424",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  reviewsTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  reviewsTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#FFFFFF",
+  },
+  reviewsAddReview: {
+    fontSize: 14,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#8FD3FF",
+  },
+  reviewsMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  reviewsRatingBlock: {
+    width: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewsRatingValue: {
+    fontSize: 40,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#FFFFFF",
+    lineHeight: 44,
+  },
+  reviewsStarsRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  reviewsRatingCount: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+  },
+  reviewsBars: {
+    flex: 1,
+    gap: 8,
+  },
+  reviewsBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  reviewsBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    overflow: "hidden",
+  },
+  reviewsBarFill: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#FFE082",
+  },
+  reviewsInfoIcon: {
+    marginLeft: 6,
+  },
+  reviewsDisclaimer: {
+    marginTop: 10,
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.65)",
   },
   sheetTitle: {
     fontSize: 16,
     fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "#0B253A",
+    flexShrink: 1,
+    flexWrap: "wrap",
   },
   sheetSubtitle: {
     marginTop: 4,
     fontSize: 13,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(11,37,58,0.8)",
   },
   sheetMeta: {
     marginTop: 8,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(0,0,0,0.6)",
   },
   sheetMetaRow: {
@@ -1334,6 +3810,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
     color: "rgba(0,0,0,0.75)",
     overflow: "hidden",
   },
@@ -1346,26 +3823,31 @@ const styles = StyleSheet.create({
     color: "#991B1B",
   },
   sheetActionsRow: {
-    marginTop: 12,
+    marginTop: 14,
+    gap: 12,
+  },
+  sheetActionsRowLine: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   sheetActionBtn: {
     flex: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    minHeight: 52,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderColor: "rgba(0,0,0,0.12)",
   },
   sheetActionText: {
     color: "#0B253A",
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   actionNeutral: {
     backgroundColor: "rgba(0,0,0,0.06)",
@@ -1405,11 +3887,278 @@ const styles = StyleSheet.create({
     color: "#0B253A",
     fontWeight: "900",
     fontSize: 13,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
   },
   sheetSafetyText: {
     marginTop: 2,
     color: "rgba(11,37,58,0.75)",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+  },
+  nearbySheet: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: "rgba(2,18,33,0.6)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    padding: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  nearbyDragZone: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
+  },
+  nearbyHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+    marginBottom: 10,
+  },
+  nearbyHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  nearbyTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#0B253A",
+  },
+  nearbySubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(11,37,58,0.7)",
+  },
+  nearbyClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nearbyList: {
+    marginTop: 10,
+    paddingTop: 6,
+  },
+  nearbyCard: {
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12,
+    backgroundColor: "#06243F",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.25)",
+  },
+  nearbyIndex: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 4,
+  },
+  nearbyName: {
+    fontSize: 14,
+    fontWeight: "900",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "#FFFFFF",
+  },
+  nearbyAddress: {
+    marginTop: 2,
+    fontSize: 11,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.7)",
+  },
+  nearbyMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  nearbyMetaLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  nearbyRating: {
+    fontSize: 11,
+    color: "#FFE082",
+    fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  nearbyStatus: {
+    fontSize: 11,
+    fontWeight: "800",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    flexShrink: 0,
+  },
+  nearbyStatusOpen: {
+    color: "#6EE7B7",
+  },
+  nearbyStatusClosed: {
+    color: "#FF8A80",
+  },
+  nearbyDistance: {
+    fontSize: 11,
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    color: "rgba(255,255,255,0.8)",
+  },
+  nearbyActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 10,
+  },
+  filterRow: {
+    marginTop: 12,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    height: 52,
+  },
+  filterRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+  },
+  filterChip: {
+    minWidth: 80,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(6,28,46,0.4)",
+    borderWidth: 2.2,
+    borderColor: "#BCEBFF",
+    borderStyle: "solid",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    flexShrink: 0,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  filterChipActive: {
+    backgroundColor: "rgba(143,211,255,0.3)",
+    borderColor: "#FFFFFF",
+    borderWidth: 3,
+  },
+  filterChipText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    textAlign: "center",
+    lineHeight: 13,
+    includeFontPadding: true,
+    textAlignVertical: "center",
+    letterSpacing: 0.1,
+    opacity: 1,
+  },
+  voiceButton: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyModalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    backgroundColor: "#fff",
+  },
+  historyBackButton: {
+    padding: 12,
+    marginLeft: -4,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  historyContent: {
+    flex: 1,
+  },
+  historySection: {
+    paddingTop: 16,
+  },
+  historySectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  historyIcon: {
+    marginRight: 12,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 20,
+    padding: 8,
+  },
+  historyTextContainer: {
+    flex: 1,
+  },
+  historyQueryText: {
+    fontSize: 16,
+    color: "#000",
+    marginBottom: 2,
+  },
+  historyAddressText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  historyStatusText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  historyStatusOpen: {
+    color: "#0F9D58",
+  },
+  emptyHistoryContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyHistoryText: {
+    fontSize: 16,
+    color: "#999",
+    marginTop: 16,
   },
 });

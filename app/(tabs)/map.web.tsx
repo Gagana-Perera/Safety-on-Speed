@@ -3,6 +3,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 export default function MapScreenWeb() {
+  // Web implementation note:
+  // `react-native-maps` isn't supported the same way on web in this project,
+  // so we embed Google Maps via an iframe and center it on the user's location.
   const [coords, setCoords] = useState<{ latitude: number; longitude: number }>(
     {
       latitude: 7.8731,
@@ -16,6 +19,7 @@ export default function MapScreenWeb() {
   useEffect(() => {
     (async () => {
       try {
+        // If the user denies location, we keep the default Sri Lanka center.
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           setLocationDenied(true);
@@ -29,7 +33,7 @@ export default function MapScreenWeb() {
           longitude: location.coords.longitude,
         });
       } catch {
-        // ignore
+        // Ignore: we'll show the default center.
       } finally {
         setLoading(false);
       }
@@ -37,6 +41,7 @@ export default function MapScreenWeb() {
   }, []);
 
   const iframeSrc = useMemo(() => {
+    // Embed URL recomputed only when coords change.
     const zoom = 15;
     return `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}&z=${zoom}&output=embed`;
   }, [coords.latitude, coords.longitude]);
@@ -69,6 +74,7 @@ export default function MapScreenWeb() {
 
       {(loading || !iframeLoaded) && (
         <View style={styles.loadingOverlay}>
+          {/* Shows until both GPS fetch and iframe load are complete. */}
           <ActivityIndicator size="small" color="#FF0000" />
         </View>
       )}

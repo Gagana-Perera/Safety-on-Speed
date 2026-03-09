@@ -1,4 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+// Emergency Services tab:
+// - Shows hotline numbers (static)
+// - Finds the nearest hospital/police station using GPS + Google Places
+// - Supports: Call (dial the place phone) and Map (open in-app map by placeId)
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -13,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from "../themeContext";
 
 import {
   getNearbyPlaces,
@@ -26,10 +31,12 @@ interface ServiceItem {
   icon: keyof typeof Ionicons.glyphMap;
   hasMap: boolean;
   category: "hotline" | "place";
+  // For category="place": query string used by Places search.
+  // Examples: "hospital", "police station".
   searchKey?: string;
 }
 
-// 2. Define the services data
+// UI cards are driven entirely by this data structure.
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
@@ -85,8 +92,10 @@ const SERVICES: ServiceItem[] = [
 
 export default function EmergencyServices() {
   const router = useRouter();
+  const { theme } = useTheme();
 
-  // NEW: Object state to track which specific button is loading
+  // Tracks the loading spinner per-card and per-action.
+  // This avoids locking the whole screen while one Places request is in flight.
   const [loadingStatus, setLoadingStatus] = useState<{
     id: string;
     type: "call" | "map";
@@ -96,51 +105,112 @@ export default function EmergencyServices() {
     lat: number;
     lng: number;
   } | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
+  // GPS bootstrap:
+  // - Ask permission
+  // - Check if services are enabled
+  // - Use last-known for fast initial UI
+  // - Then refresh with a high-accuracy fix
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      try {
+        setGpsError(null);
+
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setGpsError("Permission denied");
+          Alert.alert(
+            "Permission Denied",
+            "GPS is required to find help near you.",
+          );
+          return;
+        }
+
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) {
+          setGpsError("Location services disabled");
+          Alert.alert(
+            "Location Services Off",
+            "Please enable Location Services / GPS to find nearby help.",
+          );
+          return;
+        }
+
+        // Use last known location first (faster), then refresh with a high-accuracy fix.
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown?.coords) {
+          setUserLocation({
+            lat: lastKnown.coords.latitude,
+            lng: lastKnown.coords.longitude,
+          });
+        }
+
+        const locationData = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        setUserLocation({
+          lat: locationData.coords.latitude,
+          lng: locationData.coords.longitude,
+        });
+      } catch (e) {
+        console.error("[GPS] Error getting location:", e);
+        setGpsError("Unable to get location");
         Alert.alert(
-          "Permission Denied",
-          "GPS is required to find help near you.",
+          "Location Error",
+          "Unable to get your current location. Please enable GPS and try again.",
         );
-        return;
       }
-
-      let locationData = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setUserLocation({
-        lat: locationData.coords.latitude,
-        lng: locationData.coords.longitude,
-      });
     })();
   }, []);
 
-  const userLat = userLocation?.lat || 6.9271;
-  const userLng = userLocation?.lng || 79.8612;
+  const userLat = userLocation?.lat ?? null;
+  const userLng = userLocation?.lng ?? null;
 
+  // "Call" action:
+  // - Hotlines: dial the known number
+  // - Places (Hospital/Police): find nearest placeId -> fetch phone -> dial
   const handleCallAction = async (item: ServiceItem) => {
     if (item.category === "hotline") {
       makePhoneCall(item.phone);
       return;
     }
 
-    setLoadingStatus({ id: item.id, type: "call" }); // Specifically set 'call' loading
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) {
+      Alert.alert(
+        "Missing API key",
+        "Set EXPO_PUBLIC_GOOGLE_API_KEY in your .env to enable Places search.",
+      );
+      return;
+    }
+
+    if (userLat === null || userLng === null) {
+      Alert.alert(
+        "Waiting for GPS",
+        "Please wait until your location is available.",
+      );
+      return;
+    }
+
+    console.log(
+      `[Call] Starting search for ${item.name} at ${userLat}, ${userLng}`,
+    );
+    setLoadingStatus({ id: item.id, type: "call" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Call] PlaceId result:`, placeId);
       if (!placeId) {
         Alert.alert("Not Found", `No nearby ${item.name} found.`);
         return;
       }
 
       const phoneNumber = await getPlaceMobileNumber(placeId);
+      console.log(`[Call] Phone number:`, phoneNumber);
       if (phoneNumber) {
         makePhoneCall(phoneNumber);
       } else {
@@ -150,42 +220,79 @@ export default function EmergencyServices() {
         );
       }
     } catch (error) {
+      console.error("[Call] Error:", error);
       Alert.alert("Error", "Check your internet connection.");
     } finally {
       setLoadingStatus(null);
     }
   };
 
+  // "Map" action:
+  // - Finds nearest placeId
+  // - Navigates to our Map tab and opens the selected-place sheet
   const handleMapAction = async (item: ServiceItem) => {
     if (item.category === "hotline") return;
 
-    setLoadingStatus({ id: item.id, type: "map" }); // Specifically set 'map' loading
+    if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) {
+      Alert.alert(
+        "Missing API key",
+        "Set EXPO_PUBLIC_GOOGLE_API_KEY in your .env to enable Places search.",
+      );
+      return;
+    }
+
+    console.log(
+      `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
+    );
+
+    // Check if we have valid coordinates
+    if (
+      userLat === null ||
+      userLng === null ||
+      isNaN(userLat) ||
+      isNaN(userLng)
+    ) {
+      Alert.alert(
+        "Location Error",
+        "Unable to get your current location. Please enable GPS.",
+      );
+      return;
+    }
+
+    setLoadingStatus({ id: item.id, type: "map" });
     try {
       const placeId = await getNearbyPlaces(
         userLat,
         userLng,
         item.searchKey || "",
       );
+      console.log(`[Map] PlaceId result:`, placeId);
 
       if (placeId) {
         // Open inside our app Map tab and load details for this placeId.
+        console.log(`[Map] Navigating to map with placeId:`, placeId);
         router.push({
           pathname: "/(tabs)/map",
-          params: { placeId },
+          params: { placeId, t: Date.now().toString() },
         });
       } else {
         Alert.alert(
-          "Error",
-          `Could not locate the nearest ${item.name} on the map.`,
+          "Not Found",
+          `Could not locate the nearest ${item.name} on the map. Please try again or check your internet connection.`,
         );
       }
     } catch (error) {
-      Alert.alert("Error", "Could not open in-app map.");
+      console.error("[Map] Error:", error);
+      Alert.alert(
+        "Error",
+        `Could not open in-app map: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     } finally {
       setLoadingStatus(null);
     }
   };
 
+  // Platform-specific dialing. (iOS uses telprompt for a better UX.)
   const makePhoneCall = (phoneNumber: string) => {
     const url =
       Platform.OS === "ios" ? `telprompt:${phoneNumber}` : `tel:${phoneNumber}`;
@@ -195,13 +302,15 @@ export default function EmergencyServices() {
     });
   };
 
+  // Renders a single service card.
+  // For "place" cards, buttons are disabled until GPS is available.
   const renderCard = (item: ServiceItem) => (
     <View
       key={item.id}
       className="w-[48%] bg-[#1A3B54]/70 rounded-3xl p-3 mb-4 border border-white/10"
     >
       <View className="flex-row justify-between items-center min-h-[90px]">
-        <View className="flex-1 items-center justify-center border-r border-white/10 pr-2">
+        <View className="flex-1 items-center justify-center pr-2">
           <Ionicons name={item.icon} size={32} color="#8FD3FF" />
           <Text
             className="text-white text-[10px] mt-2 text-center font-bold"
@@ -215,8 +324,12 @@ export default function EmergencyServices() {
           {/* Call Button */}
           <TouchableOpacity
             onPress={() => handleCallAction(item)}
-            disabled={loadingStatus?.id === item.id}
-            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-blue-400/20"
+            disabled={
+              (loadingStatus?.id === item.id &&
+                loadingStatus?.type === "call") ||
+              (item.category === "place" && userLat === null)
+            }
+            className="bg-[#0B253A] py-2 rounded-xl flex-row items-center justify-center border border-[#8FD3FF]/40"
           >
             {loadingStatus?.id === item.id && loadingStatus?.type === "call" ? (
               <ActivityIndicator size="small" color="#8FD3FF" />
@@ -234,8 +347,12 @@ export default function EmergencyServices() {
           {item.hasMap && (
             <TouchableOpacity
               onPress={() => handleMapAction(item)}
-              disabled={loadingStatus?.id === item.id}
-              className="bg-[#0B253A]/50 border border-[#2E6E9E] py-2 rounded-xl flex-row items-center justify-center mt-1"
+              disabled={
+                (loadingStatus?.id === item.id &&
+                  loadingStatus?.type === "map") ||
+                (item.category === "place" && userLat === null)
+              }
+              className="bg-[#0B253A]/50 border border-[#8FD3FF]/40 py-2 rounded-xl flex-row items-center justify-center mt-1"
             >
               {loadingStatus?.id === item.id &&
               loadingStatus?.type === "map" ? (
@@ -256,12 +373,8 @@ export default function EmergencyServices() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-[#031B2E]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity className="flex-row items-center mb-6 bg-[#0B253A]/80 self-start px-4 py-2 rounded-2xl border border-white/5">
-          <Ionicons name="chevron-back" size={20} color="#8FD3FF" />
-          <Text className="text-[#8FD3FF] text-lg font-medium ml-1">Back</Text>
-        </TouchableOpacity>
 
         <View className="mb-8">
           <Text className="text-white text-5xl font-bold leading-tight">
@@ -272,7 +385,7 @@ export default function EmergencyServices() {
           </Text>
           {!userLocation && (
             <Text className="text-orange-400 text-xs mt-2 italic">
-              Waiting for GPS...
+              {gpsError ? `GPS issue: ${gpsError}` : "Waiting for GPS..."}
             </Text>
           )}
         </View>

@@ -1,51 +1,94 @@
-import { Tabs } from "expo-router";
-import React from "react";
-import { Image, View } from "react-native";
+import { supabase } from "@/lib/superbase";
+import { Ionicons } from "@expo/vector-icons";
+import { Redirect, Tabs } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Image, View } from "react-native";
+import { useTheme } from "../themeContext";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-const IconC = ({ focused, icon, title }: any) => {
-  // SVGs imported via transformer are functions/components
-  if (typeof icon === "function") {
-    const IconComponent = icon;
+const IconC = ({ focused, icon: IconComponent, title, ioniconName }: any) => {
+  const color = focused ? "#8FD3FF" : "#808080";
+
+  if (ioniconName) {
     return (
       <View className="items-center justify-center">
-        <IconComponent
-          width={28}
-          height={28}
-          fill={focused ? "#A4E4FF" : "#FFFFFF"}
-        />
+        <Ionicons name={ioniconName} size={28} color={color} />
       </View>
     );
   }
 
+  const isLogo = IconComponent === officialdoc.logo;
+
   return (
     <View className="items-center justify-center">
-      <Image
-        source={icon}
-        className={
-          icon === officialdoc.logo ? "size-10 rounded-full" : "size-7"
-        }
-        style={{ opacity: focused ? 1 : 0.8 }}
-      />
+      {isLogo ? (
+        <Image
+          source={IconComponent}
+          className="w-10 h-10 rounded-full"
+          style={focused ? { borderWidth: 2, borderColor: "#8FD3FF" } : {}}
+        />
+      ) : (
+        <IconComponent width={28} height={28} color={color} fill={color} />
+      )}
     </View>
   );
 };
 
-export default function _layout() {
+export default function Layout() {
+  // 2. Grab the theme
+  const { theme } = useTheme();
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: theme.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={theme.text} />
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <Redirect href="/auth/login" />;
+  }
+
   return (
     <Tabs
       initialRouteName="index"
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: "#002747",
-          borderTopWidth: 0,
-          height: 60,
-          paddingTop: 10,
+          // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
+          backgroundColor: theme.card,
+          borderTopColor: theme.border,
         },
-        tabBarActiveTintColor: "#A4E4FF",
-        tabBarInactiveTintColor: "#FFFFFF",
+        headerStyle: {
+          backgroundColor: theme.card,
+        },
+        headerTintColor: theme.text,
       }}
     >
       <Tabs.Screen
@@ -54,10 +97,10 @@ export default function _layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
+          tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
-              icon={icons.home}
+              ioniconName="grid"
               //title= "Extra"
             />
           ),
@@ -69,10 +112,10 @@ export default function _layout() {
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
+          tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
-              icon={icons.menu}
+              ioniconName="map"
               //title= "Map"
             />
           ),
@@ -84,7 +127,7 @@ export default function _layout() {
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
+          tabBarIcon: ({ focused }) => (
             <IconC focused={focused} icon={officialdoc.logo} />
           ),
         }}
@@ -95,7 +138,7 @@ export default function _layout() {
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
+          tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
               icon={icons.forum}
@@ -110,7 +153,7 @@ export default function _layout() {
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
+          tabBarIcon: ({ focused }) => (
             <IconC
               focused={focused}
               icon={icons.person}
