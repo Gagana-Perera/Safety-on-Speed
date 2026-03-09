@@ -4,17 +4,11 @@ export async function saveGuardians(
   userId: string,
   contacts: { name: string; phone: string }[],
 ) {
-  // The remote guardians table uses a flat schema: one row per user,
-  // with columns g1_name, g1_phone ... g5_name, g5_phone.
-  // We cannot use upsert(onConflict:"user_id") because there is no UPDATE
-  // RLS policy — only INSERT, SELECT, DELETE.
-  // Strategy: DELETE the existing row (safe — DELETE policy exists), then INSERT fresh.
+  // The remote guardians table uses a flat schema with a UNIQUE constraint on user_id.
+  // Strategy: try INSERT first (new users), if 23505 duplicate key → UPDATE (existing users).
+  // This avoids relying on a DELETE policy or UPDATE policy via upsert.
 
-  // 1. Delete any existing row for this user (no-op if none exists)
-  await supabase.from("guardians").delete().eq("user_id", userId);
-
-  // 2. Build the flat row
-  const row: Record<string, any> = {
+  const row: Record<string, string | null | boolean> = {
     user_id: userId,
     g1_verified: false,
     g2_verified: false,
@@ -34,11 +28,34 @@ export async function saveGuardians(
     }
   }
 
-  // 3. INSERT (no conflict path → INSERT RLS policy applies cleanly)
-  const { error } = await supabase.from("guardians").insert([row] as any);
+  // 1. Try INSERT (works for new users who have no guardian row yet)
+  const { error: insertError } = await supabase
+    .from("guardians")
+    .insert([row] as any);
 
-  if (error) {
-    console.error("Failed to save guardians:", error);
-    throw error;
+  if (!insertError) {
+    console.log("Guardians saved via INSERT.");
+    return;
   }
+
+  // 2. If row already exists (23505 = unique_violation), UPDATE it
+  if (insertError.code === "23505") {
+    console.log("Guardian row exists, updating via UPDATE...");
+    const { user_id, ...updateFields } = row;
+    const { error: updateError } = await supabase
+      .from("guardians")
+      .update(updateFields as any)
+      .eq("user_id", userId);
+
+    if (updateError) {
+      console.error("Failed to update guardians:", updateError);
+      throw updateError;
+    }
+    console.log("Guardians saved via UPDATE.");
+    return;
+  }
+
+  // 3. Any other error — throw it
+  console.error("Failed to save guardians:", insertError);
+  throw insertError;
 }
