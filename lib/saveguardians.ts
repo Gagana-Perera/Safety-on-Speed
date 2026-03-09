@@ -4,30 +4,35 @@ export async function saveGuardians(
   userId: string,
   contacts: { name: string; phone: string }[],
 ) {
-  // 1. Delete all existing guardians for this user (clean slate upsert)
-  const { error: deleteError } = await supabase
-    .from("guardians")
-    .delete()
-    .eq("user_id", userId);
+  // The remote guardians table uses a flat schema: one row per user,
+  // with columns g1_name, g1_phone, g2_name, g2_phone, ... g5_name, g5_phone
+  const row: Record<string, any> = {
+    user_id: userId,
+    g1_verified: false,
+    g2_verified: false,
+    g3_verified: false,
+    g4_verified: false,
+    g5_verified: false,
+  };
 
-  if (deleteError) {
-    console.error("Failed to delete old guardians:", deleteError);
-    throw deleteError;
+  // Populate provided contacts, null out empty slots
+  for (let i = 1; i <= 5; i++) {
+    const contact = contacts[i - 1];
+    if (contact) {
+      row[`g${i}_name`] = contact.name.trim();
+      row[`g${i}_phone`] = contact.phone.trim();
+    } else {
+      row[`g${i}_name`] = null;
+      row[`g${i}_phone`] = null;
+    }
   }
 
-  // 2. Insert one row per contact
-  const rows = contacts.map((contact) => ({
-    user_id: userId,
-    name: contact.name.trim(),
-    phone_number: contact.phone.trim(),
-  }));
-
-  const { error: insertError } = await supabase
+  const { error } = await supabase
     .from("guardians")
-    .insert(rows as any);
+    .upsert([row] as any, { onConflict: "user_id" });
 
-  if (insertError) {
-    console.error("Failed to save guardians:", insertError);
-    throw insertError;
+  if (error) {
+    console.error("Failed to save guardians:", error);
+    throw error;
   }
 }
