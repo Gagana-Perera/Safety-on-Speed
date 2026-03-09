@@ -1,7 +1,7 @@
-import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 interface BackButtonProps {
   color?: string;
@@ -9,10 +9,10 @@ interface BackButtonProps {
   onPress?: () => void;
 }
 
-export default function BackButton({ 
-  color = '#fff', 
+export default function BackButton({
+  color = "#fff",
   size = 24,
-  onPress 
+  onPress,
 }: BackButtonProps) {
   const router = useRouter();
 
@@ -25,8 +25,8 @@ export default function BackButton({
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.backButton} 
+    <TouchableOpacity
+      style={styles.backButton}
       onPress={handlePress}
       activeOpacity={0.7}
     >

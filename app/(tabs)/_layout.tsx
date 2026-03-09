@@ -36,7 +36,7 @@ const IconC = ({ focused, icon: IconComponent, title, ioniconName }: any) => {
   );
 };
 
-export default function _layout() {
+export default function Layout() {
   // 2. Grab the theme
   const { theme } = useTheme();
   const [session, setSession] = useState<any>(null);
@@ -91,7 +91,6 @@ export default function _layout() {
         headerTintColor: theme.text,
       }}
     >
-      <Tabs.Screen name="backbutton" options={{ href: null }} />
       <Tabs.Screen
         name="extra"
         options={{

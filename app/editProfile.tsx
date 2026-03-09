@@ -13,9 +13,9 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import BackButton from "../components/backButton";
 import { getUserProfile, updateUserProfile } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
-import BackButton from "./backButton";
 import { useTheme } from "./themeContext";
 
 export default function EditProfile() {
@@ -26,6 +26,7 @@ export default function EditProfile() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -150,7 +151,11 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
               <View
-                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+                style={[
+                  styles.inputContainer,
+                  { backgroundColor: theme.card },
+                  focusedField === "firstName" && styles.inputFocused,
+                ]}
               >
                 <Feather
                   name="user"
@@ -162,6 +167,8 @@ export default function EditProfile() {
                   style={[styles.input, { color: theme.text }]}
                   value={form.firstName}
                   onChangeText={(text) => setForm({ ...form, firstName: text })}
+                  onFocus={() => setFocusedField("firstName")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter your name"
                   placeholderTextColor="#9CA3AF"
                 />
@@ -172,7 +179,11 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
               <View
-                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+                style={[
+                  styles.inputContainer,
+                  { backgroundColor: theme.card },
+                  focusedField === "lastName" && styles.inputFocused,
+                ]}
               >
                 <Feather
                   name="user"
@@ -184,6 +195,8 @@ export default function EditProfile() {
                   style={[styles.input, { color: theme.text }]}
                   value={form.lastName}
                   onChangeText={(text) => setForm({ ...form, lastName: text })}
+                  onFocus={() => setFocusedField("lastName")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter your name"
                   placeholderTextColor="#9CA3AF"
                 />
@@ -194,7 +207,11 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
               <View
-                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+                style={[
+                  styles.inputContainer,
+                  { backgroundColor: theme.card },
+                  focusedField === "phone" && styles.inputFocused,
+                ]}
               >
                 <Feather
                   name="phone"
@@ -206,6 +223,8 @@ export default function EditProfile() {
                   style={[styles.input, { color: theme.text }]}
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
+                  onFocus={() => setFocusedField("phone")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter phone number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
@@ -217,7 +236,11 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
               <View
-                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+                style={[
+                  styles.inputContainer,
+                  { backgroundColor: theme.card },
+                  focusedField === "email" && styles.inputFocused,
+                ]}
               >
                 <Feather
                   name="mail"
@@ -229,6 +252,8 @@ export default function EditProfile() {
                   style={[styles.input, { color: theme.text }]}
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="Enter email"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
@@ -241,7 +266,11 @@ export default function EditProfile() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
               <View
-                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+                style={[
+                  styles.inputContainer,
+                  { backgroundColor: theme.card },
+                  focusedField === "location" && styles.inputFocused,
+                ]}
               >
                 <Feather
                   name="map-pin"
@@ -253,6 +282,8 @@ export default function EditProfile() {
                   style={[styles.input, { color: theme.text }]}
                   value={form.location}
                   onChangeText={(text) => setForm({ ...form, location: text })}
+                  onFocus={() => setFocusedField("location")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="City, Country"
                   placeholderTextColor="#9CA3AF"
                 />
@@ -341,6 +372,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 50,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  inputFocused: {
+    borderColor: "#60A5FA",
   },
   inputIcon: {
     marginRight: 10,

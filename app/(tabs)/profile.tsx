@@ -13,7 +13,6 @@ import {
     View,
 } from "react-native";
 import { supabase } from "../../lib/superbase";
-import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
 export default function Profile() {
@@ -93,10 +92,6 @@ export default function Profile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View>
-          <BackButton color={theme.text} />
-        </View>
-
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={[styles.avatarContainer, { borderColor: theme.border }]}>

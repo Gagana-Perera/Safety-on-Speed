@@ -11,6 +11,7 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+// 2. The Logic to fetch data
 export const getUserProfile = async (
   userId: string,
 ): Promise<UserProfile | null> => {
@@ -19,7 +20,7 @@ export const getUserProfile = async (
       .from("profiles")
       .select("full_name, phone_number, email, avatar_url, location")
       .eq("id", userId)
-      .single();
+      .single(); // We expect only one result
 
     if (error) {
       if (error.code !== "PGRST116") {
