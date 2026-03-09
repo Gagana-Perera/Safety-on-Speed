@@ -1,13 +1,36 @@
 import { supabase } from "@/lib/superbase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export async function saveGuardians(
+const CACHE_KEY = (userId: string) => `guardians_cache_${userId}`;
+
+export type Guardian = { name: string; phone: string };
+
+/** Persist guardian contacts locally so we can display them
+ *  even when the remote SELECT RLS policy is missing. */
+export async function cacheGuardians(userId: string, contacts: Guardian[]) {
+  try {
+    await AsyncStorage.setItem(CACHE_KEY(userId), JSON.stringify(contacts));
+  } catch (e) {
+    console.warn("Failed to cache guardians locally:", e);
+  }
+}
+
+/** Load the locally-cached contacts for a user. */
+export async function loadCachedGuardians(
   userId: string,
-  contacts: { name: string; phone: string }[],
-) {
-  // The remote guardians table uses a flat schema with a UNIQUE constraint on user_id.
-  // Strategy: try INSERT first (new users), if 23505 duplicate key → UPDATE (existing users).
-  // This avoids relying on a DELETE policy or UPDATE policy via upsert.
+): Promise<Guardian[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY(userId));
+    if (!raw) return null;
+    return JSON.parse(raw) as Guardian[];
+  } catch (e) {
+    console.warn("Failed to load cached guardians:", e);
+    return null;
+  }
+}
 
+export async function saveGuardians(userId: string, contacts: Guardian[]) {
+  // Build the flat row matching the remote DB schema
   const row: Record<string, string | null | boolean> = {
     user_id: userId,
     g1_verified: false,
@@ -28,18 +51,19 @@ export async function saveGuardians(
     }
   }
 
-  // 1. Try INSERT (works for new users who have no guardian row yet)
+  // Try INSERT first (new users), fall back to UPDATE on 23505 (existing row)
   const { error: insertError } = await supabase
     .from("guardians")
     .insert([row] as any);
 
   if (!insertError) {
     console.log("Guardians saved via INSERT.");
+    await cacheGuardians(userId, contacts);
     return;
   }
 
-  // 2. If row already exists (23505 = unique_violation), UPDATE it
   if (insertError.code === "23505") {
+    // Row exists — UPDATE it
     console.log("Guardian row exists, updating via UPDATE...");
     const { user_id, ...updateFields } = row;
     const { error: updateError } = await supabase
@@ -52,10 +76,10 @@ export async function saveGuardians(
       throw updateError;
     }
     console.log("Guardians saved via UPDATE.");
+    await cacheGuardians(userId, contacts);
     return;
   }
 
-  // 3. Any other error — throw it
   console.error("Failed to save guardians:", insertError);
   throw insertError;
 }

@@ -1,6 +1,6 @@
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
-import { saveGuardians } from "@/lib/saveguardians";
+import { loadCachedGuardians, saveGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -84,6 +84,19 @@ export default function GuardianSetup() {
           }
           if (loaded.length > 0) {
             setContacts(loaded);
+          }
+        } else {
+          // DB returned null — likely no SELECT RLS policy on remote DB.
+          // Fall back to the local AsyncStorage cache written by saveGuardians.
+          console.log("loadGuardians: DB returned null, trying local cache...");
+          const cached = await loadCachedGuardians(user.id);
+          if (cached && cached.length > 0) {
+            console.log(
+              "loadGuardians: loaded from cache",
+              JSON.stringify(cached),
+            );
+            setIsManageFlow(true);
+            setContacts(cached);
           }
         }
       } catch (e) {
