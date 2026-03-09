@@ -159,7 +159,7 @@ export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
 
-  const EMERGENCY_ICON_COLOR = "#8FD3FF";
+  const EMERGENCY_ICON_COLOR = theme.mode === "light" ? "#000000" : "#8FD3FF";
 
   const EMERGENCY_BORDER_COLOR = "#2A5068";
   const EMERGENCY_BORDER_WIDTH = 2;
@@ -769,7 +769,11 @@ export default function EmergencyServices() {
                 <ActivityIndicator size="small" color={EMERGENCY_ICON_COLOR} />
               ) : (
                 <>
-                  <Ionicons name="call" size={12} color="#FFFFFF" />
+                  <Ionicons
+                    name="call"
+                    size={12}
+                    color={EMERGENCY_ICON_COLOR}
+                  />
                   <Text
                     className="text-[10px] ml-1 font-bold uppercase"
                     style={{ color: theme.text }}
@@ -805,7 +809,10 @@ export default function EmergencyServices() {
               >
                 {loadingStatus?.id === item.id &&
                 loadingStatus?.type === "map" ? (
-                  <ActivityIndicator size="small" color={EMERGENCY_ICON_COLOR} />
+                  <ActivityIndicator
+                    size="small"
+                    color={EMERGENCY_ICON_COLOR}
+                  />
                 ) : (
                   <>
                     <Ionicons

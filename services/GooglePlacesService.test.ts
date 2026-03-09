@@ -94,6 +94,88 @@ describe("getNearbyPlaces()", () => {
     }
   });
 
+  it("avoids specialty-only hospitals by falling back to a plain hospital query", async () => {
+    jest.resetModules();
+
+    const fetchMock = jest.fn().mockImplementation(async (url: string) => {
+      const u = String(url);
+
+      // Keyword attempts (emergency/etc): only a specialty hospital appears.
+      if (u.includes("rankby=distance") && u.includes("type=hospital")) {
+        if (u.includes("keyword=emergency")) {
+          return {
+            json: async () => ({
+              status: "OK",
+              results: [
+                {
+                  place_id: "eye",
+                  name: "National Eye Hospital",
+                  geometry: { location: { lat: 0.0005, lng: 0 } },
+                  types: ["hospital"],
+                },
+              ],
+            }),
+          };
+        }
+
+        if (u.includes("keyword=")) {
+          return {
+            json: async () => ({
+              status: "OK",
+              results: [],
+            }),
+          };
+        }
+
+        // Fallback query (no keyword): a general hospital appears.
+        return {
+          json: async () => ({
+            status: "OK",
+            results: [
+              {
+                place_id: "general",
+                name: "Colombo General Hospital",
+                geometry: { location: { lat: 0.0015, lng: 0 } },
+                types: ["hospital"],
+              },
+            ],
+          }),
+        };
+      }
+
+      return {
+        json: async () => ({
+          status: "OK",
+          results: [],
+        }),
+      };
+    });
+
+    const originalFetch = globalThis.fetch;
+    (globalThis as any).fetch = fetchMock;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getNearbyPlaces } = require("./GooglePlacesService");
+
+      const result = await getNearbyPlaces(0, 0, "hospital");
+      expect(result).toBe("general");
+
+      // Confirm we issued at least one hospital request without a keyword.
+      const calledUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+      const hospitalNoKeywordCall = calledUrls.find(
+        (u) =>
+          u.includes("nearbysearch/json?") &&
+          u.includes("rankby=distance") &&
+          u.includes("type=hospital") &&
+          !u.includes("keyword="),
+      );
+      expect(hospitalNoKeywordCall).toBeTruthy();
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
+
   it("picks the nearest hospital across keyword attempts (not first non-empty)", async () => {
     jest.resetModules();
 
