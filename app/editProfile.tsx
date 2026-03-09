@@ -1,26 +1,29 @@
-import React, { useState, useEffect } from "react";
-import { useRouter } from "expo-router";
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import {
+    getUserProfile,
+    updateUserProfile
+} from "../lib/profileService";
+import { supabase } from "../lib/superbase";
+import BackButton from "./backButton";
 import { useTheme } from "./themeContext";
-import BackButton from './backButton'; 
-import { supabase } from "../lib/superbase"; 
-import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
 
 export default function EditProfile() {
   const router = useRouter();
-  
+
   // Get the theme object
   const { theme } = useTheme();
 
@@ -38,22 +41,19 @@ export default function EditProfile() {
   useEffect(() => {
     async function loadData() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (user) {
           const profile = await getUserProfile(user.id);
-          
-          if (profile) {
-            const fullName = profile.full_name || "";
-            const nameParts = fullName.split(" ");
-            const first = nameParts[0] || "";
-            const last = nameParts.slice(1).join(" ") || "";
 
+          if (profile) {
             setForm({
-              firstName: first,
-              lastName: last,
+              firstName: profile.first_name || "",
+              lastName: profile.surname || "",
               phone: profile.phone_number || "",
-              email: profile.email || user.email || "", 
-              location: profile.location || "", 
+              email: profile.email || user.email || "",
+              location: profile.location || "",
             });
           }
         }
@@ -67,17 +67,18 @@ export default function EditProfile() {
   }, []);
 
   const handleSave = async () => {
-    if (saving) return; 
+    if (saving) return;
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const full_name = `${form.firstName} ${form.lastName}`.trim();
-
       const updates = {
-        full_name,
+        first_name: form.firstName.trim(),
+        surname: form.lastName.trim(),
         phone_number: form.phone,
         email: form.email,
         location: form.location,
@@ -85,11 +86,10 @@ export default function EditProfile() {
       };
 
       await updateUserProfile(user.id, updates);
-      
-      Alert.alert("Success", "Profile updated successfully!", [
-        { text: "OK", onPress: () => router.back() }
-      ]);
 
+      Alert.alert("Success", "Profile updated successfully!", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
     } catch (error) {
       Alert.alert("Error", "Could not save profile.");
       console.log(error);
@@ -100,7 +100,9 @@ export default function EditProfile() {
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+      >
         <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
@@ -110,14 +112,12 @@ export default function EditProfile() {
     // Apply dynamic background color
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        
         {/* Pass dynamic color to BackButton */}
         <View style={{ margin: 20, marginTop: 10 }}>
-             <BackButton color={theme.text}/>
+          <BackButton color={theme.text} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          
           {/* Photo Section */}
           <View style={styles.profileImageContainer}>
             <Image
@@ -127,9 +127,14 @@ export default function EditProfile() {
               // Use theme.border for the avatar border
               style={[styles.profileAvatar, { borderColor: theme.border }]}
             />
-            <TouchableOpacity 
-              style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
-              onPress={() => Alert.alert("Upload Photo", "Open gallery or camera logic here")}
+            <TouchableOpacity
+              style={[
+                styles.cameraIconContainer,
+                { borderColor: theme.background },
+              ]}
+              onPress={() =>
+                Alert.alert("Upload Photo", "Open gallery or camera logic here")
+              }
             >
               <Feather name="camera" size={16} color="#fff" />
             </TouchableOpacity>
@@ -138,12 +143,18 @@ export default function EditProfile() {
 
           {/* Form Section */}
           <View style={styles.form}>
-            
             {/* First Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="user"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.firstName}
@@ -157,8 +168,15 @@ export default function EditProfile() {
             {/* Last Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="user"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.lastName}
@@ -172,8 +190,15 @@ export default function EditProfile() {
             {/* Phone Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="phone" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="phone"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.phone}
@@ -188,8 +213,15 @@ export default function EditProfile() {
             {/* Email Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="mail" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="mail"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.email}
@@ -202,11 +234,18 @@ export default function EditProfile() {
               </View>
             </View>
 
-             {/* Location Input */}
-             <View style={styles.inputGroup}>
+            {/* Location Input */}
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="map-pin"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.location}
@@ -216,21 +255,22 @@ export default function EditProfile() {
                 />
               </View>
             </View>
-
           </View>
 
           {/* Save Button */}
           <View style={styles.actionContainer}>
             {/* You can use a specific color like Blue (#2563eb) or use theme.card with a border */}
-            <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}>
+            <TouchableOpacity
+              onPress={handleSave}
+              style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}
+            >
               {saving ? (
-                 <ActivityIndicator color="white" />
+                <ActivityIndicator color="white" />
               ) : (
-                 <Text style={styles.saveBtnText}>Save Changes</Text>
+                <Text style={styles.saveBtnText}>Save Changes</Text>
               )}
             </TouchableOpacity>
           </View>
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -240,8 +280,8 @@ export default function EditProfile() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   container: {
     paddingVertical: 12, // Reduced slightly to account for SafeAreaView
@@ -265,7 +305,7 @@ const styles = StyleSheet.create({
   cameraIconContainer: {
     position: "absolute",
     bottom: 25,
-    right: "36%", 
+    right: "36%",
     backgroundColor: "#2563eb",
     padding: 8,
     borderRadius: 20,
