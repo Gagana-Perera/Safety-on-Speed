@@ -123,11 +123,12 @@ export default function SignUpOtp() {
       // 3. Save Profile
       const { error: profileError } = await supabase.from("profiles").insert({
         id: user.id,
-        full_name: `${draft.firstName || ""} ${draft.surname || ""}`.trim(),
+        first_name: draft.firstName || "",
+        surname: draft.surname || "",
         phone_number: draft.phoneNumber,
+        nic_number: draft.nicNumber,
         email: draft.email,
-        // nic_number is not in the remote schema
-      } as any); // use `as any` because local database.types.ts is out of sync with remote DB
+      } as any);
 
       if (profileError) {
         console.error("Profile save error:", profileError);
