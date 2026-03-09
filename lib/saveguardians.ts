@@ -1,33 +1,33 @@
 import { supabase } from "@/lib/superbase";
 
-export async function saveGuardians(userId: string, contacts: { name: string; phone: string }[]) {
-    const row: Record<string, any> = {
-        user_id: userId,
-        g1_verified: false,
-        g2_verified: false,
-        g3_verified: false,
-        g4_verified: false,
-        g5_verified: false,
-    };
+export async function saveGuardians(
+  userId: string,
+  contacts: { name: string; phone: string }[],
+) {
+  // 1. Delete all existing guardians for this user (clean slate upsert)
+  const { error: deleteError } = await supabase
+    .from("guardians")
+    .delete()
+    .eq("user_id", userId);
 
-    // Populate provided contacts and explicitly null out remaining slots
-    for (let i = 1; i <= 5; i++) {
-        const contact = contacts[i - 1];
-        if (contact) {
-            row[`g${i}_name`] = contact.name;
-            row[`g${i}_phone`] = contact.phone;
-        } else {
-            row[`g${i}_name`] = null;
-            row[`g${i}_phone`] = null;
-        }
-    }
+  if (deleteError) {
+    console.error("Failed to delete old guardians:", deleteError);
+    throw deleteError;
+  }
 
-    const { error } = await supabase.from("guardians").upsert([row] as any, { onConflict: "user_id" });
+  // 2. Insert one row per contact
+  const rows = contacts.map((contact) => ({
+    user_id: userId,
+    name: contact.name.trim(),
+    phone_number: contact.phone.trim(),
+  }));
 
-    if (error) {
-        console.error("Failed to save guardians:", error);
-        throw error;
-    }
+  const { error: insertError } = await supabase
+    .from("guardians")
+    .insert(rows as any);
+
+  if (insertError) {
+    console.error("Failed to save guardians:", insertError);
+    throw insertError;
+  }
 }
-
-
