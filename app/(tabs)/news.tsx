@@ -3,16 +3,8 @@ import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { MaterialIcons } from '@expo/vector-icons';
-
-// these are mock posts as a demo 
-const posts = [
-  { id: "1", username: "username1", postTime: "11.23", postDate: "9-2-2026", body: "post body", media: require('@/assets/oc/default-img.png') },
-  { id: "2", username: "username2", postTime: "18.56", postDate: "9-2-2026", body: "post body"},
-  { id: "3", username: "username3", postTime: "05.34", postDate: "9-2-2026", body: "post body", media: require('@/assets/oc/default-img.png') },
-  { id: "4", username: "username4", postTime: "00.23", postDate: "9-2-2026", body: "post body", media: require('@/assets/oc/default-img.png') },
-  { id: "5", username: "username5", postTime: "18.56", postDate: "8-2-2026", body: "lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel sapien eget nunc efficitur varius. Sed at ligula a enim efficitur commodo. Nulla facilisi. Donec ac odio a nisl convallis tincidunt. Proin in felis sed nisi efficitur bibendum. Curabitur ut ligula a enim efficitur commodo. Nulla facilisi. Donec ac odio a nisl convallis tincidunt. Proin in felis sed nisi efficitur bibendum.✌️"},
-  { id: "6", username: "username6", postTime: "05.34", postDate: "8-2-2026", body: "post body",},
-];
+import { router } from 'expo-router';
+import { dummyposts } from '@/lib/newsApi';
 
 {/* this part controls the post card */}
 
@@ -126,6 +118,7 @@ export default function News() {
           <PostCard key={post.id} {...post} />
         ))}
       </ScrollView>
+
     </SafeAreaView>
   );
 }
@@ -259,5 +252,21 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontSize: 20,
     color: "#fff",
+  },
+  createPostButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#0494CB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0494CB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
