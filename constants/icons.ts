@@ -1,10 +1,9 @@
-import addButton from "@/assets/icons/addButton.png";
-import deleteButton from "@/assets/icons/deleteButton.png";
+import AddButtonIcon from "@/assets/icons/addButton.png";
+import DeleteButtonIcon from "@/assets/icons/deleteButton.png";
 import ForumIcon from "@/assets/icons/forum.svg";
 import HomeIcon from "@/assets/icons/home.svg";
 import HospitalIcon from "@/assets/icons/hospital.svg";
 import MenuIcon from "@/assets/icons/menu.svg";
-import nonotificationButton from "@/assets/icons/nonotifications.png";
 import PersonIcon from "@/assets/icons/person.svg";
 import PharmacyIcon from "@/assets/icons/pharmacy.svg";
 import PoliceIcon from "@/assets/icons/police.svg";
@@ -17,4 +16,6 @@ export const icons = {
   pharmacy: PharmacyIcon,
   hospital: HospitalIcon,
   police: PoliceIcon,
+  addButton: AddButtonIcon,
+  deleteButton: DeleteButtonIcon,
 };

@@ -8,35 +8,43 @@ import { useTheme } from "../themeContext";
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-const IconC = ({ focused, icon: IconComponent, title, ioniconName }: any) => {
-  const color = focused ? "#8FD3FF" : "#808080";
-
-  if (ioniconName) {
+const IconC = ({
+  icon,
+  color,
+  size,
+}: {
+  icon: any;
+  color: string;
+  size: number;
+}) => {
+  // `constants/icons.ts` exports SVGs as React components.
+  // The home logo is a normal image source.
+  if (icon === officialdoc.logo) {
     return (
-      <View className="items-center justify-center">
-        <Ionicons name={ioniconName} size={28} color={color} />
-      </View>
+      <Image
+        source={icon}
+        style={{
+          width: size + 10,
+          height: size + 10,
+          borderRadius: (size + 10) / 2,
+        }}
+        resizeMode="cover"
+      />
     );
   }
 
-  const isLogo = IconComponent === officialdoc.logo;
-
+  const SvgIcon = icon as React.ComponentType<{
+    width?: number;
+    height?: number;
+    fill?: string;
+    stroke?: string;
+  }>;
   return (
-    <View className="items-center justify-center">
-      {isLogo ? (
-        <Image
-          source={IconComponent}
-          className="w-10 h-10 rounded-full"
-          style={focused ? { borderWidth: 2, borderColor: "#8FD3FF" } : {}}
-        />
-      ) : (
-        <IconComponent width={28} height={28} color={color} fill={color} />
-      )}
-    </View>
+    <SvgIcon width={size + 6} height={size + 6} fill={color} stroke={color} />
   );
 };
 
-export default function Layout() {
+export default function TabsLayout() {
   // 2. Grab the theme
   const { theme } = useTheme();
   const [session, setSession] = useState<any>(null);
@@ -80,10 +88,19 @@ export default function Layout() {
     <Tabs
       initialRouteName="index"
       screenOptions={{
+        tabBarActiveTintColor: theme.text,
+        tabBarInactiveTintColor: theme.icon,
         tabBarStyle: {
           // theme.card switches between Dark Blue (#1E3C5A) and White (#FFFFFF)
           backgroundColor: theme.card,
           borderTopColor: theme.border,
+          height: 72,
+          paddingTop: 10,
+          paddingBottom: 12,
+        },
+        tabBarItemStyle: {
+          justifyContent: "center",
+          alignItems: "center",
         },
         headerStyle: {
           backgroundColor: theme.card,
@@ -97,12 +114,8 @@ export default function Layout() {
           title: "Extra",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              ioniconName="grid"
-              //title= "Extra"
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.home} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -112,12 +125,8 @@ export default function Layout() {
           title: "Map",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              ioniconName="map"
-              //title= "Map"
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.home} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -127,8 +136,8 @@ export default function Layout() {
           title: "Home",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC focused={focused} icon={officialdoc.logo} />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={officialdoc.logo} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -138,12 +147,8 @@ export default function Layout() {
           title: "News",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.forum}
-              //title= "News"
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.forum} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -153,12 +158,8 @@ export default function Layout() {
           title: "Profile",
           tabBarShowLabel: false,
           headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <IconC
-              focused={focused}
-              icon={icons.person}
-              //title= "Profile"
-            />
+          tabBarIcon: ({ color, size }) => (
+            <IconC icon={icons.person} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>

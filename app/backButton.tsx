@@ -7,12 +7,14 @@ interface BackButtonProps {
   color?: string;
   size?: number;
   onPress?: () => void;
+  accessibilityLabel?: string;
 }
 
 export default function BackButton({ 
   color = '#fff', 
   size = 24,
-  onPress 
+  onPress,
+  accessibilityLabel,
 }: BackButtonProps) {
   const router = useRouter();
 
@@ -29,6 +31,8 @@ export default function BackButton({
       style={styles.backButton} 
       onPress={handlePress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <Feather name="arrow-left" size={size} color={color} />
     </TouchableOpacity>
