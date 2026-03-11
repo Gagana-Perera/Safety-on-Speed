@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import i18n from "../../lib/i18n";
@@ -20,8 +21,17 @@ import { supabase } from "../../lib/superbase";
 import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
+const SRI_LANKAN_DISTRICTS = [
+  "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", 
+  "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara", 
+  "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar", 
+  "Matale", "Matara", "Moneragala", "Mullaitivu", "Nuwara Eliya", 
+  "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+];
+
 export default function Profile() {
   const { t } = useTranslation();
+  const [districtModalVisible, setDistrictModalVisible] = useState(false);
   const router = useRouter();
   const { theme, isDark, toggleTheme } = useTheme();
 
@@ -64,7 +74,7 @@ export default function Profile() {
           const { data: profileData, error: profileError } = await (supabase
             .from("profiles")
             .select(
-              "full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location",
+              "full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location, language, location",
             )
             .eq("id", user.id)
             .single() as any);
@@ -104,12 +114,12 @@ export default function Profile() {
             if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
 
             // 7. Toggles
-            setEmailNotif(profileData?.email_notif || true);
-            setPushNotif(profileData?.push_notif || true);
-            setAlertNotif(profileData?.alert_notif || true);
-            setPersonalDataAccess(profileData?.personal_data_access || true);
-            setCameraAccess(profileData?.camera_access || true);
-            setLiveLocation(profileData?.live_location || true);
+            setEmailNotif(profileData?.email_notif ?? true);
+            setPushNotif(profileData?.push_notif ?? true);
+            setAlertNotif(profileData?.alert_notif ?? true);
+            setPersonalDataAccess(profileData?.personal_data_access ?? true);
+            setCameraAccess(profileData?.camera_access ?? true);
+            setLiveLocation(profileData?.live_location ?? true);
 
             const dbLang = profileData?.language || "en";
             
@@ -121,6 +131,11 @@ export default function Profile() {
             // Tell i18next to switch to this language
             if (i18n && typeof i18n.changeLanguage === 'function') {
                i18n.changeLanguage(dbLang);
+            }
+
+            // Set saved location
+            if (profileData?.location) {
+               setLocationRegion(profileData.location);
             }
           }
         } catch (error) {
@@ -147,6 +162,60 @@ export default function Profile() {
       };
     }, []),
   );
+
+  // --- LOCATION LOGIC ---
+  const updateLocationInDB = async (newLoc: string) => {
+    setLocationRegion(newLoc); // Update UI instantly
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ location: newLoc } as any)
+        .eq("id", session.user.id);
+
+      if (error) console.log("Error saving location:", error);
+    } catch (e) {
+      console.log("Unexpected error saving location:", e);
+    }
+  };
+
+  const fetchGPSLocation = async () => {
+    try {
+      setLocationRegion("Locating...");
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Please allow location access in settings.');
+        setLocationRegion("Colombo, Sri Lanka");
+        return;
+      }
+
+      let loc = await Location.getCurrentPositionAsync({});
+      let reverse = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+
+      if (reverse.length > 0) {
+        // District is usually stored in 'subregion' in Sri Lanka
+        const city = reverse[0].city || reverse[0].subregion || "Colombo";
+        updateLocationInDB(city);
+      }
+    } catch (e) {
+      console.log(e);
+      Alert.alert("Error", "Could not fetch GPS location.");
+      setLocationRegion("Colombo, Sri Lanka");
+    }
+  };
+
+  const showLocationPicker = () => {
+  Alert.alert("Location Settings", "Choose an option", [
+    { text: "Use My GPS", onPress: fetchGPSLocation },
+    { text: "Choose Manually", onPress: () => setDistrictModalVisible(true) },
+    { text: "Cancel", style: "cancel" },
+  ]);
+};
 
   // Update Preferences in database
   const toggleSetting = async (
@@ -306,6 +375,42 @@ export default function Profile() {
         </TouchableOpacity>
       </Modal>
 
+      {/* --- SCROLLABLE DISTRICT PICKER MODAL --- */}
+      <Modal
+        visible={districtModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDistrictModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerContainer, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Select District</Text>
+            
+            <ScrollView style={{ maxHeight: 400, width: '100%' }}>
+              {SRI_LANKAN_DISTRICTS.map((item) => (
+                <TouchableOpacity 
+                  key={item} 
+                  style={styles.districtItem}
+                  onPress={() => {
+                    updateLocationInDB(item);
+                    setDistrictModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontSize: 16 }}>{item}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => setDistrictModalVisible(false)}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.content}>
         <View>
           <BackButton color={theme.text} />
@@ -379,9 +484,7 @@ export default function Profile() {
               type="link"
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => Alert.alert("Change Location", "Picker here")}
-          >
+          <TouchableOpacity onPress={showLocationPicker}>
             <SettingRow
               icon="map"
               label={t('location')}
@@ -570,5 +673,34 @@ const styles = StyleSheet.create({
     marginTop: 24,
     gap: 8,
   },
-  modalCloseText: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
+  modalCloseText: { 
+    color: "rgba(255,255,255,0.5)", 
+    fontSize: 14 
+  },
+  pickerContainer: {
+    width: '80%',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    elevation: 5,
+  },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    marginBottom: 15 
+  },
+  districtItem: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ccc',
+    width: '100%',
+    alignItems: 'center',
+  },
+  closeButton: {
+    marginTop: 20,
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
 });
