@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import i18n from "../../lib/i18n";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -19,11 +21,11 @@ import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
 export default function Profile() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { theme, isDark, toggleTheme } = useTheme();
 
   // --- STATE VARIABLES ---
-  // -
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,7 +40,7 @@ export default function Profile() {
   const [cameraAccess, setCameraAccess] = useState(true);
   const [liveLocation, setLiveLocation] = useState(true);
   const [language, setLanguage] = useState("English");
-  const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
+  const [locationRegion, setLocationRegion] = useState("Colombo,Sri Lanka");
 
   const DEFAULT_AVATAR =
     "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
@@ -108,6 +110,18 @@ export default function Profile() {
             setPersonalDataAccess(profileData?.personal_data_access || true);
             setCameraAccess(profileData?.camera_access || true);
             setLiveLocation(profileData?.live_location || true);
+
+            const dbLang = profileData?.language || "en";
+            
+            // Set the UI label based on the code
+            if (dbLang === "si") setLanguage("Sinhala");
+            else if (dbLang === "ta") setLanguage("Tamil");
+            else setLanguage("English");
+
+            // Tell i18next to switch to this language
+            if (i18n && typeof i18n.changeLanguage === 'function') {
+               i18n.changeLanguage(dbLang);
+            }
           }
         } catch (error) {
           console.log("Unexpected error:", error);
@@ -185,6 +199,38 @@ export default function Profile() {
     ]);
   };
 
+  const changeLanguage = async (langCode: string, langLabel: string) => {
+    // 1. Update UI immediately for a snappy feel
+    setLanguage(langLabel);
+    i18n.changeLanguage(langCode);
+
+    // 2. Save to Supabase in the background
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ language: langCode } as any) // "as any" bypasses TS errors until you sync your database types
+        .eq("id", session.user.id);
+
+      if (error) {
+        console.log("Error saving language:", error);
+      }
+    } catch (error) {
+      console.log("Unexpected error saving language:", error);
+    }
+  };
+
+  const showLanguagePicker = () => {
+    Alert.alert("Select Language", "Choose your preferred language", [
+      { text: "English", onPress: () => changeLanguage("en", "English") },
+      { text: "සිංහල (Sinhala)", onPress: () => changeLanguage("si", "Sinhala") },
+      { text: "தமிழ் (Tamil)", onPress: () => changeLanguage("ta", "Tamil") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   // Reusable Row Component
   const SettingRow = ({
     icon,
@@ -195,33 +241,43 @@ export default function Profile() {
     subText = "",
   }: any) => (
     <View style={[styles.row, { borderBottomColor: theme.border }]}>
-      <View style={styles.rowLeft}>
+      {/* 1. Added flex: 1 and some padding so it doesn't touch the switch */}
+      <View style={[styles.rowLeft, { flex: 1, paddingRight: 15 }]}>
         <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
           <Feather name={icon} size={20} color={theme.text} />
         </View>
-        <View>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
+        
+        {/* 2. Added flex: 1 to this View so the text is forced to wrap */}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>
+            {label}
+          </Text>
           {subText ? (
-            <Text style={{ fontSize: 12, color: theme.icon }}>{subText}</Text>
+            <Text style={{ fontSize: 12, color: theme.icon, marginTop: 2 }}>
+              {subText}
+            </Text>
           ) : null}
         </View>
       </View>
 
-      {type === "switch" ? (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: "#767577", true: "#34C759" }}
-          thumbColor={"#f4f3f4"}
-        />
-      ) : (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>
-            {value}
-          </Text>
-          <Feather name="chevron-right" size={20} color={theme.icon} />
-        </View>
-      )}
+      {/* The Right Side (Switch or Chevron) stays the same */}
+      <View>
+        {type === "switch" ? (
+          <Switch
+            value={value}
+            onValueChange={onValueChange}
+            trackColor={{ false: "#767577", true: "#34C759" }}
+            thumbColor={"#f4f3f4"}
+          />
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>
+              {value}
+            </Text>
+            <Feather name="chevron-right" size={20} color={theme.icon} />
+          </View>
+        )}
+      </View>
     </View>
   );
 
@@ -298,11 +354,11 @@ export default function Profile() {
           style={[styles.sectionContainer, { backgroundColor: theme.card }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            APPEARANCE
+            {t('appearance')}
           </Text>
           <SettingRow
             icon="moon"
-            label="Dark Mode"
+            label={t('dark_mode')}
             value={isDark}
             onValueChange={toggleTheme}
           />
@@ -313,15 +369,13 @@ export default function Profile() {
           style={[styles.sectionContainer, { backgroundColor: theme.card }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            GENERAL
+            {t('general')}
           </Text>
-          <TouchableOpacity
-            onPress={() => Alert.alert("Change Language", "Picker here")}
-          >
+          <TouchableOpacity onPress={showLanguagePicker}>
             <SettingRow
               icon="globe"
-              label="Language"
-              value={language}
+              label={t('language')}
+              value={language} // Displays "English", "Sinhala", etc.
               type="link"
             />
           </TouchableOpacity>
@@ -330,7 +384,7 @@ export default function Profile() {
           >
             <SettingRow
               icon="map"
-              label="Location"
+              label={t('location')}
               value={locationRegion}
               type="link"
             />
@@ -338,46 +392,42 @@ export default function Profile() {
         </View>
 
         {/* --- 2. NOTIFICATIONS --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            NOTIFICATIONS
+            {t('notifications')}
           </Text>
           <SettingRow
             icon="mail"
-            label="Email Notifications"
-            subText="Receive daily summaries"
+            label={t('email_notif_label')}
+            subText={t('email_notif_sub')}
             value={emailNotif}
             onValueChange={(val: boolean) => toggleSetting("email_notif", val)}
           />
           <SettingRow
             icon="bell"
-            label="Push Notification"
-            subText="Security & Update alerts"
+            label={t('push_notif_label')}
+            subText={t('push_notif_sub')}
             value={pushNotif}
             onValueChange={(val: boolean) => toggleSetting("push_notif", val)}
           />
           <SettingRow
             icon="alert-triangle"
-            label="Alert Notification"
-            subText="Security & Update alerts"
+            label={t('alert_notif_label')}
+            subText={t('alert_notif_sub')}
             value={AlertNotif}
             onValueChange={(val: boolean) => toggleSetting("alert_notif", val)}
           />
         </View>
 
         {/* --- 3. PRIVACY --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            PRIVACY & PERMISSIONS
+            {t('privacy')}
           </Text>
           <SettingRow
             icon="database"
-            label="Personal Data Access"
-            subText="Allow to use data customization"
+            label={t('personal_data_label')}
+            subText={t('personal_data_sub')}
             value={personalDataAccess}
             onValueChange={(val: boolean) =>
               toggleSetting("personal_data_access", val)
@@ -385,8 +435,8 @@ export default function Profile() {
           />
           <SettingRow
             icon="camera"
-            label="Camera Access"
-            subText="Allow app to use camera"
+            label={t('camera_access_label')}
+            subText={t('camera_access_sub')}
             value={cameraAccess}
             onValueChange={(val: boolean) =>
               toggleSetting("camera_access", val)
@@ -394,8 +444,8 @@ export default function Profile() {
           />
           <SettingRow
             icon="map-pin"
-            label="Live Location Access"
-            subText="Share location in real-time"
+            label={t('live_location_label')}
+            subText={t('live_location_sub')}
             value={liveLocation}
             onValueChange={(val: boolean) =>
               toggleSetting("live_location", val)
@@ -406,7 +456,7 @@ export default function Profile() {
         {/* --- LOGOUT --- */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Feather name="log-out" size={20} color="#fff" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          <Text style={styles.logoutText}>{t('sign_out')}</Text>
         </TouchableOpacity>
 
         <Text style={[styles.versionText, { color: theme.icon }]}>
