@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../lib/superbase";
+import { getMergedProfileData } from '../../lib/profileService';
 import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
@@ -62,92 +63,56 @@ export default function Profile() {
       let isActive = true;
 
       const fetchProfileData = async () => {
-        try {
-          // 1. Get auth user
-          const {
-            data: { user },
-            error: userError,
-          } = await supabase.auth.getUser();
-          if (userError) throw userError;
-          if (!user) return;
+      try {
+        if (isActive) setLoading(true);
 
-          // 2. Get full_name and settings from profiles table
-          const { data: profileData, error: profileError } = await (supabase
-            .from("profiles")
-            .select(
-              "full_name, phone_number, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location, language, location",
-            )
-            .eq("id", user.id)
-            .single() as any);
+        // Fetch the merged data from your new service
+        const data = await getMergedProfileData();
 
-          if (profileError) {
-            console.log("Error fetching profile:", profileError);
+        if (isActive && data) {
+          // 1. Basic Information
+          setFullName(data.fullName);
+          setEmail(data.email);
+          setPhoneNumber(data.phone);
+          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
+
+          // 2. Location
+          if (data.location) {
+            setLocationRegion(data.location);
           }
 
-          if (isActive) {
-            // 3. Get name — priority: profiles table → user_metadata → empty
-            const nameFromDB = profileData?.full_name || "";
-            const metaFirst = user.user_metadata?.first_name || "";
-            const metaLast = user.user_metadata?.last_name || "";
-            const nameFromMeta = `${metaFirst} ${metaLast}`.trim();
-            const resolvedName = nameFromDB || nameFromMeta;
+          // 3. Language & Translations
+          if (data.language === 'si') setLanguage('Sinhala');
+          else if (data.language === 'ta') setLanguage('Tamil');
+          else setLanguage('English');
 
-            setFullName(resolvedName);
-
-            // 4. Only show alert if name is truly missing everywhere
-            if (!resolvedName) {
-              Alert.alert(
-                "Complete Your Profile",
-                "Please add your name in Edit Profile.",
-                [
-                  {
-                    text: "Go to Edit Profile",
-                    onPress: () => router.push("/editProfile"),
-                  },
-                ],
-              );
-            }
-
-            // 5. Set Phone Number
-            setPhoneNumber(profileData?.phone_number || "");
-
-            // 6. Email — priority: profiles table → auth email
-            setEmail(profileData?.email || user.email || "No Email");
-
-            // 7. Avatar
-            if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
-
-            // 8. Toggles
-            setEmailNotif(profileData?.email_notif ?? true);
-            setPushNotif(profileData?.push_notif ?? true);
-            setAlertNotif(profileData?.alert_notif ?? true);
-            setPersonalDataAccess(profileData?.personal_data_access ?? true);
-            setCameraAccess(profileData?.camera_access ?? true);
-            setLiveLocation(profileData?.live_location ?? true);
-
-            const dbLang = profileData?.language || "en";
-            
-            // Set the UI label based on the code
-            if (dbLang === "si") setLanguage("Sinhala");
-            else if (dbLang === "ta") setLanguage("Tamil");
-            else setLanguage("English");
-
-            // Tell i18next to switch to this language
-            if (i18n && typeof i18n.changeLanguage === 'function') {
-               i18n.changeLanguage(dbLang);
-            }
-
-            // Set saved location
-            if (profileData?.location) {
-               setLocationRegion(profileData.location);
-            }
+          if (i18n && typeof i18n.changeLanguage === 'function') {
+            i18n.changeLanguage(data.language);
           }
-        } catch (error) {
-          console.log("Unexpected error:", error);
-        } finally {
-          if (isActive) setLoading(false);
+
+          // 4. Notification & Privacy Toggles
+          setEmailNotif(data.emailNotif);
+          setPushNotif(data.pushNotif);
+          setAlertNotif(data.alertNotif);
+          setPersonalDataAccess(data.personalDataAccess);
+          setCameraAccess(data.cameraAccess);
+          setLiveLocation(data.liveLocation);
+
+          // 5. Missing Name Alert
+          if (!data.fullName || data.fullName.trim() === "") {
+            Alert.alert(
+              "Profile Incomplete",
+              "Please update your name so we can identify you.",
+              [{ text: "Update Now", onPress: () => router.push("/editProfile") }]
+            );
+          }
         }
-      };
+      } catch (error) {
+        console.error("Error setting profile data:", error);
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
 
       fetchProfileData();
 
