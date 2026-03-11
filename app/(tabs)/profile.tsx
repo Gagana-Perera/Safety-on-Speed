@@ -1,6 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import i18n from "../../lib/i18n";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -15,17 +18,28 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../lib/superbase";
+import { getMergedProfileData } from '../../lib/profileService';
 import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
+const SRI_LANKAN_DISTRICTS = [
+  "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", 
+  "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara", 
+  "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar", 
+  "Matale", "Matara", "Moneragala", "Mullaitivu", "Nuwara Eliya", 
+  "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+];
+
 export default function Profile() {
+  const { t } = useTranslation();
+  const [districtModalVisible, setDistrictModalVisible] = useState(false);
   const router = useRouter();
   const { theme, isDark, toggleTheme } = useTheme();
 
   // --- STATE VARIABLES ---
-  // -
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [viewingAvatar, setViewingAvatar] = useState(false);
@@ -38,7 +52,7 @@ export default function Profile() {
   const [cameraAccess, setCameraAccess] = useState(true);
   const [liveLocation, setLiveLocation] = useState(true);
   const [language, setLanguage] = useState("English");
-  const [locationRegion, setLocationRegion] = useState("Colombo, Sri Lanka");
+  const [locationRegion, setLocationRegion] = useState("Choose");
 
   const DEFAULT_AVATAR =
     "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
@@ -49,72 +63,56 @@ export default function Profile() {
       let isActive = true;
 
       const fetchProfileData = async () => {
-        try {
-          // 1. Get auth user
-          const {
-            data: { user },
-            error: userError,
-          } = await supabase.auth.getUser();
-          if (userError) throw userError;
-          if (!user) return;
+      try {
+        if (isActive) setLoading(true);
 
-          // 2. Get full_name and settings from profiles table
-          const { data: profileData, error: profileError } = await (supabase
-            .from("profiles")
-            .select(
-              "full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location",
-            )
-            .eq("id", user.id)
-            .single() as any);
+        // Fetch the merged data from your new service
+        const data = await getMergedProfileData();
 
-          if (profileError) {
-            console.log("Error fetching profile:", profileError);
+        if (isActive && data) {
+          // 1. Basic Information
+          setFullName(data.fullName);
+          setEmail(data.email);
+          setPhoneNumber(data.phone);
+          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
+
+          // 2. Location
+          if (data.location) {
+            setLocationRegion(data.location);
           }
 
-          if (isActive) {
-            // 3. Get name — priority: profiles table → user_metadata → empty
-            const nameFromDB = profileData?.full_name || "";
-            const metaFirst = user.user_metadata?.first_name || "";
-            const metaLast = user.user_metadata?.last_name || "";
-            const nameFromMeta = `${metaFirst} ${metaLast}`.trim();
-            const resolvedName = nameFromDB || nameFromMeta;
+          // 3. Language & Translations
+          if (data.language === 'si') setLanguage('Sinhala');
+          else if (data.language === 'ta') setLanguage('Tamil');
+          else setLanguage('English');
 
-            setFullName(resolvedName);
-
-            // 4. Only show alert if name is truly missing everywhere
-            if (!resolvedName) {
-              Alert.alert(
-                "Complete Your Profile",
-                "Please add your name in Edit Profile.",
-                [
-                  {
-                    text: "Go to Edit Profile",
-                    onPress: () => router.push("/editProfile"),
-                  },
-                ],
-              );
-            }
-
-            // 5. Email — priority: profiles table → auth email
-            setEmail(profileData?.email || user.email || "No Email");
-
-            // 6. Avatar
-            if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
-
-            // 7. Toggles
-            setEmailNotif(profileData?.email_notif || true);
-            setPushNotif(profileData?.push_notif || true);
-            setAlertNotif(profileData?.alert_notif || true);
-            setPersonalDataAccess(profileData?.personal_data_access || true);
-            setCameraAccess(profileData?.camera_access || true);
-            setLiveLocation(profileData?.live_location || true);
+          if (i18n && typeof i18n.changeLanguage === 'function') {
+            i18n.changeLanguage(data.language);
           }
-        } catch (error) {
-          console.log("Unexpected error:", error);
-        } finally {
-          if (isActive) setLoading(false);
+
+          // 4. Notification & Privacy Toggles
+          setEmailNotif(data.emailNotif);
+          setPushNotif(data.pushNotif);
+          setAlertNotif(data.alertNotif);
+          setPersonalDataAccess(data.personalDataAccess);
+          setCameraAccess(data.cameraAccess);
+          setLiveLocation(data.liveLocation);
+
+          // 5. Missing Name Alert
+          if (!data.fullName || data.fullName.trim() === "") {
+            Alert.alert(
+              "Profile Incomplete",
+              "Please update your name so we can identify you.",
+              [{ text: "Update Now", onPress: () => router.push("/editProfile") }]
+            );
+          }
         }
-      };
+      } catch (error) {
+        console.error("Error setting profile data:", error);
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
 
       fetchProfileData();
 
@@ -133,6 +131,60 @@ export default function Profile() {
       };
     }, []),
   );
+
+  // --- LOCATION LOGIC ---
+  const updateLocationInDB = async (newLoc: string) => {
+    setLocationRegion(newLoc); // Update UI instantly
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ location: newLoc } as any)
+        .eq("id", session.user.id);
+
+      if (error) console.log("Error saving location:", error);
+    } catch (e) {
+      console.log("Unexpected error saving location:", e);
+    }
+  };
+
+  const fetchGPSLocation = async () => {
+    try {
+      setLocationRegion("Locating...");
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Please allow location access in settings.');
+        setLocationRegion("Choose");
+        return;
+      }
+
+      let loc = await Location.getCurrentPositionAsync({});
+      let reverse = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+
+      if (reverse.length > 0) {
+        // District is usually stored in 'subregion' in Sri Lanka
+        const city = reverse[0].city || reverse[0].subregion || "Colombo";
+        updateLocationInDB(city);
+      }
+    } catch (e) {
+      console.log(e);
+      Alert.alert("Error", "Could not fetch GPS location.");
+      setLocationRegion("Choose");
+    }
+  };
+
+  const showLocationPicker = () => {
+  Alert.alert("Location Settings", "Choose an option", [
+    { text: "Use My GPS", onPress: fetchGPSLocation },
+    { text: "Choose Manually", onPress: () => setDistrictModalVisible(true) },
+    { text: "Cancel", style: "cancel" },
+  ]);
+};
 
   // Update Preferences in database
   const toggleSetting = async (
@@ -185,6 +237,38 @@ export default function Profile() {
     ]);
   };
 
+  const changeLanguage = async (langCode: string, langLabel: string) => {
+    // 1. Update UI immediately for a snappy feel
+    setLanguage(langLabel);
+    i18n.changeLanguage(langCode);
+
+    // 2. Save to Supabase in the background
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ language: langCode } as any) // "as any" bypasses TS errors until you sync your database types
+        .eq("id", session.user.id);
+
+      if (error) {
+        console.log("Error saving language:", error);
+      }
+    } catch (error) {
+      console.log("Unexpected error saving language:", error);
+    }
+  };
+
+  const showLanguagePicker = () => {
+    Alert.alert("Select Language", "Choose your preferred language", [
+      { text: "English", onPress: () => changeLanguage("en", "English") },
+      { text: "සිංහල (Sinhala)", onPress: () => changeLanguage("si", "Sinhala") },
+      { text: "தமிழ் (Tamil)", onPress: () => changeLanguage("ta", "Tamil") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   // Reusable Row Component
   const SettingRow = ({
     icon,
@@ -195,33 +279,43 @@ export default function Profile() {
     subText = "",
   }: any) => (
     <View style={[styles.row, { borderBottomColor: theme.border }]}>
-      <View style={styles.rowLeft}>
+      {/* 1. Added flex: 1 and some padding so it doesn't touch the switch */}
+      <View style={[styles.rowLeft, { flex: 1, paddingRight: 15 }]}>
         <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
           <Feather name={icon} size={20} color={theme.text} />
         </View>
-        <View>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
+        
+        {/* 2. Added flex: 1 to this View so the text is forced to wrap */}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowLabel, { color: theme.text }]}>
+            {label}
+          </Text>
           {subText ? (
-            <Text style={{ fontSize: 12, color: theme.icon }}>{subText}</Text>
+            <Text style={{ fontSize: 12, color: theme.icon, marginTop: 2 }}>
+              {subText}
+            </Text>
           ) : null}
         </View>
       </View>
 
-      {type === "switch" ? (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: "#767577", true: "#34C759" }}
-          thumbColor={"#f4f3f4"}
-        />
-      ) : (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>
-            {value}
-          </Text>
-          <Feather name="chevron-right" size={20} color={theme.icon} />
-        </View>
-      )}
+      {/* The Right Side (Switch or Chevron) stays the same */}
+      <View>
+        {type === "switch" ? (
+          <Switch
+            value={value}
+            onValueChange={onValueChange}
+            trackColor={{ false: "#767577", true: "#34C759" }}
+            thumbColor={"#f4f3f4"}
+          />
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ marginRight: 10, color: theme.icon, fontSize: 14 }}>
+              {value}
+            </Text>
+            <Feather name="chevron-right" size={20} color={theme.icon} />
+          </View>
+        )}
+      </View>
     </View>
   );
 
@@ -248,6 +342,42 @@ export default function Profile() {
             <Text style={styles.modalCloseText}>Tap anywhere to close</Text>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* --- SCROLLABLE DISTRICT PICKER MODAL --- */}
+      <Modal
+        visible={districtModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDistrictModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerContainer, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Select District</Text>
+            
+            <ScrollView style={{ maxHeight: 400, width: '100%' }}>
+              {SRI_LANKAN_DISTRICTS.map((item) => (
+                <TouchableOpacity 
+                  key={item} 
+                  style={styles.districtItem}
+                  onPress={() => {
+                    updateLocationInDB(item);
+                    setDistrictModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontSize: 16 }}>{item}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => setDistrictModalVisible(false)}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -289,6 +419,11 @@ export default function Profile() {
               <Text style={[styles.email, { color: theme.text }]}>
                 {email || "No Email"}
               </Text>
+              {phoneNumber ? (
+                <Text style={[styles.email, { color: theme.text, marginTop: 2 }]}>
+                  {phoneNumber}
+                </Text> 
+              ) : null}
             </>
           )}
         </View>
@@ -298,11 +433,11 @@ export default function Profile() {
           style={[styles.sectionContainer, { backgroundColor: theme.card }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            APPEARANCE
+            {t('appearance')}
           </Text>
           <SettingRow
             icon="moon"
-            label="Dark Mode"
+            label={t('dark_mode')}
             value={isDark}
             onValueChange={toggleTheme}
           />
@@ -313,24 +448,20 @@ export default function Profile() {
           style={[styles.sectionContainer, { backgroundColor: theme.card }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            GENERAL
+            {t('general')}
           </Text>
-          <TouchableOpacity
-            onPress={() => Alert.alert("Change Language", "Picker here")}
-          >
+          <TouchableOpacity onPress={showLanguagePicker}>
             <SettingRow
               icon="globe"
-              label="Language"
-              value={language}
+              label={t('language')}
+              value={language} // Displays "English", "Sinhala", etc.
               type="link"
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => Alert.alert("Change Location", "Picker here")}
-          >
+          <TouchableOpacity onPress={showLocationPicker}>
             <SettingRow
               icon="map"
-              label="Location"
+              label={t('location')}
               value={locationRegion}
               type="link"
             />
@@ -338,46 +469,42 @@ export default function Profile() {
         </View>
 
         {/* --- 2. NOTIFICATIONS --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            NOTIFICATIONS
+            {t('notifications')}
           </Text>
           <SettingRow
             icon="mail"
-            label="Email Notifications"
-            subText="Receive daily summaries"
+            label={t('email_notif_label')}
+            subText={t('email_notif_sub')}
             value={emailNotif}
             onValueChange={(val: boolean) => toggleSetting("email_notif", val)}
           />
           <SettingRow
             icon="bell"
-            label="Push Notification"
-            subText="Security & Update alerts"
+            label={t('push_notif_label')}
+            subText={t('push_notif_sub')}
             value={pushNotif}
             onValueChange={(val: boolean) => toggleSetting("push_notif", val)}
           />
           <SettingRow
             icon="alert-triangle"
-            label="Alert Notification"
-            subText="Security & Update alerts"
+            label={t('alert_notif_label')}
+            subText={t('alert_notif_sub')}
             value={AlertNotif}
             onValueChange={(val: boolean) => toggleSetting("alert_notif", val)}
           />
         </View>
 
         {/* --- 3. PRIVACY --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
-            PRIVACY & PERMISSIONS
+            {t('privacy')}
           </Text>
           <SettingRow
             icon="database"
-            label="Personal Data Access"
-            subText="Allow to use data customization"
+            label={t('personal_data_label')}
+            subText={t('personal_data_sub')}
             value={personalDataAccess}
             onValueChange={(val: boolean) =>
               toggleSetting("personal_data_access", val)
@@ -385,8 +512,8 @@ export default function Profile() {
           />
           <SettingRow
             icon="camera"
-            label="Camera Access"
-            subText="Allow app to use camera"
+            label={t('camera_access_label')}
+            subText={t('camera_access_sub')}
             value={cameraAccess}
             onValueChange={(val: boolean) =>
               toggleSetting("camera_access", val)
@@ -394,8 +521,8 @@ export default function Profile() {
           />
           <SettingRow
             icon="map-pin"
-            label="Live Location Access"
-            subText="Share location in real-time"
+            label={t('live_location_label')}
+            subText={t('live_location_sub')}
             value={liveLocation}
             onValueChange={(val: boolean) =>
               toggleSetting("live_location", val)
@@ -406,7 +533,7 @@ export default function Profile() {
         {/* --- LOGOUT --- */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Feather name="log-out" size={20} color="#fff" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          <Text style={styles.logoutText}>{t('sign_out')}</Text>
         </TouchableOpacity>
 
         <Text style={[styles.versionText, { color: theme.icon }]}>
@@ -520,5 +647,34 @@ const styles = StyleSheet.create({
     marginTop: 24,
     gap: 8,
   },
-  modalCloseText: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
+  modalCloseText: { 
+    color: "rgba(255,255,255,0.5)", 
+    fontSize: 14 
+  },
+  pickerContainer: {
+    width: '80%',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    elevation: 5,
+  },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    marginBottom: 15 
+  },
+  districtItem: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ccc',
+    width: '100%',
+    alignItems: 'center',
+  },
+  closeButton: {
+    marginTop: 20,
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
 });

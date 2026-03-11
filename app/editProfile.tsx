@@ -17,14 +17,15 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useTheme } from "./themeContext";
 import BackButton from './backButton'; 
-import { supabase } from "../lib/superbase"; 
-import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
+import { supabase } from "../lib/superbase";
+import { getMergedProfileData } from '../lib/profileService'; // Only need the merged service now
 
 export default function EditProfile() {
   const router = useRouter();
   const { theme } = useTheme();
 
-  const [loading, setLoading] = useState(true);
+  // Cleaned up unused individual states, keeping only what we need!
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -39,30 +40,28 @@ export default function EditProfile() {
     location: "",
   });
 
+  // --- 1. THE FETCH LOGIC ---
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const profile = await getUserProfile(user.id);
-          
-          if (profile) {
-            const fullName = profile.full_name || "";
-            const nameParts = fullName.split(" ");
-            const first = nameParts[0] || "";
-            const last = nameParts.slice(1).join(" ") || "";
+        const data = await getMergedProfileData();
+        
+        if (data) {
+          // Split the merged fullName back into First and Last for the inputs
+          const nameParts = data.fullName ? data.fullName.trim().split(/\s+/) : [];
+          const first = nameParts[0] || "";
+          const last = nameParts.slice(1).join(" ") || ""; 
 
-            setForm({
-              firstName: first,
-              lastName: last,
-              phone: profile.phone_number || "",
-              email: profile.email || user.email || "", 
-              location: profile.location || "", 
-            });
+          setForm({
+            firstName: first,
+            lastName: last,
+            phone: data.phone || "", 
+            email: data.email || "", 
+            location: data.location || "", 
+          });
 
-            // Load actual avatar from profile
-            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
-          }
+          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
         }
       } catch (error) {
         console.log("Error loading:", error);
@@ -73,7 +72,7 @@ export default function EditProfile() {
     loadData();
   }, []);
 
-  // --- UPLOAD AVATAR ---
+  // --- 2. UPLOAD AVATAR ---
   const changeAvatar = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -112,10 +111,10 @@ export default function EditProfile() {
         .from('avatars')
         .getPublicUrl(fileName);
 
+      // Safe save: use UPSERT just in case the profile row doesn't exist yet
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', session.user.id);
+        .upsert({ id: session.user.id, avatar_url: publicUrl });
 
       if (updateError) throw updateError;
 
@@ -129,25 +128,37 @@ export default function EditProfile() {
     }
   };
 
+  // --- 3. THE SAVE LOGIC ---
   const handleSave = async () => {
     if (saving) return; 
+
+    if (!form.firstName || !form.lastName) {
+      Alert.alert("Missing Info", "Please provide both your first and last name.");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const full_name = `${form.firstName} ${form.lastName}`.trim();
+      // Combine names back into one string for the database
+      const full_name = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
 
-      const updates = {
-        full_name,
-        phone_number: form.phone,
-        email: form.email,
-        location: form.location,
-        updated_at: new Date().toISOString(),
-      };
+      // UPSERT creates the row if missing, updates if it exists!
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id, // Mandatory to link to auth user
+          full_name: full_name,
+          phone_number: form.phone,
+          email: form.email,
+          location: form.location,
+          updated_at: new Date().toISOString(),
+        });
 
-      await updateUserProfile(user.id, updates);
+      if (error) throw error;
       
       Alert.alert("Success", "Profile updated successfully!", [
         { text: "OK", onPress: () => router.back() }
@@ -155,7 +166,7 @@ export default function EditProfile() {
 
     } catch (error) {
       Alert.alert("Error", "Could not save profile.");
-      console.log(error);
+      console.log("Save error:", error);
     } finally {
       setSaving(false);
     }

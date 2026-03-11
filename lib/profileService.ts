@@ -1,58 +1,48 @@
-// lib/profileService.ts
-import { supabase } from "./superbase";
+import { supabase } from './superbase';
 
-// 1. Define the shape of the data (TypeScript Interface)
-export interface UserProfile {
-  full_name?: string;
-  phone_number?: string;
-  email?: string;
-  avatar_url?: string | null;
-  location?: string;
-  updated_at?: string;
-}
-
-// 2. The Logic to fetch data
-export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
+export const getMergedProfileData = async () => {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('full_name, phone_number, email, avatar_url, location')
-      .eq('id', userId)
-      .single(); // We expect only one result
+    // 1. Get original data from auth.users
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("No authenticated user found");
 
-    if (error) {
-      if (error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
-      }
-      return null;
+    const authMeta = user.user_metadata || {};
+
+    // 2. Get updated data from the public profiles table
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single() as any; // Using 'as any' to prevent TS errors on your custom columns
+
+    // Ignore "Row not found" errors, as new users might not have a profile row yet
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.log("Profile fetch error:", profileError);
     }
 
-    return data as UserProfile;
+    // 3. Merge them! (Priority: profiles table > auth metadata > empty string)
+    const mergedData = {
+      id: user.id,
+      email: profileData?.email || user.email || "",
+      fullName: profileData?.full_name || `${authMeta.first_name || ""} ${authMeta.last_name || ""}`.trim() || "",
+      phone: profileData?.phone_number || authMeta.phone || authMeta.contact_phone || "",
+      avatarUrl: profileData?.avatar_url || "",
+      
+      // Your App Settings (Defaulting to true/safe values if empty)
+      language: profileData?.language || "en",
+      location: profileData?.location || null,
+      emailNotif: profileData?.email_notif ?? true,
+      pushNotif: profileData?.push_notif ?? true,
+      alertNotif: profileData?.alert_notif ?? true,
+      personalDataAccess: profileData?.personal_data_access ?? true,
+      cameraAccess: profileData?.camera_access ?? true,
+      liveLocation: profileData?.live_location ?? true,
+    };
+
+    return mergedData;
+
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error("Error in getMergedProfileData:", error);
     return null;
-  }
-};
-
-export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>) => {
-  try {
-    // 1. "upsert" means: Create if new, Update if exists.
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: userId, // We MUST match the Auth ID
-        ...updates,
-        updated_at: new Date().toISOString(), // Optional: track when they edited
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-    return data;
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    throw error;
   }
 };
