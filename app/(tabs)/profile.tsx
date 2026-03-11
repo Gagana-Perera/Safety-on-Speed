@@ -50,7 +50,7 @@ export default function Profile() {
   const [cameraAccess, setCameraAccess] = useState(true);
   const [liveLocation, setLiveLocation] = useState(true);
   const [language, setLanguage] = useState("English");
-  const [locationRegion, setLocationRegion] = useState("Colombo,Sri Lanka");
+  const [locationRegion, setLocationRegion] = useState("Choose");
 
   const DEFAULT_AVATAR =
     "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
@@ -187,7 +187,7 @@ export default function Profile() {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission denied', 'Please allow location access in settings.');
-        setLocationRegion("Colombo, Sri Lanka");
+        setLocationRegion("Choose");
         return;
       }
 
@@ -205,7 +205,7 @@ export default function Profile() {
     } catch (e) {
       console.log(e);
       Alert.alert("Error", "Could not fetch GPS location.");
-      setLocationRegion("Colombo, Sri Lanka");
+      setLocationRegion("Choose");
     }
   };
 
