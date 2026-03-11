@@ -107,7 +107,6 @@ export default function TabsLayout() {
         headerTintColor: theme.text,
       }}
     >
-      <Tabs.Screen name="backbutton" options={{ href: null }} />
       <Tabs.Screen
         name="extra"
         options={{

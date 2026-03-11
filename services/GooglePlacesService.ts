@@ -556,7 +556,8 @@ export async function getNearbyPlaces(
             baseParams,
             "rankby=distance:fallback",
           );
-          if (typedFallbackResults.length) aggregated.push(...typedFallbackResults);
+          if (typedFallbackResults.length)
+            aggregated.push(...typedFallbackResults);
         }
       }
 

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 // Emergency Services tab:
-// - Shows hotline numbers (static)
+// - Shows hotline numbers (static).
 // - Finds the nearest hospital/police station using GPS + Google Places
 // - Supports: Call (dial the place phone) and Map (open in-app map by placeId)
 import * as Location from "expo-location";
@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import BackButton from "../backButton";
+import BackButton from "../../components/backButton";
 import { useTheme } from "../themeContext";
 
 import {
