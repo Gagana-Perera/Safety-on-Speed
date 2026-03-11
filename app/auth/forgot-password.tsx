@@ -2,16 +2,16 @@ import { supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableWithoutFeedback,
-    View,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 
 const OTP_LENGTH = 8;
@@ -168,7 +168,7 @@ export default function ForgotPassword() {
                 Forgot Password
               </Text>
               <Text className="text-white/70 text-2xl mt-4 font-light">
-                We'll send a one-time code to verify you.
+                We&apos;ll send a one-time code to verify you.
               </Text>
             </View>
 
@@ -217,7 +217,7 @@ export default function ForgotPassword() {
               />
               <View className="h-[3px] bg-white/40 rounded-full mt-2" />
               <Text className="text-white/60 text-lg mt-4 font-light">
-                We'll email a 8-digit code to this address.
+                We&apos;ll email a 8-digit code to this address.
               </Text>
             </View>
 
@@ -323,7 +323,7 @@ export default function ForgotPassword() {
                       accessibilityRole="button"
                     >
                       <Text className="text-secondary text-xl">
-                        Didn't get a code?{" "}
+                        Didn&apos;t get a code?{" "}
                         <Text className="underline text-accent">Resend</Text>
                       </Text>
                     </Pressable>

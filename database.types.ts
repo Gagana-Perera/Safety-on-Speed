@@ -16,67 +16,67 @@ export type Database = {
     Tables: {
       guardians: {
         Row: {
-          created_at: string
-          g1_name: string | null
-          g1_phone: string | null
-          g1_verified: boolean | null
-          g2_name: string | null
-          g2_phone: string | null
-          g2_verified: boolean | null
-          g3_name: string | null
-          g3_phone: string | null
-          g3_verified: boolean | null
-          g4_name: string | null
-          g4_phone: string | null
-          g4_verified: boolean | null
-          g5_name: string | null
-          g5_phone: string | null
-          g5_verified: boolean | null
-          id: number
-          user_id: string | null
-        }
+          created_at: string;
+          g1_name: string | null;
+          g1_phone: string | null;
+          g1_verified: boolean | null;
+          g2_name: string | null;
+          g2_phone: string | null;
+          g2_verified: boolean | null;
+          g3_name: string | null;
+          g3_phone: string | null;
+          g3_verified: boolean | null;
+          g4_name: string | null;
+          g4_phone: string | null;
+          g4_verified: boolean | null;
+          g5_name: string | null;
+          g5_phone: string | null;
+          g5_verified: boolean | null;
+          id: number;
+          user_id: string | null;
+        };
         Insert: {
-          created_at?: string
-          g1_name?: string | null
-          g1_phone?: string | null
-          g1_verified?: boolean | null
-          g2_name?: string | null
-          g2_phone?: string | null
-          g2_verified?: boolean | null
-          g3_name?: string | null
-          g3_phone?: string | null
-          g3_verified?: boolean | null
-          g4_name?: string | null
-          g4_phone?: string | null
-          g4_verified?: boolean | null
-          g5_name?: string | null
-          g5_phone?: string | null
-          g5_verified?: boolean | null
-          id?: number
-          user_id?: string | null
-        }
+          created_at?: string;
+          g1_name?: string | null;
+          g1_phone?: string | null;
+          g1_verified?: boolean | null;
+          g2_name?: string | null;
+          g2_phone?: string | null;
+          g2_verified?: boolean | null;
+          g3_name?: string | null;
+          g3_phone?: string | null;
+          g3_verified?: boolean | null;
+          g4_name?: string | null;
+          g4_phone?: string | null;
+          g4_verified?: boolean | null;
+          g5_name?: string | null;
+          g5_phone?: string | null;
+          g5_verified?: boolean | null;
+          id?: number;
+          user_id?: string | null;
+        };
         Update: {
-          created_at?: string
-          g1_name?: string | null
-          g1_phone?: string | null
-          g1_verified?: boolean | null
-          g2_name?: string | null
-          g2_phone?: string | null
-          g2_verified?: boolean | null
-          g3_name?: string | null
-          g3_phone?: string | null
-          g3_verified?: boolean | null
-          g4_name?: string | null
-          g4_phone?: string | null
-          g4_verified?: boolean | null
-          g5_name?: string | null
-          g5_phone?: string | null
-          g5_verified?: boolean | null
-          id?: number
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          g1_name?: string | null;
+          g1_phone?: string | null;
+          g1_verified?: boolean | null;
+          g2_name?: string | null;
+          g2_phone?: string | null;
+          g2_verified?: boolean | null;
+          g3_name?: string | null;
+          g3_phone?: string | null;
+          g3_verified?: boolean | null;
+          g4_name?: string | null;
+          g4_phone?: string | null;
+          g4_verified?: boolean | null;
+          g5_name?: string | null;
+          g5_phone?: string | null;
+          g5_verified?: boolean | null;
+          id?: number;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           avatar_url: string | null
@@ -94,26 +94,33 @@ export type Database = {
           live_location: boolean | null
         }
         Insert: {
-          avatar_url?: string | null
-          email?: string | null
-          full_name?: string | null
-          id: string
-          location?: string | null
-          phone_number?: string | null
-          updated_at?: string | null
-        }
+          id: string;
+          first_name?: string | null;
+          surname?: string | null;
+          phone_number?: string | null;
+          nic_number?: string | null;
+          email?: string | null;
+          created_at?: string | null;
+        };
         Update: {
-          avatar_url?: string | null
-          email?: string | null
-          full_name?: string | null
-          id?: string
-          location?: string | null
-          phone_number?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-    }
+          id?: string;
+          first_name?: string | null;
+          surname?: string | null;
+          phone_number?: string | null;
+          nic_number?: string | null;
+          email?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey";
+            columns: ["id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
     Views: {
       [_ in never]: never
     }
