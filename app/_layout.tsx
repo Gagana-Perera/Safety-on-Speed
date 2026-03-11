@@ -20,6 +20,12 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/login" />
         <Stack.Screen name="auth/forgot-password" />
         <Stack.Screen name="auth/sign-up" />
+        <Stack.Screen name="auth/sign-up-password" />
+        <Stack.Screen name="auth/sign-up-email" />
+        <Stack.Screen name="auth/otp" />
+        <Stack.Screen name="auth/setup" />
+        <Stack.Screen name="auth/addguardians" />
+        <Stack.Screen name="auth/change-password" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editProfile" />
       </Stack>
