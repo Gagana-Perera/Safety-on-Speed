@@ -38,6 +38,7 @@ export default function Profile() {
   // --- STATE VARIABLES ---
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [viewingAvatar, setViewingAvatar] = useState(false);
@@ -74,7 +75,7 @@ export default function Profile() {
           const { data: profileData, error: profileError } = await (supabase
             .from("profiles")
             .select(
-              "full_name, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location, language, location",
+              "full_name, phone_number, avatar_url, email, email_notif, push_notif, alert_notif, personal_data_access, camera_access, live_location, language, location",
             )
             .eq("id", user.id)
             .single() as any);
@@ -107,13 +108,16 @@ export default function Profile() {
               );
             }
 
-            // 5. Email — priority: profiles table → auth email
+            // 5. Set Phone Number
+            setPhoneNumber(profileData?.phone_number || "");
+
+            // 6. Email — priority: profiles table → auth email
             setEmail(profileData?.email || user.email || "No Email");
 
-            // 6. Avatar
+            // 7. Avatar
             if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
 
-            // 7. Toggles
+            // 8. Toggles
             setEmailNotif(profileData?.email_notif ?? true);
             setPushNotif(profileData?.push_notif ?? true);
             setAlertNotif(profileData?.alert_notif ?? true);
@@ -450,6 +454,11 @@ export default function Profile() {
               <Text style={[styles.email, { color: theme.text }]}>
                 {email || "No Email"}
               </Text>
+              {phoneNumber ? (
+                <Text style={[styles.email, { color: theme.text, marginTop: 2 }]}>
+                  {phoneNumber}
+                </Text> 
+              ) : null}
             </>
           )}
         </View>
