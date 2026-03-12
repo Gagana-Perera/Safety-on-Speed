@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Safety On Speed",
-    "slug": "safety-on-speed",
+    "slug": "SOS",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/oc/logo.jpg",
@@ -19,8 +19,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "static"
     },
     "plugins": [
       "expo-router",

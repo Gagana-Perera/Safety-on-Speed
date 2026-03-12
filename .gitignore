@@ -45,5 +45,4 @@ app-example
 # IDE / Editor files
 .idea/
 .vscode/
-
 .env
