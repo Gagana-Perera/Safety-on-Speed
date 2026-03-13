@@ -13,6 +13,12 @@ export default function Index() {
       <Link href="/auth/login" asChild>
         <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
       </Link>
+      <Link href="/auth/editguardians" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Edit Guardians</Text>
+      </Link>
+      <Link href="/auth/addguardians" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Add Guardians</Text>
+      </Link>
     </View>
   );
 }
