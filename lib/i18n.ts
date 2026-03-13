@@ -5,6 +5,7 @@ const resources = {
   en: {
     translation: {
       // Profile Screen
+
       appearance: "APPEARANCE",
       dark_mode: "Dark Mode",
       general: "GENERAL",
@@ -28,11 +29,33 @@ const resources = {
       live_location_sub: "Share location in real-time",
       
       sign_out: "Sign Out",
+
+      //Emergency Contact Screen
+
+      emergency_services: "Emergency Services",
+      emergency_hotlines: "EMERGENCY HOTLINES",
+      ambulance_service: "Ambulance Service",
+      fire_rescue: "Fire & Rescue",
+      hospital: "Hospital",
+      police_station: "Police Station",
+      call: "Call",
+
+      //Guardians Screen
+
+      manage_guardians: "Manage Guardians",
+      edit_guardian: "Edit Guardian",
+      guardian_sub: "Add up to 5 contacts that will be notified if you are in danger.",
+      contact: "Contact",
+      name: "Name",
+      phone_number: "Phone Number",
+      add_contact: "Add Contact",
+      confirm_all_contacts: "Confirm All Contacts",
     }
   },
   si: {
     translation: {
       // Profile Screen - Sinhala
+
       appearance: "පෙනුම",
       dark_mode: "අඳුරු මාදිලිය",
       general: "සාමාන්‍ය",
@@ -56,11 +79,33 @@ const resources = {
       live_location_sub: "තත්‍ය කාලීනව ස්ථානය බෙදා ගන්න",
       
       sign_out: "ඉවත් වන්න",
+
+      //Emergency Contact Screen - Sinhala
+
+      emergency_services: "හදිසි සේවා",
+      emergency_hotlines: "හදිසි ඇමතුම් අංක",
+      ambulance_service: "ගිලන් රථ සේවාව",
+      fire_rescue: "ගිනි නිවීම් සහ ගලවා ගැනීම",
+      hospital: "රෝහල",
+      police_station: "පොලිස් ස්ථානය",
+      call: "ඇමතුම",
+
+      //Guardians Screen - Sinhala
+
+      manage_guardians: "භාරකරුවන් කළමනාකරණය",
+      edit_guardian: "භාරකරු සංස්කරණය කරන්න",
+      guardian_sub: "ඔබ අනතුරේ සිටී නම් දැනුම් දෙනු ලබන සම්බන්ධතා 5 දක්වා එකතු කරන්න.",
+      contact: "සම්බන්ධතාව",
+      name: "නම",
+      phone_number: "දුරකථන අංකය",
+      add_contact: "සම්බන්ධතාව එකතු කරන්න",
+      confirm_all_contacts: "සියලු සම්බන්ධතා තහවුරු කරන්න",
     }
   },
   ta: {
     translation: {
       // Profile Screen - Tamil
+      
       appearance: "தோற்றம்",
       dark_mode: "இருண்ட பயன்முறை",
       general: "பொது",
@@ -84,6 +129,27 @@ const resources = {
       live_location_sub: "நிகழ்நேரத்தில் இருப்பிடத்தைப் பகிரவும்",
       
       sign_out: "வெளியேறு",
+
+      //Emergency Contact Screen - Tamil
+
+      emergency_services: "அவசர சேவைகள்",
+      emergency_hotlines: "அவசர நேரடி இணைப்புகள்",
+      ambulance_service: "ஆம்புலன்ஸ் சேவை",
+      fire_rescue: "தீ & மீட்பு",
+      hospital: "மருத்துவமனை",
+      police_station: "காவல் நிலையம்",
+      call: "அழைப்பு",
+
+      //Guardians Screen - Tamil
+
+      manage_guardians: "பாதுகாவலர்களை நிர்வகி",
+      edit_guardian: "பாதுகாவலரை திருத்து",
+      guardian_sub: "நீங்கள் ஆபத்தில் இருந்தால் அறிவிக்கப்படும் 5 தொடர்புகள் வரை சேர்க்கவும்.",
+      contact: "தொடர்பு",
+      name: "பெயர்",
+      phone_number: "தொலைபேசி எண்",
+      add_contact: "தொடர்பு சேர்க்கவும்",
+      confirm_all_contacts: "அனைத்து தொடர்புகளையும் உறுதிப்படுத்தவும்",
     }
   }
 };
