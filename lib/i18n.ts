@@ -36,8 +36,8 @@ const resources = {
       emergency_hotlines: "EMERGENCY HOTLINES",
       ambulance_service: "Ambulance Service",
       fire_rescue: "Fire & Rescue",
-      hospital: "Hospital",
-      police_station: "Police Station",
+      hospital: "Hospitals",
+      police_station: "Police Stations",
       call: "Call",
 
       //Guardians Screen
@@ -50,6 +50,11 @@ const resources = {
       phone_number: "Phone Number",
       add_contact: "Add Contact",
       confirm_all_contacts: "Confirm All Contacts",
+
+      //Map
+
+      pharmacies: "Pharmacies",
+      search_places: "Search places",
     }
   },
   si: {
@@ -100,6 +105,11 @@ const resources = {
       phone_number: "දුරකථන අංකය",
       add_contact: "සම්බන්ධතාව එකතු කරන්න",
       confirm_all_contacts: "සියලු සම්බන්ධතා තහවුරු කරන්න",
+
+      //Map - Sinhala
+
+      pharmacies: "ෆාමසි",
+      search_places: "ස්ථාන සොයන්න",
     }
   },
   ta: {
@@ -150,6 +160,11 @@ const resources = {
       phone_number: "தொலைபேசி எண்",
       add_contact: "தொடர்பு சேர்க்கவும்",
       confirm_all_contacts: "அனைத்து தொடர்புகளையும் உறுதிப்படுத்தவும்",
+
+      //Map - Tamil
+
+      pharmacies: "மருந்தகங்கள்",
+      search_places: "இடங்களை தேடுங்கள்",
     }
   }
 };
