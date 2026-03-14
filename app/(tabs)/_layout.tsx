@@ -8,26 +8,6 @@ import { useTheme } from "../themeContext";
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-<<<<<<< HEAD
-const IconC = ({ focused, icon }: any) => {
-  const isImage = typeof icon === "number" || (icon && (icon.uri || icon.height));
-
-  return (
-    <View className="items-center justify-center">
-      {isImage ? (
-        <Image
-          source={icon}
-          className={`size-12 mt-14 ${
-            icon === officialdoc.logo ? "rounded-full" : ""
-          }`}
-        />
-      ) : (
-        <View className="mt-14">
-          {icon && React.createElement(icon, { width: 48, height: 48 })}
-        </View>
-      )}
-    </View>
-=======
 const IconC = ({
   icon,
   color,
@@ -61,7 +41,6 @@ const IconC = ({
   }>;
   return (
     <SvgIcon width={size + 6} height={size + 6} fill={color} stroke={color} />
->>>>>>> d662b35177d1c7d720fff5c6e513c858af0dc113
   );
 };
 
