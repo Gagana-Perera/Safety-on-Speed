@@ -294,7 +294,7 @@ export default function News() {
 
       <TouchableOpacity 
         style={styles.heatMapButton}
-        onPress={() => router.push('/(tabs)/ui')}
+        onPress={() => router.push('/(tabs)/heatmap')}
       >
         <MaterialIcons name="map" size={30} color="#fff" />
       </TouchableOpacity>
