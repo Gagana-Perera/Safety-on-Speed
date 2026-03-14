@@ -2,34 +2,28 @@
 import React, { useEffect, useState } from "react";
 import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+// import { Feather } from "@expo/vector-icons";
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetchPosts, type Post } from '@/lib/newsApi';
 
 // this part controls the post card
 
-const PostCard = ({ username, postTime, body, media, id, avatar }: any) => {
-  const [isBookmarked, setIsBookmarked] = useState(false);
+const PostCard = ({postTopic, postTime, postBody, media}: any) => {
   const [isLiked, setIsLiked] = useState(false);
 
   return (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
-        <View style={styles.userInfo}>
-          <View style={styles.avatar} />
-          <View>
-            <Text style={styles.username}>{username}</Text>
-            <Text style={styles.postTime}>{postTime}</Text>
-          </View>
-        </View>
+        <Text style={styles.postTime}>{postTopic}</Text>
+        <Text style={styles.postTime}>{postTime}</Text>
       </View>
 
       <View style={styles.bodyContainer}>
-        <Text style={styles.bodyText}>{body}</Text>
+        <Text style={styles.bodyText}>{postBody}</Text>
       </View>
 
-      {media && (
+      {/* {media && (
         <View style={styles.mediaContainer}>
           <Image 
             source={media} 
@@ -39,31 +33,12 @@ const PostCard = ({ username, postTime, body, media, id, avatar }: any) => {
             onLoad={() => console.log('Image loaded successfully')}
           />
         </View>
-      )}
+      )} */}
 
       <View style={styles.actionButtons}>
 
-        // this icon is to show whether the post was bookmarked or not
+        {/* this icon is to show that the post was helpful */}
 
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => setIsBookmarked(!isBookmarked)}
-        >
-          <MaterialIcons 
-            color="#fff" 
-            name={isBookmarked ? "bookmark" : "bookmark-border"} 
-            size={23} 
-          />
-        </TouchableOpacity>
-
-        // this icon is to comment on the post
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Feather color="#fff" name="message-circle" size={20} />
-        </TouchableOpacity>
-
-        // this icon is to show that the post was helpful
-        
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => setIsLiked(!isLiked)}
@@ -108,15 +83,6 @@ export default function News() {
           style={styles.headerLogo}
           resizeMode="contain"
         />
-        <View style={styles.headerIcons}>
-
-          // this icon is to check the bookmarked posts
-
-          <TouchableOpacity style={styles.headerIcon}>
-            <Feather color="#fff" name="bookmark" size={20} />
-          </TouchableOpacity>
-
-        </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -127,9 +93,16 @@ export default function News() {
 
       <TouchableOpacity 
         style={styles.heatMapButton}
-        onPress={() => router.push('/(tabs)/ui')}
+        onPress={() => router.push('/(tabs)/heatmap')}
       >
         <MaterialIcons name="map" size={30} color="#fff" />
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.createPostButton}
+        onPress={() => router.push('/createpost')}
+      >
+        <MaterialIcons name="add-comment" size={30} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -265,9 +238,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#fff",
   },
-  createPostButton: {
+  heatMapButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 90,
     right: 20,
     width: 60,
     height: 60,
@@ -281,7 +254,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  heatMapButton: {
+  createPostButton: {
     position: 'absolute',
     bottom: 20,
     right: 20,

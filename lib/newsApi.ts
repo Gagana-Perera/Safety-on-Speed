@@ -90,32 +90,17 @@ export const toggleLike = async (postId: string, currentLikes: number): Promise<
   return true;
 };
 
-// Toggle bookmark on a post
-export const toggleBookmark = async (postId: string, currentBookmarks: number): Promise<boolean> => {
-  const { error } = await supabase
-    .from('posts')
-    .update({ bookmarks: currentBookmarks + 1 })
-    .eq('id', postId);
-
-  if (error) {
-    console.error('Error toggling bookmark:', error);
-    return false;
-  }
-
-  return true;
-};
-
 // Delete a post
-export const deletePost = async (postId: string): Promise<boolean> => {
-  const { error } = await supabase
-    .from('posts')
-    .delete()
-    .eq('id', postId);
+// export const deletePost = async (postId: string): Promise<boolean> => {
+//   const { error } = await supabase
+//     .from('posts')
+//     .delete()
+//     .eq('id', postId);
 
-  if (error) {
-    console.error('Error deleting post:', error);
-    return false;
-  }
+//   if (error) {
+//     console.error('Error deleting post:', error);
+//     return false;
+//   }
 
-  return true;
-};
+//   return true;
+// };
