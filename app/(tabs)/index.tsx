@@ -131,6 +131,30 @@ export function EmergencyButton() {
     }
   };
 
+    const triggerAlert = async (mode: Exclude<AlertMode, null>) => {
+    setTapCount(0);
+    setActiveMode(mode);
+    
+    let { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      Alert.alert('Permission Denied', 'App needs foreground location access.');
+      setActiveMode(null);
+      return;
+    }
+    
+    console.log(`Alert triggered: ${mode}`);
+    // Add our Supabase or SMS logic here
+  };
+
+  const cancelAlert = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setActiveMode(null);
+    setTapCount(0);
+    Alert.alert("Alert Cancelled");
+  };
+
+  return null; // can replace this with a <TouchableOpacity> later
+
 }
 
 const styles = StyleSheet.create({
