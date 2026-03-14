@@ -11,6 +11,8 @@ import { Alert } from 'react-native';
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
 
+
+
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error("Task Manager Error:", error.message);
@@ -111,6 +113,23 @@ export function EmergencyButton() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  const handlePress = () => {
+    if (activeMode) {
+      cancelAlert();
+      return;
+    }
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+    if (newCount === 1) {
+      timerRef.current = setTimeout(() => {
+        triggerAlert('single');
+      }, 10000); // 10 second delay for single tap
+    } else if (newCount === 3) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      triggerAlert('triple');
+    }
+  };
 
 }
 
