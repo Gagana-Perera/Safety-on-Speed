@@ -79,14 +79,20 @@ export type Database = {
       };
       profiles: {
         Row: {
-          id: string;
-          first_name: string | null;
-          surname: string | null;
-          phone_number: string | null;
-          nic_number: string | null;
-          email: string | null;
-          created_at: string | null;
-        };
+          avatar_url: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          location: string | null
+          phone_number: string | null
+          updated_at: string | null
+          email_notif: boolean | null
+          push_notif: boolean | null
+          alert_notif: boolean | null
+          personal_data_access: boolean | null
+          camera_access: boolean | null
+          live_location: boolean | null
+        }
         Insert: {
           id: string;
           first_name?: string | null;

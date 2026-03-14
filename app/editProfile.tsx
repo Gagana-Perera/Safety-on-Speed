@@ -13,19 +13,24 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
+
 import { useTheme } from "./themeContext";
 import BackButton from './backButton'; 
-import { supabase } from "../lib/superbase"; 
-import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profileService";
+import { supabase } from "../lib/superbase";
+import { getMergedProfileData } from '../lib/profileService'; // Only need the merged service now
 
 export default function EditProfile() {
   const router = useRouter();
-  
-  // Get the theme object
   const { theme } = useTheme();
 
-  const [loading, setLoading] = useState(true);
+  // Cleaned up unused individual states, keeping only what we need!
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
 
   const [form, setForm] = useState({
     firstName: "",
@@ -35,27 +40,28 @@ export default function EditProfile() {
     location: "",
   });
 
+  // --- 1. THE FETCH LOGIC ---
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const profile = await getUserProfile(user.id);
-          
-          if (profile) {
-            const fullName = profile.full_name || "";
-            const nameParts = fullName.split(" ");
-            const first = nameParts[0] || "";
-            const last = nameParts.slice(1).join(" ") || "";
+        const data = await getMergedProfileData();
+        
+        if (data) {
+          // Split the merged fullName back into First and Last for the inputs
+          const nameParts = data.fullName ? data.fullName.trim().split(/\s+/) : [];
+          const first = nameParts[0] || "";
+          const last = nameParts.slice(1).join(" ") || ""; 
 
-            setForm({
-              firstName: first,
-              lastName: last,
-              phone: profile.phone_number || "",
-              email: profile.email || user.email || "", 
-              location: profile.location || "", 
-            });
-          }
+          setForm({
+            firstName: first,
+            lastName: last,
+            phone: data.phone || "", 
+            email: data.email || "", 
+            location: data.location || "", 
+          });
+
+          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
         }
       } catch (error) {
         console.log("Error loading:", error);
@@ -66,25 +72,93 @@ export default function EditProfile() {
     loadData();
   }, []);
 
+  // --- 2. UPLOAD AVATAR ---
+  const changeAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (result.canceled) return;
+
+      const image = result.assets[0];
+      if (!image.base64) throw new Error("No base64 data");
+
+      setUploading(true);
+
+      const byteArray = Uint8Array.from(atob(image.base64), c => c.charCodeAt(0));
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      const fileExt = image.uri.split('.').pop() || 'jpeg';
+      const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, byteArray, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Safe save: use UPSERT just in case the profile row doesn't exist yet
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert({ id: session.user.id, avatar_url: publicUrl });
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+
+    } catch (error: any) {
+      console.log("Error uploading image:", error);
+      Alert.alert("Upload Failed", error?.message || "Could not upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // --- 3. THE SAVE LOGIC ---
   const handleSave = async () => {
     if (saving) return; 
+
+    if (!form.firstName || !form.lastName) {
+      Alert.alert("Missing Info", "Please provide both your first and last name.");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const full_name = `${form.firstName} ${form.lastName}`.trim();
+      // Combine names back into one string for the database
+      const full_name = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
 
-      const updates = {
-        full_name,
-        phone_number: form.phone,
-        email: form.email,
-        location: form.location,
-        updated_at: new Date().toISOString(),
-      };
+      // UPSERT creates the row if missing, updates if it exists!
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id, // Mandatory to link to auth user
+          full_name: full_name,
+          phone_number: form.phone,
+          email: form.email,
+          location: form.location,
+          updated_at: new Date().toISOString(),
+        });
 
-      await updateUserProfile(user.id, updates);
+      if (error) throw error;
       
       Alert.alert("Success", "Profile updated successfully!", [
         { text: "OK", onPress: () => router.back() }
@@ -92,7 +166,7 @@ export default function EditProfile() {
 
     } catch (error) {
       Alert.alert("Error", "Could not save profile.");
-      console.log(error);
+      console.log("Save error:", error);
     } finally {
       setSaving(false);
     }
@@ -107,33 +181,43 @@ export default function EditProfile() {
   }
 
   return (
-    // Apply dynamic background color
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         
-        {/* Pass dynamic color to BackButton */}
-        <View style={{ margin: 20, marginTop: 10 }}>
-             <BackButton color={theme.text}/>
+        <View style={{ marginLeft: 16 }}>
+          <BackButton color={theme.text} size={24} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           
           {/* Photo Section */}
           <View style={styles.profileImageContainer}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80",
-              }}
-              // Use theme.border for the avatar border
-              style={[styles.profileAvatar, { borderColor: theme.border }]}
-            />
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              {uploading ? (
+                <View style={[styles.profileAvatar, { borderColor: theme.border, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.card }]}>
+                  <ActivityIndicator size="large" color={theme.text} />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+                  style={[styles.profileAvatar, { borderColor: theme.border }]}
+                />
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
-              onPress={() => Alert.alert("Upload Photo", "Open gallery or camera logic here")}
+              onPress={changeAvatar}
+              disabled={uploading}
             >
               <Feather name="camera" size={16} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+
+            <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
+              <Text style={styles.changePhotoText}>
+                {uploading ? "Uploading..." : "Change Profile Photo"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Form Section */}
@@ -202,8 +286,8 @@ export default function EditProfile() {
               </View>
             </View>
 
-             {/* Location Input */}
-             <View style={styles.inputGroup}>
+            {/* Location Input */}
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
               <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
                 <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
@@ -221,7 +305,6 @@ export default function EditProfile() {
 
           {/* Save Button */}
           <View style={styles.actionContainer}>
-            {/* You can use a specific color like Blue (#2563eb) or use theme.card with a border */}
             <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}>
               {saving ? (
                  <ActivityIndicator color="white" />
@@ -244,13 +327,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    paddingVertical: 12, // Reduced slightly to account for SafeAreaView
+    paddingVertical: 12,
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 40,
   },
-  /** Photo Section */
   profileImageContainer: {
     alignItems: "center",
     marginTop: 20,
@@ -277,7 +359,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  /** Form */
   form: {
     paddingHorizontal: 24,
   },
@@ -307,7 +388,6 @@ const styles = StyleSheet.create({
     height: "100%",
     fontSize: 16,
   },
-  /** Action Button */
   actionContainer: {
     marginTop: 10,
     paddingHorizontal: 24,

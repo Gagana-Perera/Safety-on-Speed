@@ -1,6 +1,8 @@
 module.exports = function (api) {
-  api.cache(true);
+  const isTest = api.env("test");
+  api.cache.using(() => (isTest ? "test" : "default"));
   return {
+<<<<<<< HEAD
     presets: [
       ["babel-preset-expo", { jsxImportSource: "nativewind" }],
       "nativewind/babel",
@@ -17,5 +19,14 @@ module.exports = function (api) {
         },
       ],
     ],
+=======
+    presets: isTest
+      ? ["babel-preset-expo"]
+      : [
+          ["babel-preset-expo", { jsxImportSource: "nativewind" }],
+          "nativewind/babel",
+        ],
+    plugins: ["react-native-reanimated/plugin"],
+>>>>>>> d662b35177d1c7d720fff5c6e513c858af0dc113
   };
 };
