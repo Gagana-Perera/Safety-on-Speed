@@ -5,6 +5,8 @@ import { Link } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager'; 
 import { supabase } from '../../lib/superbase';
+import { useState, useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
@@ -96,6 +98,20 @@ export default function Index() {
       </ScrollView>
     </View>
   );
+}
+
+type AlertMode = 'single' | 'triple' | null;
+export function EmergencyButton() {
+  const [activeMode, setActiveMode] = useState<AlertMode>(null);
+  const [tapCount, setTapCount] = useState<number>(0);
+  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
 }
 
 const styles = StyleSheet.create({
