@@ -1,11 +1,11 @@
-{/*
-import React, { useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { dummyposts } from '@/lib/newsApi';
+import { fetchPosts, type Post } from '@/lib/newsApi';
 
 // this part controls the post card
 
@@ -23,9 +23,6 @@ const PostCard = ({ username, postTime, body, media, id, avatar }: any) => {
             <Text style={styles.postTime}>{postTime}</Text>
           </View>
         </View>
-//        <TouchableOpacity>
-//          <Text style={styles.menuDots}>⋯</Text>
-//        </TouchableOpacity>
       </View>
 
       <View style={styles.bodyContainer}>
@@ -86,6 +83,14 @@ const PostCard = ({ username, postTime, body, media, id, avatar }: any) => {
 // this part helps to arrange posts from latest to oldest
 
 export default function News() {
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useEffect(() => {
+    fetchPosts()
+      .then((data) => setPosts(data))
+      .catch((error) => console.error('Error fetching posts:', error));
+  }, []);
+
   const sortedPosts = [...posts].sort((a, b) => {
     const timeA = parseFloat(a.postTime.replace('.', ''));
     const timeB = parseFloat(b.postTime.replace('.', ''));
@@ -276,46 +281,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-});
-*/}
-
-import React from "react";
-import { Text, View, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-
-export default function News() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.center}>
-        <Text style={styles.text}>News Feed</Text>
-      </View>
-
-      <TouchableOpacity 
-        style={styles.heatMapButton}
-        onPress={() => router.push('/(tabs)/heatmap')}
-      >
-        <MaterialIcons name="map" size={30} color="#fff" />
-      </TouchableOpacity>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#002747",
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#fff',
-    fontSize: 18,
-  },
   heatMapButton: {
     position: 'absolute',
     bottom: 20,
@@ -333,4 +298,3 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 });
-
