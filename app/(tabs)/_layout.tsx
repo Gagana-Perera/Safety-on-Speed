@@ -7,36 +7,25 @@ import { useTheme } from "../themeContext";
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
-const IconC = ({ focused, icon, title }: any) => {
-  if (focused) {
-    return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? (
-          <Image source={icon} className="size-12 mt-14 rounded-full" />
-        ) : (
-          <Image source={icon} className="size-12 mt-14" />
-        )}
-        {/* <Text className="pl-2 text-xs">{title}</Text> */}
-      </ImageBackground>
-    );
-  } else {
-    return (
-      <ImageBackground
-        //source={}
-        className=""
-      >
-        {icon === officialdoc.logo ? (
-          <Image source={icon} className="size-12 mt-14 rounded-full" />
-        ) : (
-          <Image source={icon} className="size-12 mt-14" />
-        )}
-        {/* <Text className="pl-2 text-xl">{title}</Text> */}
-      </ImageBackground>
-    );
-  }
+const IconC = ({ focused, icon }: any) => {
+  const isImage = typeof icon === "number" || (icon && (icon.uri || icon.height));
+
+  return (
+    <View className="items-center justify-center">
+      {isImage ? (
+        <Image
+          source={icon}
+          className={`size-12 mt-14 ${
+            icon === officialdoc.logo ? "rounded-full" : ""
+          }`}
+        />
+      ) : (
+        <View className="mt-14">
+          {icon && React.createElement(icon, { width: 48, height: 48 })}
+        </View>
+      )}
+    </View>
+  );
 };
 
 export default function _layout() {
