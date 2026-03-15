@@ -115,7 +115,7 @@ export default function TabsLayout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <IconC icon={icons.home} color={color} size={size} />
+            <IconC icon={icons.menu} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
@@ -140,7 +140,7 @@ export default function TabsLayout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <IconC icon={icons.home} color={color} size={size} />
+            <Ionicons name="map-outline" size={size + 6} color={color} />
           ),
         }}
       ></Tabs.Screen>
