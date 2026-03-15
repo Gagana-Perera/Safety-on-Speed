@@ -51,11 +51,7 @@ export const fetchPosts = async (): Promise<Post[]> => {
     .select('*')
     .order('created_at', { ascending: false });
 
-    // console.log(process.env.EXPO_PUBLIC_SUPABASE_KEY);
-    // console.log(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
-
     console.log(data);   // check actual data
-    // console.log(count);  // check count
     console.log(error);  // check for errors
 
   if (error) {

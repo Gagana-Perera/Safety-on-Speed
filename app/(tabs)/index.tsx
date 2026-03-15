@@ -1,10 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../themeContext';
 import {Link} from 'expo-router';
 
 export default function Home() {
   const { theme } = useTheme();
+  const [sosActive, setSosActive] = useState(false);
+
+  const handleSOSPress = () => {
+    setSosActive(!sosActive);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -28,6 +33,18 @@ export default function Home() {
             This is the Home Screen.
           </Text>
         </View>
+
+    <View style={[styles.emergencyContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <TouchableOpacity 
+        onPress={handleSOSPress}
+        activeOpacity={0.7}
+        style={[styles.emergencyButton, { backgroundColor: sosActive ? '#DC2626' : '#0F7CA5' }]}
+      >
+        <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
+          {sosActive ? 'ACTIVE' : 'SOS'}
+        </Text>
+      </TouchableOpacity>
+    </View>
 
         {/* Example Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -89,5 +106,30 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  emergencyContainer: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  emergencyButton: {
+    paddingVertical: 30,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emergencyButtonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  emergencyStatus: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
