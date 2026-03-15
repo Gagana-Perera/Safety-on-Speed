@@ -6,21 +6,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetchPosts, type Post } from '@/lib/newsApi';
+import { useTheme } from '../themeContext';
 
 // this part controls the post card
 
-const PostCard = ({postTopic, postTime, postBody, media}: any) => {
+const PostCard = ({postTopic, postTime, postBody, media, theme}: any) => {
   const [isLiked, setIsLiked] = useState(false);
 
   return (
-    <View style={styles.postCard}>
+    <View style={[styles.postCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <View style={styles.postHeader}>
-        <Text style={styles.postTime}>{postTopic}</Text>
-        <Text style={styles.postTime}>{postTime}</Text>
+        <Text style={[styles.postTime, { color: theme.text }]}>{postTopic}</Text>
+        <Text style={[styles.postTime, { color: theme.text }]}>{postTime}</Text>
       </View>
 
       <View style={styles.bodyContainer}>
-        <Text style={styles.bodyText}>{postBody}</Text>
+        <Text style={[styles.bodyText, { color: theme.text }]}>{postBody}</Text>
       </View>
 
       {/* {media && (
@@ -44,7 +45,7 @@ const PostCard = ({postTopic, postTime, postBody, media}: any) => {
           onPress={() => setIsLiked(!isLiked)}
         >
           <MaterialIcons 
-            color="#fff" 
+            color={theme.text} 
             name={isLiked ? "thumb-up" : "thumb-up-off-alt"} 
             size={24}
           />
@@ -58,6 +59,7 @@ const PostCard = ({postTopic, postTime, postBody, media}: any) => {
 // this part helps to arrange posts from latest to oldest
 
 export default function News() {
+  const { theme } = useTheme();
   const [posts, setPosts] = useState<Post[]>([]);
 
   useEffect(() => {
@@ -75,9 +77,9 @@ export default function News() {
 // this section controls the the background
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Image 
           source={require('@/assets/oc/logo.jpg')} 
           style={styles.headerLogo}
@@ -87,7 +89,7 @@ export default function News() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {sortedPosts.map((post) => (
-          <PostCard key={post.id} {...post} />
+          <PostCard key={post.id} {...post} theme={theme} />
         ))}
       </ScrollView>
 
@@ -95,14 +97,14 @@ export default function News() {
         style={styles.heatMapButton}
         onPress={() => router.push('/(tabs)/heatmap')}
       >
-        <MaterialIcons name="map" size={30} color="#fff" />
+        <MaterialIcons name="map" size={30} color={theme.text} />
       </TouchableOpacity>
 
       <TouchableOpacity 
         style={styles.createPostButton}
         onPress={() => router.push('/createpost')}
       >
-        <MaterialIcons name="add-comment" size={30} color="#fff" />
+        <MaterialIcons name="add-comment" size={30} color={theme.text} />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -111,9 +113,6 @@ export default function News() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#002747",
-    // backgroundColor: "#ffffff",
-    // the above line is for testing, please ignore it
   },
   header: {
     flexDirection: "row",
@@ -121,7 +120,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: "#002747",
   },
   headerLogo: {
     width: 30,
@@ -155,12 +153,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   postCard: {
-    backgroundColor: "#0493cb83", 
     marginHorizontal: 15,
     marginVertical: 10,
     borderRadius: 15,
     padding: 15,
-    borderColor: "#5E85AF",
     borderLeftColor: "#0494CB",
     borderLeftWidth: 1,
     borderBottomWidth: 2,
@@ -197,7 +193,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   postTime: {
-    color: "#c8c8c9",
     fontSize: 12,
   },
   // menuDots: {
@@ -211,7 +206,6 @@ const styles = StyleSheet.create({
   mediaContainer: {
     borderRadius: 15,
     marginBottom: 15,
-    backgroundColor: "#002747",
   },
   mediaImage: {
     width: "100%",
@@ -219,7 +213,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   bodyText: {
-    color: "#fff",
     fontSize: 14,
     marginBottom: 10,
   },
