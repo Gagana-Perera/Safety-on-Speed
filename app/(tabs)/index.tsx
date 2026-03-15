@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Linking, Animated, Easing } from 'react-native';
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
@@ -10,8 +10,6 @@ import { notifyVerifiedGuardians } from '../../hooks/notifyVerifiedGuardians';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
-
-
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, error: any }) => {
   if (error) {
@@ -46,11 +44,76 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, 
 
 export default function Index() {
   const { theme } = useTheme();
-  const [sosActive, setSosActive] = useState(false);
+
+  {/*sos button start*/}
+  const [sosMode, setSosMode] = useState<'off' | 'single' | 'triple'>('off');
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const tapCountRef = useRef(0);
+  const tapResetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSOSPress = () => {
-    setSosActive(!sosActive);
+    if (tapResetTimerRef.current) {
+      clearTimeout(tapResetTimerRef.current);
+    }
+
+    tapCountRef.current += 1;
+
+    if (tapCountRef.current === 3) {
+      setSosMode('triple');
+      tapCountRef.current = 0;
+      return;
+    }
+
+    setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
+
+    tapResetTimerRef.current = setTimeout(() => {
+      tapCountRef.current = 0;
+    }, 600);
   };
+
+  useEffect(() => {
+    return () => {
+      if (tapResetTimerRef.current) {
+        clearTimeout(tapResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sosMode !== 'off') {
+      pulseAnim.setValue(0);
+      pulseLoopRef.current = Animated.loop(
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        })
+      );
+      pulseLoopRef.current.start();
+    } else {
+      pulseLoopRef.current?.stop();
+      pulseAnim.setValue(0);
+    }
+
+    return () => {
+      pulseLoopRef.current?.stop();
+    };
+  }, [sosMode, pulseAnim]);
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.2],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 0],
+  });
+
+  const isSosActive = sosMode !== 'off';
+  {/*sos button end*/}
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -75,17 +138,39 @@ export default function Index() {
           </Text>
         </View>
 
-    <View style={[styles.emergencyContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+
+        {/* SOS Button Area */}
+
+    <View style={[styles.emergencyContainer]}>
+      <View style={styles.sosButtonWrap}>
+      {isSosActive && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.pulseCircle,
+            {
+              backgroundColor: sosMode === 'triple' ? '#DC2626' : '#AC991F',
+              transform: [{ scale: pulseScale }],
+              opacity: pulseOpacity,
+            },
+          ]}
+        />
+      )}
       <TouchableOpacity 
         onPress={handleSOSPress}
         activeOpacity={0.7}
-        style={[styles.emergencyButton, { backgroundColor: sosActive ? '#DC2626' : '#0F7CA5' }]}
+        style={[
+          styles.emergencyButton,
+          { backgroundColor: sosMode === 'off' ? '#0F7CA5' : sosMode === 'triple' ? '#DC2626' : '#AC991F' },
+        ]}
       >
         <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
-          {sosActive ? 'ACTIVE' : 'SOS'}
+          {isSosActive ? 'ACTIVE' : 'SOS'}
         </Text>
       </TouchableOpacity>
+      </View>
     </View>
+
 
         {/* Example Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -258,27 +343,37 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   emergencyContainer: {
-    borderRadius: 16,
-    padding: 20,
+    paddingTop: 210,
+    paddingBottom: 210,
     marginBottom: 16,
-    borderWidth: 1,
     alignItems: 'center',
   },
+  sosButtonWrap: {
+    width: 180,
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulseCircle: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
   emergencyButton: {
-    paddingVertical: 30,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-    marginBottom: 16,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emergencyButtonText: {
-    fontSize: 20,
+    fontSize: 40,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   emergencyStatus: {
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '500',
     textAlign: 'center',
   },
