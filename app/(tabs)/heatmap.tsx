@@ -17,7 +17,7 @@ export default function Heatmap() {
 
   useEffect(() => {
     // this is to Fetch the different ratings of places
-    fetch()  // have to fetch from reports table
+    fetch('https://placeholder.com/reports')  // have to fetch from reports table
         .then(res => res.json())
         .then(data => {
             if (data && data.features) {

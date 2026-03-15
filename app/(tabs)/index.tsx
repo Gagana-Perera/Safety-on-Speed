@@ -1,19 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager'; 
 import { supabase } from '../../lib/superbase';
 import { useState, useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
+import { notifyVerifiedGuardians } from '../../hooks/notifyVerifiedGuardians';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
 
 
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, error: any }) => {
   if (error) {
     console.error("Task Manager Error:", error.message);
     return;
@@ -141,7 +141,31 @@ export function EmergencyButton() {
       setActiveMode(null);
       return;
     }
+
+    let { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+    if (bgStatus !== 'granted') {
+      Alert.alert('Permission Denied', 'Background location is required so SOS works when phone is locked.');
+      setActiveMode(null);
+      return;
+    }
+
+    const liveLocationLink = `https://yourdomain.com/track/${CURRENT_USER_ID}`;
     
+    await notifyVerifiedGuardians(CURRENT_USER_ID, liveLocationLink);
+
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      timeInterval: 5000,
+      distanceInterval: 5, 
+      showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: "SOS Alert Active",
+        notificationBody: "Your live location is being shared with your guardians.",
+        notificationColor: "#e74c3c",
+      }
+    });
+
+    console.log("Background tracking initiated.");
     console.log(`Alert triggered: ${mode}`);
     // Add our Supabase or SMS logic here
   };
