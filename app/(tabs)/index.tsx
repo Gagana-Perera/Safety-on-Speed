@@ -1,96 +1,48 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../themeContext';
-import { Link } from 'expo-router';
-import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager'; 
-import { supabase } from '../../lib/superbase';
+import {Link} from 'expo-router';
 
-const CURRENT_USER_ID = 'a';
-const LOCATION_TASK_NAME = 'a';
-
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error("Task Manager Error:", error.message);
-    return;
-  }
-  
-  if (data) {
-    const { locations } = data as any;
-    
-    if (locations && locations.length > 0) {
-      const location = locations[0];
-      const lat = location.coords.latitude;
-      const lng = location.coords.longitude;
-
-      try {
-        await supabase
-          .from('live_locations' as any)
-          .upsert({ 
-            user_id: CURRENT_USER_ID, 
-            latitude: lat, 
-            longitude: lng, 
-            updated_at: new Date().toISOString(),
-            is_active: true
-          }, { onConflict: 'user_id' }); 
-      } catch (err) {
-        console.error("Background Supabase Error:", err);
-      }
-    }
-  }
-});
-
-export default function Index() {
+export default function Home() {
   const { theme } = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        <View style={{ padding: 16, gap: 12 }}>
+      <Text>Welcome</Text>
+
+      <Link href="/auth/sign-up" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Sign Up</Text>
+      </Link>
+      <Link href="/auth/login" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
+      </Link>
+    </View>
         
-        {/* Header */}
+        {/* Header Area */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            Safety on Speed
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.text }]}>
-            Stay safe, stay connected.
+          <Text style={[styles.title, { color: theme.text }]}>Welcome!</Text>
+          <Text style={[styles.subtitle, { color: theme.icon }]}>
+            This is the Home Screen.
           </Text>
         </View>
 
-        {/* Card 1 */}
+        {/* Example Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Live Location
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Your location is being tracked to keep you safe.
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Dark Mode Test</Text>
+          <Text style={[styles.cardText, { color: theme.icon }]}>
+            If the toggle Dark Mode in your Profile, this card should turn dark grey.
           </Text>
         </View>
 
-        {/* Card 2 */}
+        {/* Example Card 2 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Emergency Services
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Team's Work</Text>
+          <Text style={[styles.cardText, { color: theme.icon }]}>
+            We can replace this file later with our real code.
           </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Quick access to emergency contacts and services.
-          </Text>
-          <Link href="/extra" style={{ color: theme.text, marginTop: 8 }}>
-            View Services →
-          </Link>
-        </View>
-
-        {/* Card 3 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            News & Alerts
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Stay updated with the latest safety news in your area.
-          </Text>
-          <Link href="/news" style={{ color: theme.text, marginTop: 8 }}>
-            View News →
-          </Link>
         </View>
 
       </ScrollView>
@@ -104,7 +56,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 60, // Space for status bar
   },
   header: {
     marginBottom: 30,
@@ -122,6 +74,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
+    // Shadow for iOS/Android
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,

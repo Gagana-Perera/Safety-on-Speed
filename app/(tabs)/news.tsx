@@ -87,11 +87,11 @@ export default function News() {
         />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      {/* <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {sortedPosts.map((post) => (
-          <PostCard key={post.id} {...post} theme={theme} />
+          <PostCard key={post.postId} {...post} theme={theme} />
         ))}
-      </ScrollView>
+      </ScrollView> */}
 
       <TouchableOpacity 
         style={styles.heatMapButton}
