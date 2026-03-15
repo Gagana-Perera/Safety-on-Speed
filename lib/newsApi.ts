@@ -10,31 +10,31 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // TypeScript interfaces
 export interface Post {
-  id: string;
-  username: string;
+  postpostId: string;
+  postTopic: string;
   postTime: string;
   postDate: string;
-  body: string;
-  media?: string;
+  postBody: string;
+  // media?: string;
   likes: number;
-  bookmarks: number;
   created_at?: string;
 }
 
 // Seed initial data (run once to populate database)
 export const seedPosts = async () => {
-  const dummyPosts = [
-    { id: "1", postTime: "11.23", postDate: "9-2-2026", body: "post body", media: "default-img.png", likes: 0},
-    { id: "2", postTime: "18.56", postDate: "9-2-2026", body: "post body", likes: 0},
-    { id: "3", postTime: "05.34", postDate: "9-2-2026", body: "post body", media: "default-img.png", likes: 0},
-    { id: "4", postTime: "00.23", postDate: "9-2-2026", body: "post body", media: "default-img.png", likes: 0},
-    { id: "5", postTime: "18.56", postDate: "8-2-2026", body: "lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel sapien eget nunc efficitur varius. Sed at ligula a enim efficitur commodo. Nulla facilisi. Donec ac odio a nisl convallis tincidunt. Proin in felis sed nisi efficitur bibendum. Curabitur ut ligula a enim efficitur commodo. Nulla facilisi. Donec ac odio a nisl convallis tincidunt. Proin in felis sed nisi efficitur bibendum.✌️", likes: 0},
-    { id: "6", postTime: "05.34", postDate: "8-2-2026", body: "post body", likes: 0},
-  ];
+  // const dummyPosts = [
+  //   { postId: "1", postTopic: "Safety Tip", postTime: "11.23", postDate: "9-2-2026", postBody: "Always stay aware of your surroundings", media: "default-img.png", likes: 0, bookmarks: 0},
+  //   { postId: "2", postTopic: "Emergency", postTime: "18.56", postDate: "9-2-2026", postBody: "Report emergency incidents immediately", likes: 0, bookmarks: 0},
+  //   { postId: "3", postTopic: "Safety Update", postTime: "05.34", postDate: "9-2-2026", postBody: "New safety features available", media: "default-img.png", likes: 0, bookmarks: 0},
+  // ];
 
   const { data, error } = await supabase
     .from('posts')
-    .insert(dummyPosts);
+    .insert('*');
+
+  console.log(data);   // check actual data
+
+  console.log(error);  // check for errors
 
   if (error) {
     console.error('Error seeding posts:', error);
@@ -50,6 +50,13 @@ export const fetchPosts = async (): Promise<Post[]> => {
     .from('posts')
     .select('*')
     .order('created_at', { ascending: false });
+
+    // console.log(process.env.EXPO_PUBLIC_SUPABASE_KEY);
+    // console.log(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+
+    console.log(data);   // check actual data
+    // console.log(count);  // check count
+    console.log(error);  // check for errors
 
   if (error) {
     console.error('Error fetching posts:', error);
@@ -72,26 +79,26 @@ export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise
     return null;
   }
 
-  return data;
+  return data as Post;
 };
 
-// Toggle like on a post
-export const toggleLike = async (postId: string, currentLikes: number): Promise<boolean> => {
-  const { error } = await supabase
-    .from('posts')
-    .update({ likes: currentLikes + 1 })
-    .eq('id', postId);
+// // Toggle like on a post
+// export const toggleLike = async (postpostId: string, currentLikes: number): Promise<boolean> => {
+//   const { error } = await supabase
+//     .from('posts')
+//     .update({ likes: currentLikes + 1 })
+//     .eq('id', postId);
 
-  if (error) {
-    console.error('Error toggling like:', error);
-    return false;
-  }
+//   if (error) {
+//     console.error('Error toggling like:', error);
+//     return false;
+//   }
 
-  return true;
-};
+//   return true;
+// };
 
 // Delete a post
-// export const deletePost = async (postId: string): Promise<boolean> => {
+// export const deletePost = async (postpostId: string): Promise<boolean> => {
 //   const { error } = await supabase
 //     .from('posts')
 //     .delete()

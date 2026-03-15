@@ -50,51 +50,40 @@ export default function Index() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        <View style={{ padding: 16, gap: 12 }}>
+      <Text>Welcome</Text>
+
+      <Link href="/auth/sign-up" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Sign Up</Text>
+      </Link>
+      <Link href="/auth/login" asChild>
+        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
+      </Link>
+    </View>
         
-        {/* Header */}
+        {/* Header Area */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            Safety on Speed
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.text }]}>
-            Stay safe, stay connected.
+          <Text style={[styles.title, { color: theme.text }]}>Welcome!</Text>
+          <Text style={[styles.subtitle, { color: theme.icon }]}>
+            This is the Home Screen.
           </Text>
         </View>
 
-        {/* Card 1 */}
+        {/* Example Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Live Location
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Your location is being tracked to keep you safe.
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Dark Mode Test</Text>
+          <Text style={[styles.cardText, { color: theme.icon }]}>
+            If the toggle Dark Mode in your Profile, this card should turn dark grey.
           </Text>
         </View>
 
-        {/* Card 2 */}
+        {/* Example Card 2 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Emergency Services
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Team's Work</Text>
+          <Text style={[styles.cardText, { color: theme.icon }]}>
+            We can replace this file later with our real code.
           </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Quick access to emergency contacts and services.
-          </Text>
-          <Link href="/extra" style={{ color: theme.text, marginTop: 8 }}>
-            View Services →
-          </Link>
-        </View>
-
-        {/* Card 3 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            News & Alerts
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            Stay updated with the latest safety news in your area.
-          </Text>
-          <Link href="/news" style={{ color: theme.text, marginTop: 8 }}>
-            View News →
-          </Link>
         </View>
 
       </ScrollView>
@@ -187,7 +176,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 60, // Space for status bar
   },
   header: {
     marginBottom: 30,
@@ -205,6 +194,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
+    // Shadow for iOS/Android
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
