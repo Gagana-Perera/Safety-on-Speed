@@ -38,6 +38,7 @@ export default function Login() {
       await loginUser(trimmedEmail, password);
       router.replace("/(tabs)");
     } catch (error: any) {
+      console.error(`[Login Error] Failed to authenticate user. Context: email=${trimmedEmail} | Error:`, error);
       Alert.alert(
         "Login failed",
         error?.message ?? "Something went wrong. Please try again.",

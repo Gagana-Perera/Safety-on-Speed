@@ -62,6 +62,7 @@ export default function ForgotPassword() {
       );
       otpInputRef.current?.focus();
     } catch (error: any) {
+      console.error(`[Forgot Password Error] Failed to send OTP. Context: email=${trimmedEmail} | Error:`, error);
       Alert.alert(
         "Couldn't send code",
         error?.message ?? "Please try again in a moment.",
@@ -128,6 +129,7 @@ export default function ForgotPassword() {
       );
       router.replace("/auth/login");
     } catch (error: any) {
+      console.error(`[Forgot Password Error] Failed to verify OTP or reset password. Context: email=${trimmedEmail} | Error:`, error);
       Alert.alert(
         "Verification failed",
         error?.message ?? "Please check the code and try again.",
