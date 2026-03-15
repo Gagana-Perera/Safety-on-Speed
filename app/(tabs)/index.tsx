@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Linking } from 'react-native';
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
@@ -174,13 +174,43 @@ export function EmergencyButton() {
     console.log("Background tracking initiated.");
     console.log(`Alert triggered: ${mode}`);
     // Add our Supabase or SMS logic here
+
+    if (mode === 'triple') {
+      const emergencyNumber = 'tel:119'; 
+      
+      try {
+        const supported = await Linking.canOpenURL(emergencyNumber);
+        if (supported) {
+          await Linking.openURL(emergencyNumber);
+        } else {
+          Alert.alert('Error', 'Your device does not support making phone calls from this app.');
+        }
+      } catch (error) {
+        console.error('Error opening dialer:', error);
+      }
+    }
   };
 
-  const cancelAlert = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+  const cancelAlert = async () => {
     setActiveMode(null);
     setTapCount(0);
-    Alert.alert("Alert Cancelled");
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+    if (hasStarted) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      console.log("Background tracking stopped.");
+    }
+
+    try {
+      await supabase
+        .from('live_locations' as any)
+        .update({ is_active: false })
+        .eq('user_id', CURRENT_USER_ID);
+      console.log("Database updated: alert inactive.");
+    } catch (err) {
+      console.error("Failed to update cancel status in DB", err);
+    }
   };
 
   return null; // can replace this with a <TouchableOpacity> later
