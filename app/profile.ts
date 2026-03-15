@@ -1,5 +1,5 @@
 // App/profile.ts
-import { getUserProfile } from "../lib/profileService";
+import { getMergedProfileData } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
 
 // This is a conceptual function representing your component logic
@@ -11,12 +11,12 @@ async function loadProfileData() {
 
   if (user) {
     // 2. Fetch their details from the database
-    const profileData = await getUserProfile(user.id);
+    const profileData = await getMergedProfileData();
 
     if (profileData) {
       // 3. Update your UI with these variables:
-      console.log("Name:", profileData.full_name); // Display "Shenal Arosha"
-      console.log("Phone:", profileData.phone_number); // Display "0711..."
+      console.log("Name:", profileData.fullName); // Display "Shenal Arosha"
+      console.log("Phone:", profileData.phone); // Display "0711..."
       console.log("Email:", profileData.email); // Display "shenal@..."
     }
   } else {

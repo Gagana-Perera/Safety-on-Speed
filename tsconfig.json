@@ -8,7 +8,8 @@
       "@expo/vector-icons": [
         "./node_modules/@expo/vector-icons/build/Icons.d.ts"
       ]
-    }
+    },
+    "jsx": "react-jsx"
   },
   "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts", "declarations.d.ts"]
 }
