@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Linking, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
@@ -10,6 +10,8 @@ import { notifyVerifiedGuardians } from '../../hooks/notifyVerifiedGuardians';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
+
+
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, error: any }) => {
   if (error) {
@@ -44,148 +46,74 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, 
 
 export default function Index() {
   const { theme } = useTheme();
-
-  {/*sos button start*/}
-  const [sosMode, setSosMode] = useState<'off' | 'single' | 'triple'>('off');
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const tapCountRef = useRef(0);
-  const tapResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+// sos button start
+  const [sosActive, setSosActive] = useState(false);
 
   const handleSOSPress = () => {
-    if (tapResetTimerRef.current) {
-      clearTimeout(tapResetTimerRef.current);
-    }
-
-    tapCountRef.current += 1;
-
-    if (tapCountRef.current === 3) {
-      setSosMode('triple');
-      tapCountRef.current = 0;
-      return;
-    }
-
-    setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
-
-    tapResetTimerRef.current = setTimeout(() => {
-      tapCountRef.current = 0;
-    }, 600);
+    setSosActive((prev) => !prev);
   };
-
-  useEffect(() => {
-    return () => {
-      if (tapResetTimerRef.current) {
-        clearTimeout(tapResetTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (sosMode !== 'off') {
-      pulseAnim.setValue(0);
-      pulseLoopRef.current = Animated.loop(
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        })
-      );
-      pulseLoopRef.current.start();
-    } else {
-      pulseLoopRef.current?.stop();
-      pulseAnim.setValue(0);
-    }
-
-    return () => {
-      pulseLoopRef.current?.stop();
-    };
-  }, [sosMode, pulseAnim]);
-
-  const pulseScale = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 2.2],
-  });
-
-  const pulseOpacity = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.4, 0],
-  });
-
-  const isSosActive = sosMode !== 'off';
-  {/*sos button end*/}
-
+// sos button end
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-
-        <View style={{ padding: 16, gap: 12 }}>
-      <Text>Welcome</Text>
-
-      <Link href="/auth/sign-up" asChild>
-        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Sign Up</Text>
-      </Link>
-      <Link href="/auth/login" asChild>
-        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
-      </Link>
-    </View>
         
-        {/* Header Area */}
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>Welcome!</Text>
-          <Text style={[styles.subtitle, { color: theme.icon }]}>
-            This is the Home Screen.
+          <Text style={[styles.title, { color: theme.text }]}>
+            Safety on Speed
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.text }]}>
+            Stay safe, stay connected.
           </Text>
         </View>
 
+        {/* Emergency Button */}
+        <View style={[styles.emergencyContainer]}>
+          <TouchableOpacity
+            onPress={handleSOSPress}
+            activeOpacity={0.7}
+            style={[styles.emergencyButton, { backgroundColor: sosActive ? '#AC991F' : '#0F7CA5' }]}
+          >
+            <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
+              {sosActive ? 'ACTIVE' : 'SOS'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* SOS Button Area */}
-
-    <View style={[styles.emergencyContainer]}>
-      <View style={styles.sosButtonWrap}>
-      {isSosActive && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.pulseCircle,
-            {
-              backgroundColor: sosMode === 'triple' ? '#DC2626' : '#AC991F',
-              transform: [{ scale: pulseScale }],
-              opacity: pulseOpacity,
-            },
-          ]}
-        />
-      )}
-      <TouchableOpacity 
-        onPress={handleSOSPress}
-        activeOpacity={0.7}
-        style={[
-          styles.emergencyButton,
-          { backgroundColor: sosMode === 'off' ? '#0F7CA5' : sosMode === 'triple' ? '#DC2626' : '#AC991F' },
-        ]}
-      >
-        <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
-          {isSosActive ? 'ACTIVE' : 'SOS'}
-        </Text>
-      </TouchableOpacity>
-      </View>
-    </View>
-
-
-        {/* Example Card 1 */}
+        {/* Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Dark Mode Test</Text>
-          <Text style={[styles.cardText, { color: theme.icon }]}>
-            If the toggle Dark Mode in your Profile, this card should turn dark grey.
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            Live Location
+          </Text>
+          <Text style={[styles.cardText, { color: theme.text }]}>
+            Your location is being tracked to keep you safe.
           </Text>
         </View>
 
-        {/* Example Card 2 */}
+        {/* Card 2 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Team's Work</Text>
-          <Text style={[styles.cardText, { color: theme.icon }]}>
-            We can replace this file later with our real code.
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            Emergency Services
           </Text>
+          <Text style={[styles.cardText, { color: theme.text }]}>
+            Quick access to emergency contacts and services.
+          </Text>
+          <Link href="/extra" style={{ color: theme.text, marginTop: 8 }}>
+            View Services →
+          </Link>
+        </View>
+
+        {/* Card 3 */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            News & Alerts
+          </Text>
+          <Text style={[styles.cardText, { color: theme.text }]}>
+            Stay updated with the latest safety news in your area.
+          </Text>
+          <Link href="/news" style={{ color: theme.text, marginTop: 8 }}>
+            View News →
+          </Link>
         </View>
 
       </ScrollView>
@@ -259,43 +187,13 @@ export function EmergencyButton() {
     console.log("Background tracking initiated.");
     console.log(`Alert triggered: ${mode}`);
     // Add our Supabase or SMS logic here
-
-    if (mode === 'triple') {
-      const emergencyNumber = 'tel:119'; 
-      
-      try {
-        const supported = await Linking.canOpenURL(emergencyNumber);
-        if (supported) {
-          await Linking.openURL(emergencyNumber);
-        } else {
-          Alert.alert('Error', 'Your device does not support making phone calls from this app.');
-        }
-      } catch (error) {
-        console.error('Error opening dialer:', error);
-      }
-    }
   };
 
-  const cancelAlert = async () => {
+  const cancelAlert = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     setActiveMode(null);
     setTapCount(0);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    
-    const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-    if (hasStarted) {
-      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      console.log("Background tracking stopped.");
-    }
-
-    try {
-      await supabase
-        .from('live_locations' as any)
-        .update({ is_active: false })
-        .eq('user_id', CURRENT_USER_ID);
-      console.log("Database updated: alert inactive.");
-    } catch (err) {
-      console.error("Failed to update cancel status in DB", err);
-    }
+    Alert.alert("Alert Cancelled");
   };
 
   return null; // can replace this with a <TouchableOpacity> later
@@ -308,7 +206,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 60, // Space for status bar
+    paddingTop: 60,
   },
   header: {
     marginBottom: 30,
@@ -326,7 +224,6 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    // Shadow for iOS/Android
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -376,5 +273,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     textAlign: 'center',
-  },
+  }
 });
