@@ -5,8 +5,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost } from '@/lib/newsApi';
 import { router } from 'expo-router';
+import { useTheme } from './themeContext';
 
 export default function CreatePost() {
+  const { theme } = useTheme();
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");
   const [image, setImage] = useState<string | null>(null);
@@ -76,41 +78,41 @@ export default function CreatePost() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Post</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Create Post</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.postCard}>
+        <View style={[styles.postCard, { backgroundColor: theme.card }]}>
           <View style={styles.postHeader}>
             <View style={styles.userInfo}>
               <View style={styles.avatar} />
               <View>
-                <Text style={styles.username}>CurrentUser</Text>
-                <Text style={styles.postTime}>Now</Text>
+                <Text style={[styles.username, { color: theme.text }]}>CurrentUser</Text>
+                <Text style={[styles.postTime, { color: theme.text }]}>Now</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.bodyContainer}>
             <TextInput
-              style={[styles.input, styles.subjectInput]}
+              style={[styles.input, styles.subjectInput, { color: theme.text, borderColor: theme.border }]}
               placeholder="Subject or Title"
-              placeholderTextColor="#c8c8c9"
+              placeholderTextColor={theme.icon}
               value={subject}
               onChangeText={setSubject}
               maxLength={100}
             />
 
             <TextInput
-              style={[styles.input, styles.bodyInput]}
+              style={[styles.input, styles.bodyInput, { color: theme.text, borderColor: theme.border }]}
               placeholder="What's on your mind?"
-              placeholderTextColor="#c8c8c9"
+              placeholderTextColor={theme.icon}
               value={body}
               onChangeText={setBody}
               multiline
@@ -120,7 +122,7 @@ export default function CreatePost() {
           </View>
 
           {image && (
-            <View style={styles.mediaContainer}>
+            <View style={[styles.mediaContainer, { backgroundColor: theme.background }]}>
               <Image 
                 source={{ uri: image }}
                 style={styles.mediaImage}
@@ -130,7 +132,7 @@ export default function CreatePost() {
                 style={styles.removeImageButton}
                 onPress={removeImage}
               >
-                <MaterialIcons name="close" size={20} color="#fff" />
+                <MaterialIcons name="close" size={20} color={theme.text} />
               </TouchableOpacity>
             </View>
           )}
@@ -140,8 +142,8 @@ export default function CreatePost() {
               style={styles.actionButton}
               onPress={pickImage}
             >
-              <MaterialIcons name="image" size={24} color="#fff" />
-              <Text style={styles.actionIcon}>Add Image</Text>
+              <MaterialIcons name="image" size={24} color={theme.text} />
+              <Text style={[styles.actionIcon, { color: theme.text }]}>Add Image</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -152,9 +154,9 @@ export default function CreatePost() {
           disabled={uploading}
         >
           {uploading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.text} />
           ) : (
-            <Text style={styles.submitButtonText}>Post</Text>
+            <Text style={[styles.submitButtonText, { color: theme.text }]}>Post</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -165,7 +167,6 @@ export default function CreatePost() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#002747",
   },
   header: {
     flexDirection: "row",
@@ -173,7 +174,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: "#002747",
   },
   headerTitle: {
     fontSize: 20,
@@ -184,12 +184,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   postCard: {
-    backgroundColor: "#0493cb83", 
     marginHorizontal: 15,
     marginVertical: 10,
     borderRadius: 15,
     padding: 15,
-    borderColor: "#5E85AF",
     borderLeftColor: "#0494CB",
     borderLeftWidth: 1,
     borderBottomWidth: 2,
@@ -218,25 +216,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#4A9EFF",
   },
   username: {
-    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
   },
   postTime: {
-    color: "#c8c8c9",
     fontSize: 12,
   },
   bodyContainer: {
     marginBottom: 15,
   },
   input: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 10,
     padding: 12,
-    color: "#fff",
     fontSize: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   subjectInput: {
     marginBottom: 12,
@@ -249,7 +242,6 @@ const styles = StyleSheet.create({
   mediaContainer: {
     borderRadius: 15,
     marginBottom: 15,
-    backgroundColor: "#002747",
     position: "relative",
   },
   mediaImage: {
@@ -277,7 +269,6 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     fontSize: 16,
-    color: "#fff",
   },
   submitButton: {
     backgroundColor: "#0494CB",
@@ -298,7 +289,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
-    color: "#fff",
     fontSize: 18,
     fontWeight: "700",
   },
