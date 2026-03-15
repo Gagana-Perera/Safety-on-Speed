@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Animated, Easing } from 'react-native';
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
@@ -47,11 +47,82 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, 
 export default function Index() {
   const { theme } = useTheme();
 // sos button start
-  const [sosActive, setSosActive] = useState(false);
+  const [sosMode, setSosMode] = useState<'off' | 'single' | 'triple'>('off');
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const tapCountRef = useRef(0);
+  const tapWindowRef = useRef<NodeJS.Timeout | null>(null);
+  const singleTapRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSOSPress = () => {
-    setSosActive((prev) => !prev);
+    if (tapWindowRef.current) {
+      clearTimeout(tapWindowRef.current);
+    }
+
+    tapCountRef.current += 1;
+
+    if (tapCountRef.current === 1) {
+      singleTapRef.current = setTimeout(() => {
+        setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
+        tapCountRef.current = 0;
+      }, 280);
+    }
+
+    if (tapCountRef.current === 3) {
+      if (singleTapRef.current) {
+        clearTimeout(singleTapRef.current);
+        singleTapRef.current = null;
+      }
+      setSosMode('triple');
+      tapCountRef.current = 0;
+    }
+
+    tapWindowRef.current = setTimeout(() => {
+      tapCountRef.current = 0;
+    }, 520);
   };
+
+  useEffect(() => {
+    return () => {
+      if (tapWindowRef.current) clearTimeout(tapWindowRef.current);
+      if (singleTapRef.current) clearTimeout(singleTapRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    let pulseLoop: Animated.CompositeAnimation | null = null;
+
+    if (sosMode !== 'off') {
+      pulseAnim.setValue(0);
+      pulseLoop = Animated.loop(
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1300,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        })
+      );
+      pulseLoop.start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(0);
+    }
+
+    return () => {
+      pulseLoop?.stop();
+    };
+  }, [sosMode, pulseAnim]);
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.2],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.38, 0],
+  });
+  const isSosActive = sosMode !== 'off';
+  const isTripleActive = sosMode === 'triple';
 // sos button end
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -67,19 +138,6 @@ export default function Index() {
           </Text>
         </View>
 
-        {/* Emergency Button */}
-        <View style={[styles.emergencyContainer]}>
-          <TouchableOpacity
-            onPress={handleSOSPress}
-            activeOpacity={0.7}
-            style={[styles.emergencyButton, { backgroundColor: sosActive ? '#AC991F' : '#0F7CA5' }]}
-          >
-            <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
-              {sosActive ? 'ACTIVE' : 'SOS'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>
@@ -88,6 +146,37 @@ export default function Index() {
           <Text style={[styles.cardText, { color: theme.text }]}>
             Your location is being tracked to keep you safe.
           </Text>
+        </View>
+
+        {/* Emergency Button */}
+        <View style={[styles.emergencyContainer]}>
+          <View style={styles.sosButtonWrap}>
+            {isSosActive && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.pulseCircle,
+                  {
+                    backgroundColor: isTripleActive ? '#DC2626' : '#AC991F',
+                    transform: [{ scale: pulseScale }],
+                    opacity: pulseOpacity,
+                  },
+                ]}
+              />
+            )}
+          <TouchableOpacity
+            onPress={handleSOSPress}
+            activeOpacity={0.7}
+            style={[
+              styles.emergencyButton,
+              { backgroundColor: !isSosActive ? '#0F7CA5' : isTripleActive ? '#DC2626' : '#AC991F' },
+            ]}
+          >
+            <Text style={[styles.emergencyButtonText, { color: theme.text }]}>
+              {isSosActive ? 'ACTIVE' : 'SOS'}
+            </Text>
+          </TouchableOpacity>
+          </View>
         </View>
 
         {/* Card 2 */}
@@ -240,8 +329,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   emergencyContainer: {
-    paddingTop: 210,
-    paddingBottom: 210,
+    paddingTop: 80,
+    paddingBottom: 80,
     marginBottom: 16,
     alignItems: 'center',
   },
