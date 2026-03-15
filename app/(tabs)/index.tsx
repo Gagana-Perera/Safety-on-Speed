@@ -5,9 +5,13 @@ import { Link } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager'; 
 import { supabase } from '../../lib/superbase';
+import { useState, useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
+
+
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
@@ -96,6 +100,61 @@ export default function Index() {
       </ScrollView>
     </View>
   );
+}
+
+type AlertMode = 'single' | 'triple' | null;
+export function EmergencyButton() {
+  const [activeMode, setActiveMode] = useState<AlertMode>(null);
+  const [tapCount, setTapCount] = useState<number>(0);
+  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handlePress = () => {
+    if (activeMode) {
+      cancelAlert();
+      return;
+    }
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+    if (newCount === 1) {
+      timerRef.current = setTimeout(() => {
+        triggerAlert('single');
+      }, 10000); // 10 second delay for single tap
+    } else if (newCount === 3) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      triggerAlert('triple');
+    }
+  };
+
+    const triggerAlert = async (mode: Exclude<AlertMode, null>) => {
+    setTapCount(0);
+    setActiveMode(mode);
+    
+    let { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      Alert.alert('Permission Denied', 'App needs foreground location access.');
+      setActiveMode(null);
+      return;
+    }
+    
+    console.log(`Alert triggered: ${mode}`);
+    // Add our Supabase or SMS logic here
+  };
+
+  const cancelAlert = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setActiveMode(null);
+    setTapCount(0);
+    Alert.alert("Alert Cancelled");
+  };
+
+  return null; // can replace this with a <TouchableOpacity> later
+
 }
 
 const styles = StyleSheet.create({
