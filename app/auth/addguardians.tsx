@@ -171,7 +171,7 @@ export default function GuardianSetup() {
         },
       ]);
     } catch (error: any) {
-      console.error("Error in handleConfirm:", error);
+      console.error(`[Guardian Setup Error] Failed to save guardian list. Context: Action=handleConfirm | Error:`, error);
       Alert.alert("Error", `Failed to save: ${error.message}`);
     } finally {
       setSaving(false);

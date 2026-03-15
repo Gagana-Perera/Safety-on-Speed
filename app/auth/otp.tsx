@@ -139,6 +139,7 @@ export default function SignUpOtp() {
       Alert.alert("Success", "Account created successfully!");
       router.replace("/auth/setup");
     } catch (error: any) {
+      console.error(`[Signup OTP Error] Verification process failed. Context: email=${draft.email} | Error:`, error);
       Alert.alert("Verification Failed", error.message);
     } finally {
       setVerifying(false);

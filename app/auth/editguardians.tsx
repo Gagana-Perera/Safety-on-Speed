@@ -34,7 +34,7 @@ export default function EditGuardian() {
                     setContacts([{ name: "", phone: "" }]);
                 }
             } catch (err) {
-                console.error("Error fetching guardians:", err);
+                console.error(`[Edit Guardians Error] Failed to load guardians on mount. Context: Action=loadGuardians | Error:`, err);
             }
         })();
     }, []);
@@ -75,9 +75,9 @@ export default function EditGuardian() {
             }
             await saveGuardians(user.id, contacts);
             alert("Guardians saved successfully");
-        } catch (error) {
-            console.error(error);
-            alert("Failed to save guardians.");
+        } catch (error: any) {
+            console.error(`[Edit Guardians Error] Failed to save guardian list. Context: Action=handleConfirm | Error:`, error);
+            alert("Failed to save guardians. Please try again.");
         }
     };
 
