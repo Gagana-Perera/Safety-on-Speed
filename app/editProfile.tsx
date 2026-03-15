@@ -1,25 +1,26 @@
-import React, { useState, useEffect } from "react";
-import { useRouter } from "expo-router";
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
-import { useTheme } from "./themeContext";
-import BackButton from './backButton'; 
+import {
+    getMergedProfileData
+} from "../lib/profileService";
 import { supabase } from "../lib/superbase";
-import { getMergedProfileData } from '../lib/profileService'; // Only need the merged service now
-
+import BackButton from "./backButton";
+import { useTheme } from "./themeContext";
 export default function EditProfile() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -30,7 +31,8 @@ export default function EditProfile() {
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
 
-  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
+  const DEFAULT_AVATAR =
+    "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
 
   const [form, setForm] = useState({
     firstName: "",
@@ -90,16 +92,20 @@ export default function EditProfile() {
 
       setUploading(true);
 
-      const byteArray = Uint8Array.from(atob(image.base64), c => c.charCodeAt(0));
+      const byteArray = Uint8Array.from(atob(image.base64), (c) =>
+        c.charCodeAt(0),
+      );
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) throw new Error("No session");
 
-      const fileExt = image.uri.split('.').pop() || 'jpeg';
+      const fileExt = image.uri.split(".").pop() || "jpeg";
       const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
+        .from("avatars")
         .upload(fileName, byteArray, {
           contentType: `image/${fileExt}`,
           upsert: true,
@@ -107,9 +113,9 @@ export default function EditProfile() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(fileName);
 
       // Safe save: use UPSERT just in case the profile row doesn't exist yet
       const { error: updateError } = await supabase
@@ -119,7 +125,6 @@ export default function EditProfile() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
-
     } catch (error: any) {
       console.log("Error uploading image:", error);
       Alert.alert("Upload Failed", error?.message || "Could not upload image.");
@@ -140,7 +145,9 @@ export default function EditProfile() {
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
       // Combine names back into one string for the database
@@ -163,7 +170,6 @@ export default function EditProfile() {
       Alert.alert("Success", "Profile updated successfully!", [
         { text: "OK", onPress: () => router.back() }
       ]);
-
     } catch (error) {
       Alert.alert("Error", "Could not save profile.");
       console.log("Save error:", error);
@@ -174,7 +180,9 @@ export default function EditProfile() {
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+      >
         <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
@@ -183,18 +191,26 @@ export default function EditProfile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        
         <View style={{ marginLeft: 16 }}>
           <BackButton color={theme.text} size={24} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          
           {/* Photo Section */}
           <View style={styles.profileImageContainer}>
             <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
               {uploading ? (
-                <View style={[styles.profileAvatar, { borderColor: theme.border, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.card }]}>
+                <View
+                  style={[
+                    styles.profileAvatar,
+                    {
+                      borderColor: theme.border,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: theme.card,
+                    },
+                  ]}
+                >
                   <ActivityIndicator size="large" color={theme.text} />
                 </View>
               ) : (
@@ -205,8 +221,11 @@ export default function EditProfile() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.cameraIconContainer, { borderColor: theme.background }]} 
+            <TouchableOpacity
+              style={[
+                styles.cameraIconContainer,
+                { borderColor: theme.background },
+              ]}
               onPress={changeAvatar}
               disabled={uploading}
             >
@@ -222,12 +241,18 @@ export default function EditProfile() {
 
           {/* Form Section */}
           <View style={styles.form}>
-            
             {/* First Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="user"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.firstName}
@@ -241,8 +266,15 @@ export default function EditProfile() {
             {/* Last Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="user" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="user"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.lastName}
@@ -256,8 +288,15 @@ export default function EditProfile() {
             {/* Phone Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="phone" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="phone"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.phone}
@@ -272,8 +311,15 @@ export default function EditProfile() {
             {/* Email Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="mail" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="mail"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.email}
@@ -289,8 +335,15 @@ export default function EditProfile() {
             {/* Location Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Location</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
-                <Feather name="map-pin" size={20} color={theme.icon} style={styles.inputIcon} />
+              <View
+                style={[styles.inputContainer, { backgroundColor: theme.card }]}
+              >
+                <Feather
+                  name="map-pin"
+                  size={20}
+                  color={theme.icon}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   value={form.location}
@@ -300,20 +353,21 @@ export default function EditProfile() {
                 />
               </View>
             </View>
-
           </View>
 
           {/* Save Button */}
           <View style={styles.actionContainer}>
-            <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}>
+            <TouchableOpacity
+              onPress={handleSave}
+              style={[styles.saveBtn, { backgroundColor: "#2563eb" }]}
+            >
               {saving ? (
-                 <ActivityIndicator color="white" />
+                <ActivityIndicator color="white" />
               ) : (
-                 <Text style={styles.saveBtnText}>Save Changes</Text>
+                <Text style={styles.saveBtnText}>Save Changes</Text>
               )}
             </TouchableOpacity>
           </View>
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -323,8 +377,8 @@ export default function EditProfile() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   container: {
     paddingVertical: 12,
@@ -347,7 +401,7 @@ const styles = StyleSheet.create({
   cameraIconContainer: {
     position: "absolute",
     bottom: 25,
-    right: "36%", 
+    right: "36%",
     backgroundColor: "#2563eb",
     padding: 8,
     borderRadius: 20,
