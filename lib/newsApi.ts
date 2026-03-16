@@ -33,7 +33,6 @@ export const seedPosts = async () => {
     .insert('*');
 
   console.log(data);   // check actual data
-
   console.log(error);  // check for errors
 
   if (error) {

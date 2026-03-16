@@ -50,41 +50,35 @@ export default function Index() {
   const [sosMode, setSosMode] = useState<'off' | 'single' | 'triple'>('off');
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const tapCountRef = useRef(0);
-  const tapWindowRef = useRef<NodeJS.Timeout | null>(null);
-  const singleTapRef = useRef<NodeJS.Timeout | null>(null);
+  const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSOSPress = () => {
-    if (tapWindowRef.current) {
-      clearTimeout(tapWindowRef.current);
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
     }
 
     tapCountRef.current += 1;
 
-    if (tapCountRef.current === 1) {
-      singleTapRef.current = setTimeout(() => {
-        setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
-        tapCountRef.current = 0;
-      }, 280);
-    }
-
     if (tapCountRef.current === 3) {
-      if (singleTapRef.current) {
-        clearTimeout(singleTapRef.current);
-        singleTapRef.current = null;
-      }
       setSosMode('triple');
       tapCountRef.current = 0;
+      tapTimerRef.current = null;
+      return;
     }
 
-    tapWindowRef.current = setTimeout(() => {
+    tapTimerRef.current = setTimeout(() => {
+      if (tapCountRef.current === 1) {
+        setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
+      }
+
       tapCountRef.current = 0;
-    }, 520);
+      tapTimerRef.current = null;
+    }, 420);
   };
 
   useEffect(() => {
     return () => {
-      if (tapWindowRef.current) clearTimeout(tapWindowRef.current);
-      if (singleTapRef.current) clearTimeout(singleTapRef.current);
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
     };
   }, []);
 
