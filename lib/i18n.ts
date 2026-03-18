@@ -29,6 +29,7 @@ const resources = {
       live_location_sub: "Share location in real-time",
       
       sign_out: "Sign Out",
+      app_version: "App Version 1.2.0",
 
       //Emergency Contact Screen
 
@@ -98,6 +99,7 @@ const resources = {
       live_location_sub: "තත්‍ය කාලීනව ස්ථානය බෙදා ගන්න",
       
       sign_out: "ඉවත් වන්න",
+      app_version: "යෙදුම් අනුවාදය 1.2.0",
 
       //Emergency Contact Screen - Sinhala
 
@@ -167,6 +169,7 @@ const resources = {
       live_location_sub: "நிகழ்நேரத்தில் இருப்பிடத்தைப் பகிரவும்",
       
       sign_out: "வெளியேறு",
+      app_version: "பயன்பாட்டு பதிப்பு 1.2.0",
 
       //Emergency Contact Screen - Tamil
 
