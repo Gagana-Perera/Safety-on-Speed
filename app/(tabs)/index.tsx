@@ -53,6 +53,46 @@ export default function Index() {
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const startContinuousTracking = async () => {
+    let { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    let { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+
+    if (fgStatus !== 'granted' || bgStatus !== 'granted') {
+      Alert.alert('Permission Denied', 'Background location is required for continuous tracking.');
+      return false;
+    }
+
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+
+      // This Try to get Our Location every 5 Seconds Like 5m distance (Rivindu)
+      timeInterval: 5000,
+      distanceInterval: 5,
+      showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: "SOS Active",
+        notificationBody: "Your location is being continuously shared.",
+        notificationColor: "#DC2626",
+      }
+    });
+    return true;
+  };
+
+
+  const stopContinuousTracking = async () => {
+    const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+    if (hasStarted) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      console.log("Continuous tracking stopped.");
+      
+      try {
+        await supabase.from('live_locations' as any).update({ is_active: false }).eq('user_id', CURRENT_USER_ID);
+      } catch (err) {}
+    }
+  };
+
+
+
   const handleSOSPress = async () => {
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
