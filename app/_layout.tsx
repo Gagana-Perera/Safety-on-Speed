@@ -2,19 +2,51 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
 import { ThemeProvider, useTheme } from "./themeContext";
+import { useEffect } from "react";                        
+import * as ImagePicker from 'expo-image-picker';         
+import * as Location from 'expo-location';
+import { supabase } from '../lib/superbase';
+import Constants from 'expo-constants';
 
-// 1. Create a component specifically to hold the logic that needs the Theme
 function RootLayoutNav() {
-  // Now this works because this component is INSIDE the ThemeProvider
   const { isDark } = useTheme();
+
+  const registerPushToken = async () => {
+    try {
+      // Only run on real builds, not Expo Go
+      if (Constants.appOwnership === 'expo') return;
+
+      const Notifications = await import('expo-notifications');
+      const { data: token } = await Notifications.getExpoPushTokenAsync();
+      console.log('Push token:', token);
+
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session) return;
+
+      await supabase
+        .from('profiles')
+        .update({ push_token: token } as any)
+        .eq('id', session.user.id);
+
+    } catch (error) {
+      console.log('Push token error:', error);
+    }
+  };
+
+  useEffect(() => {
+    const requestAllPermissions = async () => {
+      await ImagePicker.requestCameraPermissionsAsync();
+      await Location.requestForegroundPermissionsAsync();
+      await registerPushToken();
+    };
+    requestAllPermissions();
+  }, []);
 
   return (
     <>
-      {/* Dynamic Status Bar */}
       <StatusBar style={isDark ? "light" : "dark"} />
-
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Your Screens */}
         <Stack.Screen name="index" />
         <Stack.Screen name="session" />
         <Stack.Screen name="auth/login" />
@@ -33,7 +65,6 @@ function RootLayoutNav() {
   );
 }
 
-// 2. The Main Export just sets up the Provider
 export default function RootLayout() {
   return (
     <ThemeProvider>
