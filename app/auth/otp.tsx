@@ -121,7 +121,7 @@ export default function SignUpOtp() {
       }
 
       // 3. Save Profile
-      const { error: profileError } = await supabase.from("profiles").insert({
+      const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         full_name: `${draft.firstName || ""} ${draft.surname || ""}`.trim(),
         phone_number: draft.phoneNumber,
