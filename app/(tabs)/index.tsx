@@ -94,6 +94,16 @@ export default function Index() {
 
 
   const handleSOSPress = async () => {
+
+    if (sosMode !== 'off') {
+      setSosMode('off');
+      tapCountRef.current = 0;
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      await stopContinuousTracking();
+      return;
+    }
+
+
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
     }
@@ -107,27 +117,17 @@ export default function Index() {
 
       try {
 
-        //Location
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'App needs location access to share it.');
-        } else {
-          let location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High
-          });
-          
+        const trackingStarted = await startContinuousTracking();
+
+        if (trackingStarted) {
+          let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           const lat = location.coords.latitude;
           const lng = location.coords.longitude;
 
-          // Fixed Google Maps URL format to ensure it opens correctly
-          const googleMapsUrl = `https://maps.google.com/?q=${lat},${lng}`;
-          const messageToShare = `Emergency! I need help. Here is my current location: ${googleMapsUrl}`;
+          const googleMapsUrl = `http://maps.google.com/maps?q=${lat},${lng}`;
+          const messageToShare = `Emergency! I need help. My live tracking is active. My last known location: ${googleMapsUrl}`;
 
-          // This triggers the native sharing menu (WhatsApp, SMS, etc.)
-          await Share.share({
-            message: messageToShare,
-            title: 'Emergency Location',
-          });
+          await Share.share({ message: messageToShare, title: 'Emergency Location' });
         }
 
         //ANDROID PART
@@ -161,9 +161,11 @@ export default function Index() {
       return;
     }
 
-    tapTimerRef.current = setTimeout(() => {
+    tapTimerRef.current = setTimeout(async () => {
       if (tapCountRef.current === 1) {
-        setSosMode((prev) => (prev === 'off' ? 'single' : 'off'));
+        setSosMode('single');
+        await startContinuousTracking();
+        Alert.alert('Tracking Started', 'Your live location is now updating in the background.');
       }
 
       tapCountRef.current = 0;
