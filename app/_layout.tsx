@@ -60,6 +60,7 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/change-password" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editProfile" />
+        <Stack.Screen name="report" options={{ presentation: 'transparentModal', animation: 'fade' }} />
       </Stack>
     </>
   );

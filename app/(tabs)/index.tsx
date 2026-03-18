@@ -195,6 +195,19 @@ export default function Index() {
           </View>
         </View>
 
+        {/* Card 4 */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            Report
+          </Text>
+          <Text style={[styles.cardText, { color: theme.text }]}>
+            Report a safety issue in your area.
+          </Text>
+          <Link href="/report" style={{ color: theme.text, marginTop: 8 }}>
+            View Report →
+          </Link>
+        </View>
+
       </ScrollView>
     </View>
   );
