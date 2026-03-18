@@ -35,6 +35,7 @@ const resources = {
 
       emergency_services: "Emergency Services",
       emergency_hotlines: "EMERGENCY HOTLINES",
+      emergency_contacts: "Emergency Contacts",
       ambulance_service: "Ambulance Service",
       women_child_bureau: "Women & Child Bureau",
       fire_rescue: "Fire & Rescue",
@@ -44,11 +45,14 @@ const resources = {
 
       // Home
 
+      app_title: "Safety on Speed",
+      app_subtitle: "Stay safe, stay connected.",
       live_location: "Live Location",
       live_location_desc: "Your location is being tracked to keep you safe.",
       emergency_services_desc: "Quick access to emergency contacts and services.",
       news_alerts: "News & Alerts",
       news_alerts_desc: "Stay updated with the latest safety news in your area.",
+      view_services: "View Services →",
       view_news: "View News →",
 
       //Guardians Screen
@@ -114,6 +118,7 @@ const resources = {
 
       emergency_services: "හදිසි සේවා",
       emergency_hotlines: "හදිසි ඇමතුම් අංක",
+      emergency_contacts: "හදිසි සම්බන්ධතා",
       ambulance_service: "ගිලන් රථ සේවාව",
       women_child_bureau: "කාන්තා හා ළමා කාර්යාංශය",
       fire_rescue: "ගිනි නිවීම් සහ ගලවා ගැනීම",
@@ -123,11 +128,13 @@ const resources = {
 
       // Home - Sinhala
 
+      app_subtitle: "ආරක්ෂිතව සිටින්න, සම්බන්ධව සිටින්න.",
       live_location: "සජීවී ස්ථානය",
       live_location_desc: "ඔබව ආරක්ෂිතව තබා ගැනීම සඳහා ඔබේ ස්ථානය නිරීක්ෂණය කෙරේ.",
       emergency_services_desc: "හදිසි සම්බන්ධතා සහ සේවා වෙත ඉක්මන් ප්‍රවේශය.",
       news_alerts: "පුවත් සහ ඇඟවීම්",
       news_alerts_desc: "ඔබේ ප්‍රදේශයේ නවතම ආරක්ෂක පුවත් සමඟ යාවත්කාලීනව සිටින්න.",
+      view_services: "සේවා බලන්න →",
       view_news: "පුවත් බලන්න →",
 
       //Guardians Screen - Sinhala
@@ -193,6 +200,7 @@ const resources = {
 
       emergency_services: "அவசர சேவைகள்",
       emergency_hotlines: "அவசர நேரடி இணைப்புகள்",
+      emergency_contacts: "அவசர தொடர்புகள்",
       ambulance_service: "ஆம்புலன்ஸ் சேவை",
       women_child_bureau: "பெண்கள் மற்றும் குழந்தை பணியகம்",
       fire_rescue: "தீ & மீட்பு",
@@ -202,11 +210,13 @@ const resources = {
 
       // Home - Tamil
 
+      app_subtitle: "பாதுகாப்பாக இருங்கள், இணைந்திருங்கள்.",
       live_location: "நேரலை இருப்பிடம்",
       live_location_desc: "உங்களை பாதுகாப்பாக வைக்க உங்கள் இருப்பிடம் கண்காணிக்கப்படுகிறது.",
       emergency_services_desc: "அவசர தொடர்புகள் மற்றும் சேவைகளுக்கான விரைவான அணுகல்.",
       news_alerts: "செய்திகள் மற்றும் எச்சரிக்கைகள்",
       news_alerts_desc: "உங்கள் பகுதியில் சமீபத்திய பாதுகாப்பு செய்திகளுடன் புதுப்பித்த நிலையில் இருங்கள்.",
+      view_services: "சேவைகளை காண்க →",
       view_news: "செய்திகளை காண்க →",
 
       //Guardians Screen - Tamil
