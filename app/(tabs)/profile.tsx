@@ -19,7 +19,6 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
-import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
 const SRI_LANKAN_DISTRICTS = [
@@ -381,9 +380,6 @@ export default function Profile() {
       </Modal>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View>
-          <BackButton color={theme.text} />
-        </View>
 
         {/* --- HEADER --- */}
         <View style={styles.header}>
@@ -537,7 +533,7 @@ export default function Profile() {
         </TouchableOpacity>
 
         <Text style={[styles.versionText, { color: theme.icon }]}>
-          App Version 1.2.0
+          {t('app_version')}
         </Text>
       </ScrollView>
     </SafeAreaView>

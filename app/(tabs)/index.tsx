@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Animated, 
 import { useTheme } from '../themeContext';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager'; 
+import * as TaskManager from 'expo-task-manager';
+import { useTranslation } from "react-i18next"; 
 import { supabase } from '../../lib/superbase';
 import { useState, useEffect, useRef } from 'react';
 import { notifyVerifiedGuardians } from '../../hooks/notifyVerifiedGuardians';
@@ -45,6 +46,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any, 
 });
 
 export default function Index() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
 // sos button start
   const [sosMode, setSosMode] = useState<'off' | 'single' | 'triple'>('off');
@@ -125,20 +127,20 @@ export default function Index() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>
-            Safety on Speed
+            {t('app_title')}
           </Text>
           <Text style={[styles.subtitle, { color: theme.text }]}>
-            Stay safe, stay connected.
+            {t('app_subtitle')}
           </Text>
         </View>
 
         {/* Card 1 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Live Location
+            {t('live_location')}
           </Text>
           <Text style={[styles.cardText, { color: theme.text }]}>
-            Your location is being tracked to keep you safe.
+            {t('live_location_desc')}
           </Text>
         </View>
 
@@ -176,26 +178,26 @@ export default function Index() {
         {/* Card 2 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Emergency Services
+            {t('emergency_contacts')}
           </Text>
           <Text style={[styles.cardText, { color: theme.text }]}>
-            Quick access to emergency contacts and services.
+            {t('live_location_desc')}
           </Text>
           <Link href="/extra" style={{ color: theme.text, marginTop: 8 }}>
-            View Services →
+            {t('view_services')}
           </Link>
         </View>
 
         {/* Card 3 */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>
-            News & Alerts
+            {t('news_alerts')}
           </Text>
           <Text style={[styles.cardText, { color: theme.text }]}>
-            Stay updated with the latest safety news in your area.
+            {t('news_alerts_desc')}
           </Text>
           <Link href="/news" style={{ color: theme.text, marginTop: 8 }}>
-            View News →
+            {t('view_news')}
           </Link>
         </View>
 
