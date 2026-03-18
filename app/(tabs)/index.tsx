@@ -1,13 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Animated, Easing } from 'react-native';
-import { useTheme } from '../themeContext';
-import { Link } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { useTranslation } from "react-i18next"; 
-import { supabase } from '../../lib/superbase';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from "react-i18next";
+import { Alert, Animated, Easing, PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { notifyVerifiedGuardians } from '../../hooks/notifyVerifiedGuardians';
+import { supabase } from '../../lib/superbase';
+import { useTheme } from '../themeContext';
+
+import RNImmediatePhoneCall from 'react-native-immediate-phone-call';
 
 const CURRENT_USER_ID = 'a';
 const LOCATION_TASK_NAME = 'a';
@@ -54,7 +54,7 @@ export default function Index() {
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSOSPress = () => {
+  const handleSOSPress = async () => {
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
     }
@@ -65,6 +65,37 @@ export default function Index() {
       setSosMode('triple');
       tapCountRef.current = 0;
       tapTimerRef.current = null;
+
+      try {
+
+        //ANDROID PART
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+            {
+              title: 'Emergency Call Permission',
+              message: 'This app needs access to your dialer to make emergency calls directly.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+          
+          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+            RNImmediatePhoneCall.immediatePhoneCall('119');
+          } else {
+            Alert.alert('Permission Denied', 'App cannot make calls automatically. Please dial 119 manually.');
+          }
+        } else {
+
+          //For I PHONES - Emergency CALL
+          RNImmediatePhoneCall.immediatePhoneCall('119');
+        }
+      } catch (error) {
+        console.warn('Call error:', error);
+        Alert.alert('Error', 'Could not complete the emergency call.');
+      }
+
       return;
     }
 
@@ -124,23 +155,12 @@ export default function Index() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
-        {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>
             {t('app_title')}
           </Text>
           <Text style={[styles.subtitle, { color: theme.text }]}>
             {t('app_subtitle')}
-          </Text>
-        </View>
-
-        {/* Card 1 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            {t('live_location')}
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            {t('live_location_desc')}
           </Text>
         </View>
 
@@ -173,32 +193,6 @@ export default function Index() {
             </Text>
           </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Card 2 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            {t('emergency_contacts')}
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            {t('live_location_desc')}
-          </Text>
-          <Link href="/extra" style={{ color: theme.text, marginTop: 8 }}>
-            {t('view_services')}
-          </Link>
-        </View>
-
-        {/* Card 3 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            {t('news_alerts')}
-          </Text>
-          <Text style={[styles.cardText, { color: theme.text }]}>
-            {t('news_alerts_desc')}
-          </Text>
-          <Link href="/news" style={{ color: theme.text, marginTop: 8 }}>
-            {t('view_news')}
-          </Link>
         </View>
 
       </ScrollView>

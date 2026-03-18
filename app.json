@@ -16,7 +16,10 @@
         "backgroundColor": "#002747"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CALL_PHONE"
+      ]
     },
     "web": {
       "output": "static"
