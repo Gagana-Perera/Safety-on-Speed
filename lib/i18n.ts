@@ -42,6 +42,15 @@ const resources = {
       police_station: "Police Stations",
       call: "Call",
 
+      // Home
+
+      live_location: "Live Location",
+      live_location_desc: "Your location is being tracked to keep you safe.",
+      emergency_services_desc: "Quick access to emergency contacts and services.",
+      news_alerts: "News & Alerts",
+      news_alerts_desc: "Stay updated with the latest safety news in your area.",
+      view_news: "View News →",
+
       //Guardians Screen
 
       manage_guardians: "Manage Guardians",
@@ -112,6 +121,15 @@ const resources = {
       police_station: "පොලිස් ස්ථානය",
       call: "ඇමතුම",
 
+      // Home - Sinhala
+
+      live_location: "සජීවී ස්ථානය",
+      live_location_desc: "ඔබව ආරක්ෂිතව තබා ගැනීම සඳහා ඔබේ ස්ථානය නිරීක්ෂණය කෙරේ.",
+      emergency_services_desc: "හදිසි සම්බන්ධතා සහ සේවා වෙත ඉක්මන් ප්‍රවේශය.",
+      news_alerts: "පුවත් සහ ඇඟවීම්",
+      news_alerts_desc: "ඔබේ ප්‍රදේශයේ නවතම ආරක්ෂක පුවත් සමඟ යාවත්කාලීනව සිටින්න.",
+      view_news: "පුවත් බලන්න →",
+
       //Guardians Screen - Sinhala
 
       manage_guardians: "භාරකරුවන් කළමනාකරණය",
@@ -181,6 +199,15 @@ const resources = {
       hospital: "மருத்துவமனை",
       police_station: "காவல் நிலையம்",
       call: "அழைப்பு",
+
+      // Home - Tamil
+
+      live_location: "நேரலை இருப்பிடம்",
+      live_location_desc: "உங்களை பாதுகாப்பாக வைக்க உங்கள் இருப்பிடம் கண்காணிக்கப்படுகிறது.",
+      emergency_services_desc: "அவசர தொடர்புகள் மற்றும் சேவைகளுக்கான விரைவான அணுகல்.",
+      news_alerts: "செய்திகள் மற்றும் எச்சரிக்கைகள்",
+      news_alerts_desc: "உங்கள் பகுதியில் சமீபத்திய பாதுகாப்பு செய்திகளுடன் புதுப்பித்த நிலையில் இருங்கள்.",
+      view_news: "செய்திகளை காண்க →",
 
       //Guardians Screen - Tamil
 
