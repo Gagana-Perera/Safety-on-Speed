@@ -56,6 +56,11 @@ const resources = {
 
       pharmacies: "Pharmacies",
       search_places: "Search places",
+      sort_by_distance: "Sort by distance",
+      wheelchair_accessible: "Wheelchair accessible",
+      open_now: "Open now",
+      search_here: "Search here",
+      nearby_places: "Nearby places",
 
       //Edit Profile
 
@@ -120,6 +125,11 @@ const resources = {
 
       pharmacies: "ෆාමසි",
       search_places: "ස්ථාන සොයන්න",
+      sort_by_distance: "දුර අනුව වර්ග කරන්න",
+      wheelchair_accessible: "රෝද පුටු ප්‍රවේශය",
+      open_now: "දැන් විවෘතයි",
+      search_here: "මෙහි සොයන්න",
+      nearby_places: "ආසන්න ස්ථාන",
 
       //Edit Profile - Sinhala
 
@@ -184,6 +194,11 @@ const resources = {
 
       pharmacies: "மருந்தகங்கள்",
       search_places: "இடங்களை தேடுங்கள்",
+      sort_by_distance: "தூரத்தின் படி வரிசைப்படுத்து",
+      wheelchair_accessible: "ஊனமுற்றோர் கூடை அணுகல்",
+      open_now: "இப்போது திறந்திருக்கிறது",
+      search_here: "இங்கே தேடுங்கள்",
+      nearby_places: "அருகிலுள்ள இடங்கள்",
 
       //Edit Profile - Tamil
 
