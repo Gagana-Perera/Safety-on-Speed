@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
+import "@/lib/sosTask";
 import { ThemeProvider, useTheme } from "./themeContext";
 
 // 1. Create a component specifically to hold the logic that needs the Theme
@@ -28,6 +29,9 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/change-password" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editProfile" />
+        <Stack.Screen name="sos/loading" />
+        <Stack.Screen name="sos/active" />
+        <Stack.Screen name="sos/[token]" />
       </Stack>
     </>
   );

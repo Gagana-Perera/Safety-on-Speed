@@ -77,6 +77,37 @@ export type Database = {
         };
         Relationships: [];
       };
+      live_locations: {
+        Row: {
+          is_active: boolean | null
+          latitude: number
+          longitude: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          is_active?: boolean | null
+          latitude: number
+          longitude: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          is_active?: boolean | null
+          latitude?: number
+          longitude?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_locations_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -119,6 +150,107 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      sos_locations: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          id: number
+          lat: number
+          lng: number
+          session_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          id?: number
+          lat: number
+          lng: number
+          session_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          id?: number
+          lat?: number
+          lng?: number
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sos_locations_session_id_fkey"
+            columns: ["session_id"]
+            referencedRelation: "sos_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sos_sessions: {
+        Row: {
+          accuracy: number | null
+          alert_delivery_method: string | null
+          alert_delivery_status: string | null
+          ended_at: string | null
+          first_lat: number | null
+          first_lng: number | null
+          guardian_count: number | null
+          id: string
+          last_lat: number | null
+          last_lng: number | null
+          last_updated_at: string | null
+          mode: string
+          share_token: string
+          started_at: string
+          status: string
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          accuracy?: number | null
+          alert_delivery_method?: string | null
+          alert_delivery_status?: string | null
+          ended_at?: string | null
+          first_lat?: number | null
+          first_lng?: number | null
+          guardian_count?: number | null
+          id?: string
+          last_lat?: number | null
+          last_lng?: number | null
+          last_updated_at?: string | null
+          mode: string
+          share_token?: string
+          started_at?: string
+          status?: string
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          accuracy?: number | null
+          alert_delivery_method?: string | null
+          alert_delivery_status?: string | null
+          ended_at?: string | null
+          first_lat?: number | null
+          first_lng?: number | null
+          guardian_count?: number | null
+          id?: string
+          last_lat?: number | null
+          last_lng?: number | null
+          last_updated_at?: string | null
+          mode?: string
+          share_token?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sos_sessions_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       };
     };
     Views: {
