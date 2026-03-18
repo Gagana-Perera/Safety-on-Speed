@@ -4,15 +4,41 @@ import "./global.css";
 import { ThemeProvider, useTheme } from "./themeContext";
 import { useEffect } from "react";                        
 import * as ImagePicker from 'expo-image-picker';         
-import * as Location from 'expo-location';               
+import * as Location from 'expo-location';
+import { supabase } from '../lib/superbase';
+import Constants from 'expo-constants';
 
 function RootLayoutNav() {
   const { isDark } = useTheme();
+
+  const registerPushToken = async () => {
+    try {
+      // Only run on real builds, not Expo Go
+      if (Constants.appOwnership === 'expo') return;
+
+      const Notifications = await import('expo-notifications');
+      const { data: token } = await Notifications.getExpoPushTokenAsync();
+      console.log('Push token:', token);
+
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session) return;
+
+      await supabase
+        .from('profiles')
+        .update({ push_token: token } as any)
+        .eq('id', session.user.id);
+
+    } catch (error) {
+      console.log('Push token error:', error);
+    }
+  };
 
   useEffect(() => {
     const requestAllPermissions = async () => {
       await ImagePicker.requestCameraPermissionsAsync();
       await Location.requestForegroundPermissionsAsync();
+      await registerPushToken();
     };
     requestAllPermissions();
   }, []);
