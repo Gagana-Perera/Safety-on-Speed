@@ -35,6 +35,7 @@ const resources = {
       emergency_services: "Emergency Services",
       emergency_hotlines: "EMERGENCY HOTLINES",
       ambulance_service: "Ambulance Service",
+      women_child_bureau: "Women & Child Bureau",
       fire_rescue: "Fire & Rescue",
       hospital: "Hospitals",
       police_station: "Police Stations",
@@ -55,6 +56,19 @@ const resources = {
 
       pharmacies: "Pharmacies",
       search_places: "Search places",
+      sort_by_distance: "Sort by distance",
+      wheelchair_accessible: "Wheelchair accessible",
+      open_now: "Open now",
+      search_here: "Search here",
+      nearby_places: "Nearby places",
+
+      //Edit Profile
+
+      change_profile_photo: "Change Profile Photo",
+      first_name: "FIRST NAME",
+      last_name: "LAST NAME",
+      email_address: "EMAIL ADDRESS",
+      save_changes: "Save Changes",
     }
   },
   si: {
@@ -90,6 +104,7 @@ const resources = {
       emergency_services: "හදිසි සේවා",
       emergency_hotlines: "හදිසි ඇමතුම් අංක",
       ambulance_service: "ගිලන් රථ සේවාව",
+      women_child_bureau: "කාන්තා හා ළමා කාර්යාංශය",
       fire_rescue: "ගිනි නිවීම් සහ ගලවා ගැනීම",
       hospital: "රෝහල",
       police_station: "පොලිස් ස්ථානය",
@@ -110,6 +125,19 @@ const resources = {
 
       pharmacies: "ෆාමසි",
       search_places: "ස්ථාන සොයන්න",
+      sort_by_distance: "දුර අනුව වර්ග කරන්න",
+      wheelchair_accessible: "රෝද පුටු ප්‍රවේශය",
+      open_now: "දැන් විවෘතයි",
+      search_here: "මෙහි සොයන්න",
+      nearby_places: "ආසන්න ස්ථාන",
+
+      //Edit Profile - Sinhala
+
+      change_profile_photo: "පැතිකඩ ඡායාරූපය වෙනස් කරන්න",
+      first_name: "මුල් නම",
+      last_name: "අවසාන නම",
+      email_address: "විද්‍යුත් තැපැල් ලිපිනය",
+      save_changes: "වෙනස්කම් සුරකින්න",
     }
   },
   ta: {
@@ -145,6 +173,7 @@ const resources = {
       emergency_services: "அவசர சேவைகள்",
       emergency_hotlines: "அவசர நேரடி இணைப்புகள்",
       ambulance_service: "ஆம்புலன்ஸ் சேவை",
+      women_child_bureau: "பெண்கள் மற்றும் குழந்தை பணியகம்",
       fire_rescue: "தீ & மீட்பு",
       hospital: "மருத்துவமனை",
       police_station: "காவல் நிலையம்",
@@ -165,6 +194,20 @@ const resources = {
 
       pharmacies: "மருந்தகங்கள்",
       search_places: "இடங்களை தேடுங்கள்",
+      sort_by_distance: "தூரத்தின் படி வரிசைப்படுத்து",
+      wheelchair_accessible: "ஊனமுற்றோர் கூடை அணுகல்",
+      open_now: "இப்போது திறந்திருக்கிறது",
+      search_here: "இங்கே தேடுங்கள்",
+      nearby_places: "அருகிலுள்ள இடங்கள்",
+
+      //Edit Profile - Tamil
+
+      change_profile_photo: "சுயவிவர புகைப்படத்தை மாற்றவும்",
+      first_name: "முதல் பெயர்",
+      last_name: "கடைசி பெயர்",
+      email_address: "மின்னஞ்சல் முகவரி",
+      save_changes: "மாற்றங்களை சேமிக்கவும்",
+
     }
   }
 };
