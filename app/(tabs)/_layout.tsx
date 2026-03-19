@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/superbase";
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Image, View } from "react-native";
 import { useTheme } from "../themeContext";
 
@@ -114,10 +115,24 @@ export default function TabsLayout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <IconC icon={icons.home} color={color} size={size} />
+            <IconC icon={icons.menu} color={color} size={size} />
           ),
         }}
       ></Tabs.Screen>
+      <Tabs.Screen
+        name="heatmap"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="map.web"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
       <Tabs.Screen
         name="map"
         options={{
@@ -125,7 +140,7 @@ export default function TabsLayout() {
           tabBarShowLabel: false,
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <IconC icon={icons.home} color={color} size={size} />
+            <Ionicons name="map-outline" size={size + 6} color={color} />
           ),
         }}
       ></Tabs.Screen>

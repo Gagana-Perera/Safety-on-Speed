@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import i18n from "../../lib/i18n";
@@ -19,7 +20,6 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
-import BackButton from "../backButton";
 import { useTheme } from "../themeContext";
 
 const SRI_LANKAN_DISTRICTS = [
@@ -188,15 +188,27 @@ export default function Profile() {
 
   // Update Preferences in database
   const toggleSetting = async (
-    field:
-      | "email_notif"
-      | "push_notif"
-      | "alert_notif"
-      | "personal_data_access"
-      | "camera_access"
-      | "live_location",
+    field: "email_notif" | "push_notif" | "alert_notif" | "personal_data_access" | "camera_access" | "live_location",
     newValue: boolean,
   ) => {
+    // --- Request actual permissions when toggling ON ---
+    if (field === "camera_access" && newValue) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera Access', 'Please allow camera access in your device settings.');
+        return; // Don't save if permission denied
+      }
+    }
+
+    if (field === "live_location" && newValue) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location Access', 'Please allow location access in your device settings.');
+        return; // Don't save if permission denied
+      }
+    }
+
+    // --- Rest stays the same ---
     if (field === "email_notif") setEmailNotif(newValue);
     if (field === "push_notif") setPushNotif(newValue);
     if (field === "alert_notif") setAlertNotif(newValue);
@@ -205,9 +217,7 @@ export default function Profile() {
     if (field === "live_location") setLiveLocation(newValue);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const { error } = await supabase
@@ -215,9 +225,7 @@ export default function Profile() {
         .update({ [field]: newValue })
         .eq("id", session.user.id);
 
-      if (error) {
-        console.log(`Error saving ${field}:`, error);
-      }
+      if (error) console.log(`Error saving ${field}:`, error);
     } catch (error) {
       console.log("Unexpected error saving preference:", error);
     }
@@ -381,9 +389,6 @@ export default function Profile() {
       </Modal>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View>
-          <BackButton color={theme.text} />
-        </View>
 
         {/* --- HEADER --- */}
         <View style={styles.header}>
@@ -537,7 +542,7 @@ export default function Profile() {
         </TouchableOpacity>
 
         <Text style={[styles.versionText, { color: theme.icon }]}>
-          App Version 1.2.0
+          {t('app_version')}
         </Text>
       </ScrollView>
     </SafeAreaView>

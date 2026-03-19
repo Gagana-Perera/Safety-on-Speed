@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -254,7 +254,10 @@ export default function MapScreenWeb() {
         </TouchableOpacity>
 
         <View
-          style={[styles.heatmapLegendWrap, !heatmapEnabled && { opacity: 0.65 }]}
+          style={[
+            styles.heatmapLegendWrap,
+            !heatmapEnabled && { opacity: 0.65 },
+          ]}
         >
           <View style={styles.heatmapBar}>
             <View
@@ -277,19 +280,28 @@ export default function MapScreenWeb() {
           <View style={styles.heatmapLegendRow}>
             <View style={styles.heatmapLegendItem}>
               <View
-                style={[styles.heatmapLegendDot, { backgroundColor: "#3B82F6" }]}
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#3B82F6" },
+                ]}
               />
               <Text style={styles.heatmapLegendText}>Low</Text>
             </View>
             <View style={styles.heatmapLegendItem}>
               <View
-                style={[styles.heatmapLegendDot, { backgroundColor: "#EAB308" }]}
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#EAB308" },
+                ]}
               />
               <Text style={styles.heatmapLegendText}>Medium</Text>
             </View>
             <View style={styles.heatmapLegendItem}>
               <View
-                style={[styles.heatmapLegendDot, { backgroundColor: "#EF4444" }]}
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#EF4444" },
+                ]}
               />
               <Text style={styles.heatmapLegendText}>High</Text>
             </View>

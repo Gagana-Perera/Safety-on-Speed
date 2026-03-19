@@ -120,7 +120,35 @@ export type Database = {
           },
         ];
       };
+      reports: {
+        Row: {
+          id: number;
+          created_at: string;
+          verification: string | null;
+          incident_details: string | null;
+          safety_check: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          id?: number;
+          created_at?: string;
+          verification?: string | null;
+          incident_details?: string | null;
+          safety_check?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          id?: number;
+          created_at?: string;
+          verification?: string | null;
+          incident_details?: string | null;
+          safety_check?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
     };
+
     Views: {
       [_ in never]: never
     }

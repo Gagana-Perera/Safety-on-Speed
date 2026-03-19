@@ -1,3 +1,4 @@
+import { loadCachedGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
 
 type GuardiansRow = {
@@ -33,17 +34,28 @@ export async function bringGuardians(userId: string) {
       "g1_name, g1_phone, g2_name, g2_phone, g3_name, g3_phone, g4_name, g4_phone, g5_name, g5_phone",
     )
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    console.error("Failed to retrieve guardians:", error);
-    throw error;
+    // Common cases:
+    // - PGRST116: no row found (new user)
+    // - RLS/policy missing: select may be blocked in production
+    // In both cases, try local cache first and otherwise return an empty list.
+    if (error.code !== "PGRST116") {
+      console.error("Failed to retrieve guardians:", error);
+    }
+
+    const cached = await loadCachedGuardians(userId);
+    if (cached && cached.length > 0) return cached;
+    return [];
   }
 
   // Parse the data and return as an array of guardians with name and phone
   const guardians: { name: string; phone: string }[] = [];
 
   if (!data) {
+    const cached = await loadCachedGuardians(userId);
+    if (cached && cached.length > 0) return cached;
     return guardians;
   }
 

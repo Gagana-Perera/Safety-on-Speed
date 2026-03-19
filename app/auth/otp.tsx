@@ -1,7 +1,7 @@
 import { clearSignupDraft, getSignupDraft } from "@/lib/signup-draft";
 import { supabase } from "@/lib/superbase";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -163,6 +163,10 @@ export default function SignUpOtp() {
 
       router.replace(nextRoute);
     } catch (error: any) {
+      console.error(
+        `[Signup OTP Error] Verification process failed. Context: email=${draft.email} | Error:`,
+        error,
+      );
       Alert.alert("Verification Failed", error.message);
     } finally {
       setVerifying(false);
