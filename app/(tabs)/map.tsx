@@ -33,6 +33,7 @@ import {
   View,
 } from "react-native";
 import MapView, {
+  Circle,
   LatLng,
   Marker,
   Polyline,
@@ -51,6 +52,10 @@ import {
   PlaceSuggestion,
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
+import {
+  aggregateSosAlertsByTown,
+  dummySosAlerts,
+} from "../../services/sosHeatmap";
 import { useTheme } from "../themeContext";
 
 // Map tab:
@@ -84,6 +89,35 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
+
+type Rgb = { r: number; g: number; b: number };
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const interpolateHeatmapRgb = (t: number): Rgb => {
+  const x = clamp(t, 0, 1);
+
+  // Smooth gradient: Blue → Green → Yellow → Orange → Red
+  const stops: Array<{ t: number; c: Rgb }> = [
+    { t: 0, c: { r: 59, g: 130, b: 246 } }, // blue
+    { t: 0.25, c: { r: 34, g: 197, b: 94 } }, // green
+    { t: 0.5, c: { r: 234, g: 179, b: 8 } }, // yellow
+    { t: 0.75, c: { r: 249, g: 115, b: 22 } }, // orange
+    { t: 1, c: { r: 239, g: 68, b: 68 } }, // red
+  ];
+
+  let i = 0;
+  while (i < stops.length - 2 && x > stops[i + 1].t) i += 1;
+  const a = stops[i];
+  const b = stops[i + 1];
+  const localT = b.t === a.t ? 0 : (x - a.t) / (b.t - a.t);
+
+  return {
+    r: Math.round(lerp(a.c.r, b.c.r, localT)),
+    g: Math.round(lerp(a.c.g, b.c.g, localT)),
+    b: Math.round(lerp(a.c.b, b.c.b, localT)),
+  };
+};
 
 // Shortens large counts for UI (e.g. 12500 -> 12.5K).
 const formatCount = (n?: number) => {
@@ -925,9 +959,21 @@ export default function MapScreen() {
   }, [selectedPlace, selectedSheetTranslateY, selectedSheetCollapsedTranslate]);
 
   const [trafficEnabled, setTrafficEnabled] = useState(false);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
+
+  const sosHeatmapTowns = useMemo(
+    () => aggregateSosAlertsByTown(dummySosAlerts),
+    [],
+  );
+
+  const sosHeatmapMaxCount = useMemo(() => {
+    let max = 1;
+    for (const t of sosHeatmapTowns) max = Math.max(max, t.count);
+    return max;
+  }, [sosHeatmapTowns]);
 
   // Directions state.
   // When set, we render a Polyline on the map and show distance/duration.
@@ -1485,6 +1531,20 @@ export default function MapScreen() {
     }
   };
 
+  const moveToPlace = (place: PlaceDetails) => {
+    setSelectedPlace(place);
+    setFollowUser(false);
+
+    const nextRegion: Region = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+    setMapRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 450);
+  };
+
   const openAddReview = async (placeId: string) => {
     const url = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
       placeId,
@@ -1512,6 +1572,9 @@ export default function MapScreen() {
     }
     setPlaceError(null);
     setPlaceLoading(true);
+    const errorMsg =
+      "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
+
     try {
       console.log("[selectPlaceById] Fetching place details...");
       const details = await getPlaceDetails(placeId);
@@ -1519,35 +1582,22 @@ export default function MapScreen() {
         "[selectPlaceById] Details received:",
         details ? details.name : "null",
       );
-      if (!details) {
-        const errorMsg =
-          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
-        console.error("[selectPlaceById]", errorMsg);
-        setPlaceError(errorMsg);
-      } else {
+
+      if (details) {
         setSelectedPlace(details);
+        return details;
       }
-      setRoute(null);
-      return details || fallback || null;
+
+      console.error("[selectPlaceById]", errorMsg);
+      setPlaceError(errorMsg);
+      return fallback || null;
     } catch (e) {
-      console.error("[selectPlaceById] error:", e);
-      setPlaceError("Unexpected error while loading place details.");
+      console.error("[selectPlaceById]", errorMsg, e);
+      setPlaceError(errorMsg);
       return fallback || null;
     } finally {
       setPlaceLoading(false);
     }
-  };
-
-  const moveToPlace = (p: { latitude: number; longitude: number }) => {
-    console.log("[moveToPlace] Moving map to:", p.latitude, p.longitude);
-    const nextRegion: Region = {
-      latitude: p.latitude,
-      longitude: p.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
-    setMapRegion(nextRegion);
-    mapRef.current?.animateToRegion(nextRegion, 450);
   };
 
   const distanceMeters = (a: Coords, b: Coords) => {
@@ -2245,14 +2295,10 @@ export default function MapScreen() {
           zoomControlEnabled={true}
           zoomTapEnabled={true}
           onPress={(e) => {
-            // Make single-tap feel like Google Maps: try to open nearest place.
-            // (Especially useful on iOS where POI taps don't provide a placeId.)
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
             if (!c) return;
-            if (placeLoading || directionsLoading) return;
-
             void (async () => {
               const nearest = await findNearestPlaceAt(
                 c.latitude,
@@ -2331,6 +2377,48 @@ export default function MapScreen() {
               }
             : {})}
         >
+          {heatmapEnabled
+            ? sosHeatmapTowns.map((t) => {
+                const intensity = clamp(t.count / sosHeatmapMaxCount, 0, 1);
+                const radiusM = Math.min(9000, 650 * Math.sqrt(t.count) + 250);
+                const fillAlpha = 0.05 + intensity * 0.3;
+                const strokeAlpha = 0.1 + intensity * 0.45;
+                const rgb = interpolateHeatmapRgb(intensity);
+
+                return (
+                  <React.Fragment key={`sos-heat-${t.town}`}>
+                    <Circle
+                      center={{ latitude: t.latitude, longitude: t.longitude }}
+                      radius={radiusM}
+                      fillColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${fillAlpha})`}
+                      strokeColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${strokeAlpha})`}
+                      strokeWidth={2}
+                    />
+
+                    <Marker
+                      coordinate={{
+                        latitude: t.latitude,
+                        longitude: t.longitude,
+                      }}
+                      title={t.town}
+                      description={`Total SOS alerts: ${t.count}`}
+                      tracksViewChanges={false}
+                      zIndex={999}
+                    >
+                      <View
+                        style={[
+                          styles.heatmapTownDot,
+                          {
+                            backgroundColor: `rgb(${rgb.r},${rgb.g},${rgb.b})`,
+                          },
+                        ]}
+                      />
+                    </Marker>
+                  </React.Fragment>
+                );
+              })
+            : null}
+
           {hasLocation && (
             <Marker
               key={isDark ? "me-dark" : "me-light"}
@@ -2479,6 +2567,137 @@ export default function MapScreen() {
             />
           ) : null}
         </MapView>
+
+        {/* Heatmap toggle + legend (top-right) */}
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.heatmapTopRightWrap,
+            { top: Math.max(10, topOverlayBottomY + 10) },
+          ]}
+        >
+          <View
+            style={[
+              styles.heatmapPanel,
+              isDark ? styles.heatmapPanelDark : styles.heatmapPanelLight,
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() => setHeatmapEnabled((v) => !v)}
+              style={styles.heatmapToggleRow}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name={heatmapEnabled ? "flame" : "flame-outline"}
+                size={18}
+                color={
+                  heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
+                }
+              />
+              <Text
+                style={[
+                  styles.heatmapToggleLabel,
+                  { color: isDark ? "#fff" : "#111827" },
+                ]}
+              >
+                Heatmap
+              </Text>
+            </TouchableOpacity>
+
+            <View
+              style={[
+                styles.heatmapLegendWrap,
+                !heatmapEnabled && { opacity: 0.65 },
+              ]}
+            >
+              <View style={styles.heatmapBar}>
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#3B82F6" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#22C55E" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#EAB308" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#F97316" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#EF4444" },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.heatmapLegendRow}>
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#3B82F6" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    Low
+                  </Text>
+                </View>
+
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#EAB308" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    Medium
+                  </Text>
+                </View>
+
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#EF4444" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    High
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/*
           Top overlay: search + quick actions
@@ -3992,6 +4211,82 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  heatmapTopRightWrap: {
+    position: "absolute",
+    right: 12,
+    zIndex: 30,
+    alignItems: "flex-end",
+  },
+  heatmapPanel: {
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 150,
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  heatmapPanelDark: {
+    backgroundColor: "rgba(3,27,46,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.35)",
+  },
+  heatmapPanelLight: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  heatmapToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  heatmapToggleLabel: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  heatmapLegendWrap: {
+    marginTop: 10,
+  },
+  heatmapBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+    flexDirection: "row",
+  },
+  heatmapBarSegment: {
+    flex: 1,
+  },
+  heatmapLegendRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  heatmapLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  heatmapLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  heatmapLegendText: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  heatmapTownDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.95)",
   },
   searchWrap: {
     position: "absolute",
