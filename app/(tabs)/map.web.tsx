@@ -5,18 +5,34 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { useTheme } from "../themeContext";
 
+/**
+ * Map (Web)
+ *
+ * Why this file exists
+ * - The native map implementation uses `react-native-maps`.
+ * - In this project, web support for that stack is limited, so we embed Google
+ *   Maps via an <iframe> and center it on the user's location.
+ *
+ * UX goals
+ * - Show something immediately (default Sri Lanka center).
+ * - If location permission is granted, re-center to the user's coordinates.
+ * - Keep a visible "you are here" marker overlay.
+ */
 export default function MapScreenWeb() {
   const { isDark } = useTheme();
 
-  // Web implementation note:
-  // `react-native-maps` isn't supported the same way on web in this project,
-  // so we embed Google Maps via an iframe and center it on the user's location.
+  // Current view coordinates.
+  // Defaults to Sri Lanka so the screen is never blank.
   const [coords, setCoords] = useState<{ latitude: number; longitude: number }>(
     {
       latitude: 7.8731,
       longitude: 80.7718,
     },
   );
+
+  // Loading state is driven by *two* async events:
+  // 1) fetching GPS coordinates
+  // 2) the <iframe> finishing initial load
   const [loading, setLoading] = useState(true);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
@@ -24,12 +40,14 @@ export default function MapScreenWeb() {
   useEffect(() => {
     (async () => {
       try {
-        // If the user denies location, we keep the default Sri Lanka center.
+        // Request permission. If denied, keep the default center and show a banner.
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           setLocationDenied(true);
           return;
         }
+
+        // Use a balanced accuracy for web to be responsive and battery-friendly.
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
@@ -38,7 +56,7 @@ export default function MapScreenWeb() {
           longitude: location.coords.longitude,
         });
       } catch {
-        // Ignore: we'll show the default center.
+        // Ignore errors and keep the default center.
       } finally {
         setLoading(false);
       }
@@ -46,7 +64,7 @@ export default function MapScreenWeb() {
   }, []);
 
   const iframeSrc = useMemo(() => {
-    // Embed URL recomputed only when coords change.
+    // Build the embed URL when coords change.
     const zoom = 15;
     // Use an @lat,lng view (no pin) so we can overlay our own marker.
     return `https://www.google.com/maps/@${coords.latitude},${coords.longitude},${zoom}z?output=embed`;
@@ -54,6 +72,7 @@ export default function MapScreenWeb() {
 
   return (
     <View style={styles.container}>
+      {/* Base map layer */}
       <iframe
         title="map"
         src={iframeSrc}
@@ -70,6 +89,10 @@ export default function MapScreenWeb() {
         allowFullScreen
       />
 
+      {/*
+        Marker overlay: we render the "current location" pin on top of the iframe
+        (not inside the iframe) so it matches the app theme and remains visible.
+      */}
       <View pointerEvents="none" style={styles.liveMarkerOverlay}>
         {isDark ? (
           <View style={styles.liveMarkerNeonWrapDark}>
@@ -110,6 +133,7 @@ export default function MapScreenWeb() {
         )}
       </View>
 
+      {/* Permission banner */}
       {locationDenied && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -118,6 +142,7 @@ export default function MapScreenWeb() {
         </View>
       )}
 
+      {/* Loading pill while either GPS or iframe is still loading */}
       {(loading || !iframeLoaded) && (
         <View style={styles.loadingOverlay}>
           {/* Shows until both GPS fetch and iframe load are complete. */}

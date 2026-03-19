@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useTheme } from '../themeContext';
-import {Link} from 'expo-router';
+import { Link } from "expo-router";
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTheme } from "../themeContext";
 
 export default function Home() {
   const { theme } = useTheme();
@@ -9,18 +9,17 @@ export default function Home() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-
         <View style={{ padding: 16, gap: 12 }}>
-      <Text>Welcome</Text>
+          <Text>Welcome</Text>
 
-      <Link href="/auth/sign-up" asChild>
-        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Sign Up</Text>
-      </Link>
-      <Link href="/auth/login" asChild>
-        <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
-      </Link>
-    </View>
-        
+          <Link href="/auth/sign-up" asChild>
+            <Text style={{ color: "#2563eb", fontWeight: "600" }}>Sign Up</Text>
+          </Link>
+          <Link href="/auth/login" asChild>
+            <Text style={{ color: "#2563eb", fontWeight: "600" }}>Login</Text>
+          </Link>
+        </View>
+
         {/* Header Area */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>Welcome!</Text>
@@ -30,21 +29,35 @@ export default function Home() {
         </View>
 
         {/* Example Card 1 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Dark Mode Test</Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            Dark Mode Test
+          </Text>
           <Text style={[styles.cardText, { color: theme.icon }]}>
-            If the toggle Dark Mode in your Profile, this card should turn dark grey.
+            If the toggle Dark Mode in your Profile, this card should turn dark
+            grey.
           </Text>
         </View>
 
         {/* Example Card 2 */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Team's Work</Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            Team&apos;s Work
+          </Text>
           <Text style={[styles.cardText, { color: theme.icon }]}>
             We can replace this file later with our real code.
           </Text>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -63,7 +76,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   subtitle: {
@@ -83,7 +96,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   cardText: {

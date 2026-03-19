@@ -63,6 +63,16 @@ import { useTheme } from "../themeContext";
 // This file is intentionally "state heavy" because it coordinates map gestures,
 // Places API calls, and bottom-sheet snap/scroll interactions.
 
+// High-level structure (scan guide)
+// 1) Navigation params (open a placeId / POI search)
+// 2) Location + camera state (initial fix, follow mode)
+// 3) Search box + autocomplete
+// 4) POI categories + nearby search list
+// 5) Selected place details + actions (call, share, directions)
+// 6) Directions polyline
+// 7) Bottom sheets (nearby list, selected place) + PanResponder snapping
+// 8) Modals (search history)
+
 type Coords = { latitude: number; longitude: number };
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -155,6 +165,11 @@ export default function MapScreen() {
   const router = useRouter();
   const { isDark, theme } = useTheme();
 
+  // Navigation notes:
+  // - `placeId`: open a specific place directly (e.g., from Emergency Services tab).
+  // - `poi`: open the map with a category keyword (e.g., "police station").
+  // - `t`: cache-buster to force effects to re-run when navigating repeatedly.
+
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
   const mapRef = useRef<MapView | null>(null);
@@ -173,6 +188,11 @@ export default function MapScreen() {
   const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────
+  // Search state (top search bar)
+  // - query/suggestions handle text search and autocomplete
+  // - selectedPlace is shown in the selected-place bottom sheet
+  // ─────────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [autoLoading, setAutoLoading] = useState(false);
@@ -256,12 +276,20 @@ export default function MapScreen() {
   const [filterWheelchair, setFilterWheelchair] = useState(false);
   const [sortMode, setSortMode] = useState<"default" | "distance">("default");
 
+  // Filter hydration flags.
+  // We avoid repeatedly calling Place Details for the same placeId.
+
   const attemptedOpenNowRef = useRef<Set<string>>(new Set());
   const [openNowHydrating, setOpenNowHydrating] = useState(false);
 
   const attemptedWheelchairRef = useRef<Set<string>>(new Set());
   const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────
+  // Bottom sheet state
+  // - Nearby sheet: list of POI results + filter chips
+  // - Selected sheet: details for a tapped place
+  // ─────────────────────────────────────────────────────────────
   const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
   const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
 
@@ -430,6 +458,10 @@ export default function MapScreen() {
   ]);
 
   const selectedSheetPanResponder = useMemo(() => {
+    // Gesture model for selected-place sheet:
+    // - If collapsed/minimized, any vertical drag controls the sheet.
+    // - If expanded, the inner ScrollView should scroll; we only begin dragging
+    //   the sheet when the ScrollView is at the top and the gesture moves down.
     const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
       const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
       if (!vertical) return false;
@@ -678,6 +710,9 @@ export default function MapScreen() {
   );
 
   const nearbySheetPanResponder = useMemo(() => {
+    // Gesture model for nearby sheet:
+    // - Treat vertical drags as sheet movement.
+    // - Snap between Expanded / Peek / Chips-only based on velocity and nearest snap.
     const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
       const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
       return vertical;
@@ -894,6 +929,8 @@ export default function MapScreen() {
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  // Directions state.
+  // When set, we render a Polyline on the map and show distance/duration.
   const [route, setRoute] = useState<{
     polyline: LatLng[];
     distanceText: string;
@@ -905,6 +942,7 @@ export default function MapScreen() {
   const lastOpenedPoiKeyRef = useRef<string | null>(null);
 
   // Search History State
+  // Persisted in AsyncStorage so the user can quickly repeat searches.
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [searchHistory, setSearchHistory] = useState<
     Array<{
@@ -917,8 +955,13 @@ export default function MapScreen() {
   >([]);
 
   // Voice Search State
+  // Web-only in this project (mobile requires native rebuild).
   const [isListening, setIsListening] = useState(false);
 
+  // Helper: infer a POI category key from the Place types array.
+  // This is used for:
+  // - marker icon selection
+  // - displaying category labels in lists
   const getPoiKeyForPlace = (p: NearbyPlace): string | null => {
     const types = Array.isArray(p.types) ? p.types : [];
     if (types.includes("police")) return "police";
@@ -928,6 +971,7 @@ export default function MapScreen() {
     return null;
   };
 
+  // Helper: return the themed icon for a POI marker.
   const getPoiMarkerIcon = (p: NearbyPlace) => {
     const key = getPoiKeyForPlace(p);
     if (!key) return null;
@@ -935,6 +979,8 @@ export default function MapScreen() {
     return cat?.icon ?? null;
   };
 
+  // Action: open the device dialer.
+  // (Used by selected-place sheet actions.)
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
     if (!cleaned) {
@@ -958,6 +1004,8 @@ export default function MapScreen() {
     }
   };
 
+  // Action: open turn-by-turn navigation in Google Maps.
+  // Uses URL schemes for native apps when possible; otherwise falls back to web.
   const openGoogleMapsDirections = async (destination: Coords) => {
     const dest = `${destination.latitude},${destination.longitude}`;
 
@@ -1046,6 +1094,7 @@ export default function MapScreen() {
   };
 
   const categorizeSearchHistory = () => {
+    // Groups history entries for the modal UI.
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
     const oneWeek = 7 * oneDay;
@@ -1076,6 +1125,8 @@ export default function MapScreen() {
   };
 
   // Voice Search Handler
+  // - Web: uses the Web Speech API if available.
+  // - Mobile: not supported without adding native modules.
   const handleVoiceSearch = async () => {
     if (Platform.OS === "web") {
       // Web Speech API implementation
@@ -1130,7 +1181,13 @@ export default function MapScreen() {
 
     return () => backHandler.remove();
   }, [showSearchHistory]);
-  //get the current location through the expo location(this location then we use to show the user's poistion on the map and to search for nearby places)
+  // Bootstrap the initial location:
+  // - Request permission
+  // - Use last-known for fast initial map centering
+  // - Then refine with a high-accuracy fix
+  // This initial location is used for:
+  // - positioning the "you are here" marker
+  // - searching nearby places and computing distance labels
   useEffect(() => {
     (async () => {
       try {
@@ -1254,7 +1311,9 @@ export default function MapScreen() {
             };
             setCoords(next);
             setCoordsAccuracyM(
-              typeof loc.coords.accuracy === "number" ? loc.coords.accuracy : null,
+              typeof loc.coords.accuracy === "number"
+                ? loc.coords.accuracy
+                : null,
             );
             setHasLocation(true);
 
@@ -1397,7 +1456,9 @@ export default function MapScreen() {
       };
       setCoords(nextCoords);
       setCoordsAccuracyM(
-        typeof location.coords.accuracy === "number" ? location.coords.accuracy : null,
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
       );
       setHasLocation(true);
 
@@ -1780,6 +1841,8 @@ export default function MapScreen() {
     mapRegion,
   ]);
 
+  // Google Directions returns an encoded polyline string.
+  // This decoder converts it into an array of LatLng points for <Polyline />.
   const decodePolyline = (encoded: string): LatLng[] => {
     let index = 0;
     let lat = 0;
@@ -1814,6 +1877,8 @@ export default function MapScreen() {
     return coordinates;
   };
 
+  // Fetch driving directions from the user's current coordinates to `destination`.
+  // Stores the result in `route` so the map can render a Polyline and show ETA.
   const fetchDirections = async (destination: Coords) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
@@ -1870,6 +1935,8 @@ export default function MapScreen() {
     }
   };
 
+  // POI category definitions for the chip row.
+  // `keyword` is passed into Places nearby search.
   const POI_CATEGORIES = [
     {
       key: "police",
@@ -1891,6 +1958,10 @@ export default function MapScreen() {
     },
   ] as const;
 
+  // Load a POI category near the current map center.
+  // - Clears search UI focus
+  // - Resets filters/sort
+  // - Runs a nearby search and shows the Nearby sheet
   const loadPoiCategory = async (key: string, keyword: string) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
@@ -1905,7 +1976,7 @@ export default function MapScreen() {
       ? coords
       : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
 
-    // Reset filters whenever a new tab/category is chosen
+    // Reset filters whenever a new tab/category is chosen.
     setFilterOpenNow(false);
     setFilterWheelchair(false);
     setSortMode("default");
@@ -2399,6 +2470,7 @@ export default function MapScreen() {
             })(),
           )}
 
+          {/* Directions overlay: render a route polyline when available */}
           {route?.polyline?.length ? (
             <Polyline
               coordinates={route.polyline}
@@ -2408,6 +2480,10 @@ export default function MapScreen() {
           ) : null}
         </MapView>
 
+        {/*
+          Top overlay: search + quick actions
+          - Measures its height so bottom sheets can avoid overlapping it.
+        */}
         <View
           key={isDark ? "dark" : "light"}
           style={styles.searchWrap}
@@ -2429,6 +2505,7 @@ export default function MapScreen() {
                 inputFocused && !isDark && { borderColor: theme.icon },
               ]}
             >
+              {/* Search history button (opens modal) */}
               <TouchableOpacity
                 onPress={() => setShowSearchHistory(true)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
