@@ -1,8 +1,18 @@
+/**
+ * Emergency Services tab
+ *
+ * Purpose
+ * - Show emergency hotline numbers (static cards).
+ * - For nearby help (Hospital / Police Station), use GPS + Google Places to:
+ *   - find the nearest placeId
+ *   - fetch its public phone number
+ *   - allow calling or opening it on the in-app map.
+ *
+ * Performance notes
+ * - Uses lightweight caching (placeId + phone) so repeat taps feel instant.
+ * - Prefetches in the background once GPS becomes available.
+ */
 import { Ionicons } from "@expo/vector-icons";
-// Emergency Services tab:
-// - Shows hotline numbers (static)
-// - Finds the nearest hospital/police station using GPS + Google Places
-// - Supports: Call (dial the place phone) and Map (open in-app map by placeId)
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -18,7 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import BackButton from "../backButton";
+import BackButton from "../../components/backButton";
 import { useTheme } from "../themeContext";
 
 import {
@@ -26,6 +36,11 @@ import {
   getPlaceMobileNumber,
 } from "../../services/GooglePlacesService";
 
+/**
+ * Data model for a card.
+ * - category="hotline": phone is known (no Places API needed).
+ * - category="place": we search by `searchKey` around the user's GPS location.
+ */
 interface ServiceItem {
   id: string;
   name: string;
@@ -39,6 +54,7 @@ interface ServiceItem {
 }
 
 // UI cards are driven entirely by this data structure.
+// Keep it simple and deterministic: render = map(SERVICES).
 const SERVICES: ServiceItem[] = [
   {
     id: "1",
@@ -95,6 +111,12 @@ const SERVICES: ServiceItem[] = [
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
 
+/**
+ * Pressable wrapper with a subtle "pop" animation.
+ *
+ * Used for Call/Map buttons so they feel tactile.
+ * (Animation only — no business logic here.)
+ */
 function PopTouchableOpacity(
   props: React.ComponentProps<typeof TouchableOpacity> & {
     popScale?: number;
@@ -115,6 +137,7 @@ function PopTouchableOpacity(
   const scale = React.useRef(new Animated.Value(1)).current;
   const translateY = React.useRef(new Animated.Value(0)).current;
 
+  // Animate toward a scale/translate target (spring for a snappy feel).
   const animateTo = (nextScale: number, nextTranslateY: number) => {
     Animated.parallel([
       Animated.spring(scale, {
@@ -159,6 +182,7 @@ export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
 
+  // Visual tokens derived from the current theme.
   const EMERGENCY_ICON_COLOR = theme.mode === "light" ? "#000000" : "#8FD3FF";
 
   const EMERGENCY_BORDER_COLOR = "#2A5068";
@@ -186,6 +210,8 @@ export default function EmergencyServices() {
     null,
   );
 
+  // Utility: compute distance between two GPS points.
+  // Used only for cache invalidation thresholds.
   const haversineMeters = (
     lat1: number,
     lng1: number,
@@ -209,6 +235,9 @@ export default function EmergencyServices() {
   const delay = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+  // Map navigation “quick jump” threshold.
+  // If we can’t get a placeId quickly, we still navigate to Map with a POI term
+  // so the UI responds immediately.
   const MAP_QUICK_NAV_MS = 75;
 
   // Cache nearest placeId/phone for "place" cards so buttons feel instant.
@@ -311,6 +340,8 @@ export default function EmergencyServices() {
   const userLat = userLocation?.lat ?? null;
   const userLng = userLocation?.lng ?? null;
 
+  // Cache basis: where/when the cache was computed.
+  // If the user moves far enough or enough time passes, we refresh in background.
   const cacheBasisRef = React.useRef<{
     lat: number;
     lng: number;
@@ -322,6 +353,11 @@ export default function EmergencyServices() {
   const CACHE_INVALIDATE_MOVED_METERS = 250;
   const CACHE_TTL_MS = 2 * 60_000;
 
+  /**
+   * Decide whether cached nearest-place results are stale.
+   * We don't eagerly clear cache; instead we mark that a refresh is needed so
+   * the UI stays fast while the background updates catch up.
+   */
   const invalidatePlaceCacheIfNeeded = () => {
     if (userLat === null || userLng === null) return;
 
@@ -355,6 +391,7 @@ export default function EmergencyServices() {
       return await placeInFlightRef.current[item.id];
     }
 
+    // Single-flight promise per card id to avoid duplicate network calls.
     const promise = (async () => {
       const placeId = await getNearbyPlaces(
         userLat as number,
@@ -397,6 +434,7 @@ export default function EmergencyServices() {
       return await phoneInFlightRef.current[phoneKey];
     }
 
+    // Single-flight promise per (card + placeId).
     const promise = (async () => {
       const phone = await getPlaceMobileNumber(placeId);
       placeCacheRef.current[item.id] = {
@@ -495,6 +533,7 @@ export default function EmergencyServices() {
   // - Hotlines: dial the known number
   // - Places (Hospital/Police): find nearest placeId -> fetch phone -> dial
   const handleCallAction = async (item: ServiceItem) => {
+    // Hotlines are immediate: no Places API.
     if (item.category === "hotline") {
       setLoadingStatus({ id: item.id, type: "call" });
       try {
@@ -528,6 +567,8 @@ export default function EmergencyServices() {
     // placeId after GPS improvements (last-known -> high-accuracy) or subtle movements.
     const mustRefreshNearest = true;
 
+    // Cached values are kept for responsiveness, but on tap we force-refresh the nearest place.
+    // (We still keep these variables around for debugging and possible future optimizations.)
     const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
     const cachedPhone = placeCacheRef.current[item.id]?.phone || null;
     const shouldShowLoading = true;
@@ -678,7 +719,11 @@ export default function EmergencyServices() {
     */
   };
 
-  // Platform-specific dialing. (iOS uses telprompt for a better UX.)
+  /**
+   * Platform-specific dialing.
+   * - iOS: tries `telprompt:` first (nicer UX), then `tel:`.
+   * - Android: `tel:`.
+   */
   const makePhoneCall = async (phoneNumber: string) => {
     const raw = typeof phoneNumber === "string" ? phoneNumber.trim() : "";
     if (!raw) {
@@ -721,8 +766,11 @@ export default function EmergencyServices() {
     Alert.alert("Error", "Could not open phone dialer.");
   };
 
-  // Renders a single service card.
-  // For "place" cards, buttons are disabled until GPS is available.
+  /**
+   * Renders a single service card.
+   * - For place cards, buttons are disabled until GPS is available.
+   * - On press-in, we start a background refresh to reduce perceived latency.
+   */
   const renderCard = (item: ServiceItem, opts?: { marginBottom?: number }) => {
     const isCallDisabled =
       (loadingStatus?.id === item.id && loadingStatus?.type === "call") ||
@@ -855,6 +903,7 @@ export default function EmergencyServices() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
+        {/* Header: back + title */}
         <View className="mb-6">
           <BackButton color={theme.text} accessibilityLabel="Back Button" />
         </View>
@@ -879,6 +928,7 @@ export default function EmergencyServices() {
           )}
         </View>
 
+        {/* Section 1: static hotlines */}
         <View className="mb-8">
           <Text
             className="text-[13px] uppercase mb-2"
@@ -902,6 +952,7 @@ export default function EmergencyServices() {
           </View>
         </View>
 
+        {/* Section 2: dynamic nearby places (requires GPS + Places API key) */}
         <View className="mb-6">
           <Text
             className="text-[13px] uppercase mb-2"

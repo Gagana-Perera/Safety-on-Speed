@@ -1,10 +1,23 @@
+/**
+ * Tests for `services/GooglePlacesService.ts`.
+ *
+ * These tests focus on *query strategy* and *selection logic* rather than UI.
+ * We mock `globalThis.fetch` so no real Google APIs are called.
+ *
+ * Key testing themes:
+ * - When multiple candidate places are returned, we pick the *nearest* by distance.
+ * - Emergency vs non-emergency hospital searches behave slightly differently.
+ * - Police results must be strict (avoid "Police Station Basketball Ground").
+ * - `type=` is preferred over `keyword=` when possible.
+ */
+
 describe("getNearbyPlaces()", () => {
   beforeEach(() => {
     jest.restoreAllMocks();
-    // Ensure API key is present at module import time
+    // The module reads the API key at import-time. Ensure it's set before `require()`.
     process.env.EXPO_PUBLIC_GOOGLE_API_KEY = "test-key";
 
-    // Keep test output clean (the module logs queries)
+    // Keep test output clean (the module logs queries during execution).
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -16,6 +29,9 @@ describe("getNearbyPlaces()", () => {
 
   it("returns the closest hospital place_id from candidates (distance logic)", async () => {
     jest.resetModules();
+
+    // One fetch call returns two hospitals at different distances.
+    // The function should choose the nearest, regardless of array order.
 
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
@@ -37,14 +53,17 @@ describe("getNearbyPlaces()", () => {
     (globalThis as any).fetch = fetchMock;
 
     try {
-      // Import after env is set
+      // Import after env is set (the service module reads env on import).
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { getNearbyPlaces } = require("./GooglePlacesService");
 
       const result = await getNearbyPlaces(0, 0, "hospital");
       expect(result).toBe("near");
 
-      // Ensure we used rankby=distance hospital query first
+      // Ensure we used the preferred Nearby Search strategy:
+      // - `nearbysearch/json`
+      // - `rankby=distance`
+      // - `type=hospital`
       const firstUrl = String(fetchMock.mock.calls[0][0]);
       expect(firstUrl).toContain("nearbysearch/json?");
       expect(firstUrl).toMatch(/rankby=distance/);
@@ -56,6 +75,9 @@ describe("getNearbyPlaces()", () => {
 
   it("treats serviceType='emergency' as an emergency-hospital search", async () => {
     jest.resetModules();
+
+    // When the UI asks for "emergency", the service translates it to a hospital
+    // search but forces the *first keyword attempt* to be exactly "emergency".
 
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
@@ -96,6 +118,10 @@ describe("getNearbyPlaces()", () => {
 
   it("avoids specialty-only hospitals by falling back to a plain hospital query", async () => {
     jest.resetModules();
+
+    // The service tries multiple keyword strategies (e.g., emergency department, etc.).
+    // If these yield only specialty facilities (or nothing), it should fall back
+    // to a plain typed hospital query without any keyword.
 
     const fetchMock = jest.fn().mockImplementation(async (url: string) => {
       const u = String(url);
@@ -162,6 +188,7 @@ describe("getNearbyPlaces()", () => {
       expect(result).toBe("general");
 
       // Confirm we issued at least one hospital request without a keyword.
+      // This ensures the fallback path was exercised.
       const calledUrls = fetchMock.mock.calls.map((c) => String(c[0]));
       const hospitalNoKeywordCall = calledUrls.find(
         (u) =>
@@ -179,8 +206,9 @@ describe("getNearbyPlaces()", () => {
   it("picks the nearest hospital across keyword attempts (not first non-empty)", async () => {
     jest.resetModules();
 
-    // First keyword attempt returns only a farther hospital.
-    // Second keyword attempt returns a nearer hospital.
+    // We mock multiple sequential fetch calls to simulate multiple keyword attempts.
+    // The function must choose the nearest hospital across all attempts,
+    // not just "first non-empty".
     const fetchMock = jest.fn();
     fetchMock
       .mockResolvedValueOnce({
@@ -232,6 +260,9 @@ describe("getNearbyPlaces()", () => {
 
   it("for police, ignores non-station places even if closer", async () => {
     jest.resetModules();
+
+    // Places often returns nearby venues tagged with `type=police`.
+    // We must prefer a real "Police Station" over "Police Station Basketball Ground".
 
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
@@ -291,6 +322,9 @@ describe("searchNearbyPlaces()", () => {
   it("filters out results whose types don't include the requested type", async () => {
     jest.resetModules();
 
+    // Even if the API returns mixed types, the helper should only keep results
+    // whose `types` include the requested type.
+
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
         status: "OK",
@@ -326,6 +360,7 @@ describe("searchNearbyPlaces()", () => {
       expect(firstUrl).toMatch(/nearbysearch\/json\?/);
       expect(firstUrl).toMatch(/rankby=distance/);
       expect(firstUrl).toMatch(/type=hospital/);
+      // For typed searches we do not add `keyword=hospital` (it can reduce quality).
       expect(firstUrl).not.toMatch(/keyword=hospital/);
     } finally {
       (globalThis as any).fetch = originalFetch;
@@ -334,6 +369,8 @@ describe("searchNearbyPlaces()", () => {
 
   it("for pharmacy, only keeps places whose types include 'pharmacy'", async () => {
     jest.resetModules();
+
+    // Same as hospital test, but for pharmacy.
 
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
@@ -379,6 +416,10 @@ describe("searchNearbyPlaces()", () => {
   it("supports openNow option by adding opennow=true and marking results as open", async () => {
     jest.resetModules();
 
+    // When `openNow` is requested, the helper should:
+    // - include `opennow=true` in the query
+    // - expose a derived `isOpenNow=true` even if opening_hours is absent
+
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({
         status: "OK",
@@ -418,6 +459,9 @@ describe("searchNearbyPlaces()", () => {
 
   it("for police, only keeps places named 'Police Station'", async () => {
     jest.resetModules();
+
+    // `type=police` results can include "Police Post" and other nearby landmarks.
+    // The helper adds `keyword=police station` and filters by name.
 
     const fetchMock = jest.fn().mockResolvedValue({
       json: async () => ({

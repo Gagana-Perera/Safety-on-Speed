@@ -33,6 +33,7 @@ import {
   View,
 } from "react-native";
 import MapView, {
+  Circle,
   LatLng,
   Marker,
   Polyline,
@@ -51,6 +52,10 @@ import {
   PlaceSuggestion,
   searchNearbyPlaces,
 } from "../../services/GooglePlacesService";
+import {
+  aggregateSosAlertsByTown,
+  dummySosAlerts,
+} from "../../services/sosHeatmap";
 import { useTheme } from "../themeContext";
 
 // Map tab:
@@ -63,6 +68,16 @@ import { useTheme } from "../themeContext";
 // This file is intentionally "state heavy" because it coordinates map gestures,
 // Places API calls, and bottom-sheet snap/scroll interactions.
 
+// High-level structure (scan guide)
+// 1) Navigation params (open a placeId / POI search)
+// 2) Location + camera state (initial fix, follow mode)
+// 3) Search box + autocomplete
+// 4) POI categories + nearby search list
+// 5) Selected place details + actions (call, share, directions)
+// 6) Directions polyline
+// 7) Bottom sheets (nearby list, selected place) + PanResponder snapping
+// 8) Modals (search history)
+
 type Coords = { latitude: number; longitude: number };
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -74,6 +89,35 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
+
+type Rgb = { r: number; g: number; b: number };
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const interpolateHeatmapRgb = (t: number): Rgb => {
+  const x = clamp(t, 0, 1);
+
+  // Smooth gradient: Blue → Green → Yellow → Orange → Red
+  const stops: Array<{ t: number; c: Rgb }> = [
+    { t: 0, c: { r: 59, g: 130, b: 246 } }, // blue
+    { t: 0.25, c: { r: 34, g: 197, b: 94 } }, // green
+    { t: 0.5, c: { r: 234, g: 179, b: 8 } }, // yellow
+    { t: 0.75, c: { r: 249, g: 115, b: 22 } }, // orange
+    { t: 1, c: { r: 239, g: 68, b: 68 } }, // red
+  ];
+
+  let i = 0;
+  while (i < stops.length - 2 && x > stops[i + 1].t) i += 1;
+  const a = stops[i];
+  const b = stops[i + 1];
+  const localT = b.t === a.t ? 0 : (x - a.t) / (b.t - a.t);
+
+  return {
+    r: Math.round(lerp(a.c.r, b.c.r, localT)),
+    g: Math.round(lerp(a.c.g, b.c.g, localT)),
+    b: Math.round(lerp(a.c.b, b.c.b, localT)),
+  };
+};
 
 // Shortens large counts for UI (e.g. 12500 -> 12.5K).
 const formatCount = (n?: number) => {
@@ -155,6 +199,11 @@ export default function MapScreen() {
   const router = useRouter();
   const { isDark, theme } = useTheme();
 
+  // Navigation notes:
+  // - `placeId`: open a specific place directly (e.g., from Emergency Services tab).
+  // - `poi`: open the map with a category keyword (e.g., "police station").
+  // - `t`: cache-buster to force effects to re-run when navigating repeatedly.
+
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
   const mapRef = useRef<MapView | null>(null);
@@ -173,6 +222,11 @@ export default function MapScreen() {
   const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────
+  // Search state (top search bar)
+  // - query/suggestions handle text search and autocomplete
+  // - selectedPlace is shown in the selected-place bottom sheet
+  // ─────────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [autoLoading, setAutoLoading] = useState(false);
@@ -256,12 +310,20 @@ export default function MapScreen() {
   const [filterWheelchair, setFilterWheelchair] = useState(false);
   const [sortMode, setSortMode] = useState<"default" | "distance">("default");
 
+  // Filter hydration flags.
+  // We avoid repeatedly calling Place Details for the same placeId.
+
   const attemptedOpenNowRef = useRef<Set<string>>(new Set());
   const [openNowHydrating, setOpenNowHydrating] = useState(false);
 
   const attemptedWheelchairRef = useRef<Set<string>>(new Set());
   const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────
+  // Bottom sheet state
+  // - Nearby sheet: list of POI results + filter chips
+  // - Selected sheet: details for a tapped place
+  // ─────────────────────────────────────────────────────────────
   const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
   const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
 
@@ -430,6 +492,10 @@ export default function MapScreen() {
   ]);
 
   const selectedSheetPanResponder = useMemo(() => {
+    // Gesture model for selected-place sheet:
+    // - If collapsed/minimized, any vertical drag controls the sheet.
+    // - If expanded, the inner ScrollView should scroll; we only begin dragging
+    //   the sheet when the ScrollView is at the top and the gesture moves down.
     const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
       const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
       if (!vertical) return false;
@@ -678,6 +744,9 @@ export default function MapScreen() {
   );
 
   const nearbySheetPanResponder = useMemo(() => {
+    // Gesture model for nearby sheet:
+    // - Treat vertical drags as sheet movement.
+    // - Snap between Expanded / Peek / Chips-only based on velocity and nearest snap.
     const shouldSet = (_: unknown, g: { dx: number; dy: number }) => {
       const vertical = Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
       return vertical;
@@ -890,10 +959,24 @@ export default function MapScreen() {
   }, [selectedPlace, selectedSheetTranslateY, selectedSheetCollapsedTranslate]);
 
   const [trafficEnabled, setTrafficEnabled] = useState(false);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  const sosHeatmapTowns = useMemo(
+    () => aggregateSosAlertsByTown(dummySosAlerts),
+    [],
+  );
+
+  const sosHeatmapMaxCount = useMemo(() => {
+    let max = 1;
+    for (const t of sosHeatmapTowns) max = Math.max(max, t.count);
+    return max;
+  }, [sosHeatmapTowns]);
+
+  // Directions state.
+  // When set, we render a Polyline on the map and show distance/duration.
   const [route, setRoute] = useState<{
     polyline: LatLng[];
     distanceText: string;
@@ -905,6 +988,7 @@ export default function MapScreen() {
   const lastOpenedPoiKeyRef = useRef<string | null>(null);
 
   // Search History State
+  // Persisted in AsyncStorage so the user can quickly repeat searches.
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [searchHistory, setSearchHistory] = useState<
     Array<{
@@ -917,8 +1001,13 @@ export default function MapScreen() {
   >([]);
 
   // Voice Search State
+  // Web-only in this project (mobile requires native rebuild).
   const [isListening, setIsListening] = useState(false);
 
+  // Helper: infer a POI category key from the Place types array.
+  // This is used for:
+  // - marker icon selection
+  // - displaying category labels in lists
   const getPoiKeyForPlace = (p: NearbyPlace): string | null => {
     const types = Array.isArray(p.types) ? p.types : [];
     if (types.includes("police")) return "police";
@@ -928,6 +1017,7 @@ export default function MapScreen() {
     return null;
   };
 
+  // Helper: return the themed icon for a POI marker.
   const getPoiMarkerIcon = (p: NearbyPlace) => {
     const key = getPoiKeyForPlace(p);
     if (!key) return null;
@@ -935,6 +1025,8 @@ export default function MapScreen() {
     return cat?.icon ?? null;
   };
 
+  // Action: open the device dialer.
+  // (Used by selected-place sheet actions.)
   const makePhoneCall = async (phoneNumber: string) => {
     const cleaned = String(phoneNumber).replace(/[^\d+]/g, "");
     if (!cleaned) {
@@ -958,6 +1050,8 @@ export default function MapScreen() {
     }
   };
 
+  // Action: open turn-by-turn navigation in Google Maps.
+  // Uses URL schemes for native apps when possible; otherwise falls back to web.
   const openGoogleMapsDirections = async (destination: Coords) => {
     const dest = `${destination.latitude},${destination.longitude}`;
 
@@ -1046,6 +1140,7 @@ export default function MapScreen() {
   };
 
   const categorizeSearchHistory = () => {
+    // Groups history entries for the modal UI.
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
     const oneWeek = 7 * oneDay;
@@ -1076,6 +1171,8 @@ export default function MapScreen() {
   };
 
   // Voice Search Handler
+  // - Web: uses the Web Speech API if available.
+  // - Mobile: not supported without adding native modules.
   const handleVoiceSearch = async () => {
     if (Platform.OS === "web") {
       // Web Speech API implementation
@@ -1130,7 +1227,13 @@ export default function MapScreen() {
 
     return () => backHandler.remove();
   }, [showSearchHistory]);
-  //get the current location through the expo location(this location then we use to show the user's poistion on the map and to search for nearby places)
+  // Bootstrap the initial location:
+  // - Request permission
+  // - Use last-known for fast initial map centering
+  // - Then refine with a high-accuracy fix
+  // This initial location is used for:
+  // - positioning the "you are here" marker
+  // - searching nearby places and computing distance labels
   useEffect(() => {
     (async () => {
       try {
@@ -1254,7 +1357,9 @@ export default function MapScreen() {
             };
             setCoords(next);
             setCoordsAccuracyM(
-              typeof loc.coords.accuracy === "number" ? loc.coords.accuracy : null,
+              typeof loc.coords.accuracy === "number"
+                ? loc.coords.accuracy
+                : null,
             );
             setHasLocation(true);
 
@@ -1397,7 +1502,9 @@ export default function MapScreen() {
       };
       setCoords(nextCoords);
       setCoordsAccuracyM(
-        typeof location.coords.accuracy === "number" ? location.coords.accuracy : null,
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
       );
       setHasLocation(true);
 
@@ -1422,6 +1529,20 @@ export default function MapScreen() {
       setMapRegion(nextRegion);
       mapRef.current?.animateToRegion(nextRegion, 450);
     }
+  };
+
+  const moveToPlace = (place: PlaceDetails) => {
+    setSelectedPlace(place);
+    setFollowUser(false);
+
+    const nextRegion: Region = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+    setMapRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 450);
   };
 
   const openAddReview = async (placeId: string) => {
@@ -1451,6 +1572,9 @@ export default function MapScreen() {
     }
     setPlaceError(null);
     setPlaceLoading(true);
+    const errorMsg =
+      "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
+
     try {
       console.log("[selectPlaceById] Fetching place details...");
       const details = await getPlaceDetails(placeId);
@@ -1458,35 +1582,22 @@ export default function MapScreen() {
         "[selectPlaceById] Details received:",
         details ? details.name : "null",
       );
-      if (!details) {
-        const errorMsg =
-          "Could not load photos/details for this place. Check Places API + billing + API key restrictions.";
-        console.error("[selectPlaceById]", errorMsg);
-        setPlaceError(errorMsg);
-      } else {
+
+      if (details) {
         setSelectedPlace(details);
+        return details;
       }
-      setRoute(null);
-      return details || fallback || null;
+
+      console.error("[selectPlaceById]", errorMsg);
+      setPlaceError(errorMsg);
+      return fallback || null;
     } catch (e) {
-      console.error("[selectPlaceById] error:", e);
-      setPlaceError("Unexpected error while loading place details.");
+      console.error("[selectPlaceById]", errorMsg, e);
+      setPlaceError(errorMsg);
       return fallback || null;
     } finally {
       setPlaceLoading(false);
     }
-  };
-
-  const moveToPlace = (p: { latitude: number; longitude: number }) => {
-    console.log("[moveToPlace] Moving map to:", p.latitude, p.longitude);
-    const nextRegion: Region = {
-      latitude: p.latitude,
-      longitude: p.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
-    setMapRegion(nextRegion);
-    mapRef.current?.animateToRegion(nextRegion, 450);
   };
 
   const distanceMeters = (a: Coords, b: Coords) => {
@@ -1780,6 +1891,8 @@ export default function MapScreen() {
     mapRegion,
   ]);
 
+  // Google Directions returns an encoded polyline string.
+  // This decoder converts it into an array of LatLng points for <Polyline />.
   const decodePolyline = (encoded: string): LatLng[] => {
     let index = 0;
     let lat = 0;
@@ -1814,6 +1927,8 @@ export default function MapScreen() {
     return coordinates;
   };
 
+  // Fetch driving directions from the user's current coordinates to `destination`.
+  // Stores the result in `route` so the map can render a Polyline and show ETA.
   const fetchDirections = async (destination: Coords) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
@@ -1870,6 +1985,8 @@ export default function MapScreen() {
     }
   };
 
+  // POI category definitions for the chip row.
+  // `keyword` is passed into Places nearby search.
   const POI_CATEGORIES = [
     {
       key: "police",
@@ -1891,6 +2008,10 @@ export default function MapScreen() {
     },
   ] as const;
 
+  // Load a POI category near the current map center.
+  // - Clears search UI focus
+  // - Resets filters/sort
+  // - Runs a nearby search and shows the Nearby sheet
   const loadPoiCategory = async (key: string, keyword: string) => {
     const apiKey = ensureGoogleApiKey();
     if (!apiKey) return;
@@ -1905,7 +2026,7 @@ export default function MapScreen() {
       ? coords
       : { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
 
-    // Reset filters whenever a new tab/category is chosen
+    // Reset filters whenever a new tab/category is chosen.
     setFilterOpenNow(false);
     setFilterWheelchair(false);
     setSortMode("default");
@@ -2174,14 +2295,10 @@ export default function MapScreen() {
           zoomControlEnabled={true}
           zoomTapEnabled={true}
           onPress={(e) => {
-            // Make single-tap feel like Google Maps: try to open nearest place.
-            // (Especially useful on iOS where POI taps don't provide a placeId.)
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
             if (!c) return;
-            if (placeLoading || directionsLoading) return;
-
             void (async () => {
               const nearest = await findNearestPlaceAt(
                 c.latitude,
@@ -2260,6 +2377,48 @@ export default function MapScreen() {
               }
             : {})}
         >
+          {heatmapEnabled
+            ? sosHeatmapTowns.map((t) => {
+                const intensity = clamp(t.count / sosHeatmapMaxCount, 0, 1);
+                const radiusM = Math.min(9000, 650 * Math.sqrt(t.count) + 250);
+                const fillAlpha = 0.05 + intensity * 0.3;
+                const strokeAlpha = 0.1 + intensity * 0.45;
+                const rgb = interpolateHeatmapRgb(intensity);
+
+                return (
+                  <React.Fragment key={`sos-heat-${t.town}`}>
+                    <Circle
+                      center={{ latitude: t.latitude, longitude: t.longitude }}
+                      radius={radiusM}
+                      fillColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${fillAlpha})`}
+                      strokeColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${strokeAlpha})`}
+                      strokeWidth={2}
+                    />
+
+                    <Marker
+                      coordinate={{
+                        latitude: t.latitude,
+                        longitude: t.longitude,
+                      }}
+                      title={t.town}
+                      description={`Total SOS alerts: ${t.count}`}
+                      tracksViewChanges={false}
+                      zIndex={999}
+                    >
+                      <View
+                        style={[
+                          styles.heatmapTownDot,
+                          {
+                            backgroundColor: `rgb(${rgb.r},${rgb.g},${rgb.b})`,
+                          },
+                        ]}
+                      />
+                    </Marker>
+                  </React.Fragment>
+                );
+              })
+            : null}
+
           {hasLocation && (
             <Marker
               key={isDark ? "me-dark" : "me-light"}
@@ -2399,6 +2558,7 @@ export default function MapScreen() {
             })(),
           )}
 
+          {/* Directions overlay: render a route polyline when available */}
           {route?.polyline?.length ? (
             <Polyline
               coordinates={route.polyline}
@@ -2408,6 +2568,141 @@ export default function MapScreen() {
           ) : null}
         </MapView>
 
+        {/* Heatmap toggle + legend (top-right) */}
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.heatmapTopRightWrap,
+            { top: Math.max(10, topOverlayBottomY + 10) },
+          ]}
+        >
+          <View
+            style={[
+              styles.heatmapPanel,
+              isDark ? styles.heatmapPanelDark : styles.heatmapPanelLight,
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() => setHeatmapEnabled((v) => !v)}
+              style={styles.heatmapToggleRow}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name={heatmapEnabled ? "flame" : "flame-outline"}
+                size={18}
+                color={
+                  heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
+                }
+              />
+              <Text
+                style={[
+                  styles.heatmapToggleLabel,
+                  { color: isDark ? "#fff" : "#111827" },
+                ]}
+              >
+                Heatmap
+              </Text>
+            </TouchableOpacity>
+
+            <View
+              style={[
+                styles.heatmapLegendWrap,
+                !heatmapEnabled && { opacity: 0.65 },
+              ]}
+            >
+              <View style={styles.heatmapBar}>
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#3B82F6" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#22C55E" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#EAB308" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#F97316" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.heatmapBarSegment,
+                    { backgroundColor: "#EF4444" },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.heatmapLegendRow}>
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#3B82F6" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    Low
+                  </Text>
+                </View>
+
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#EAB308" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    Medium
+                  </Text>
+                </View>
+
+                <View style={styles.heatmapLegendItem}>
+                  <View
+                    style={[
+                      styles.heatmapLegendDot,
+                      { backgroundColor: "#EF4444" },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.heatmapLegendText,
+                      { color: isDark ? "#fff" : "#111827" },
+                    ]}
+                  >
+                    High
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/*
+          Top overlay: search + quick actions
+          - Measures its height so bottom sheets can avoid overlapping it.
+        */}
         <View
           key={isDark ? "dark" : "light"}
           style={styles.searchWrap}
@@ -2429,6 +2724,7 @@ export default function MapScreen() {
                 inputFocused && !isDark && { borderColor: theme.icon },
               ]}
             >
+              {/* Search history button (opens modal) */}
               <TouchableOpacity
                 onPress={() => setShowSearchHistory(true)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -3915,6 +4211,82 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  heatmapTopRightWrap: {
+    position: "absolute",
+    right: 12,
+    zIndex: 30,
+    alignItems: "flex-end",
+  },
+  heatmapPanel: {
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 150,
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  heatmapPanelDark: {
+    backgroundColor: "rgba(3,27,46,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(143,211,255,0.35)",
+  },
+  heatmapPanelLight: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  heatmapToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  heatmapToggleLabel: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  heatmapLegendWrap: {
+    marginTop: 10,
+  },
+  heatmapBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+    flexDirection: "row",
+  },
+  heatmapBarSegment: {
+    flex: 1,
+  },
+  heatmapLegendRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  heatmapLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  heatmapLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  heatmapLegendText: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  heatmapTownDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.95)",
   },
   searchWrap: {
     position: "absolute",
