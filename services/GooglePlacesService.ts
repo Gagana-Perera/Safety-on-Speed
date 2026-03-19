@@ -18,6 +18,9 @@
  */
 const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
 
+// `EXPO_PUBLIC_*` variables are safe to read in the app bundle in Expo.
+// In local/dev you typically set this in `.env` or `app.config.js`.
+
 /**
  * Google Places helpers used across the app.
  *
@@ -40,6 +43,10 @@ export type PlaceCoordinates = {
   latitude: number;
   longitude: number;
 };
+
+// The exported types below are intentionally “screen-friendly”:
+// - They match what our UI cards and markers need.
+// - They avoid leaking raw Google response shapes into the rest of the app.
 
 /**
  * Heuristic: Identify specialty-only facilities that are often *not* a good
@@ -204,6 +211,8 @@ const computeNextOpenTimeText = (
   // Compute "now" in the place's local time using utc_offset_minutes.
   // Places Details provides the offset for the place's timezone; we convert Date.now() into that local time.
   const nowLocal = new Date(Date.now() + utcOffsetMinutes * 60_000);
+  // We intentionally read the shifted date via getUTC* so that the offset-adjusted
+  // timestamp acts like a “local clock” independent of the device timezone.
   const nowDay = nowLocal.getUTCDay();
   const nowMinutes = nowLocal.getUTCHours() * 60 + nowLocal.getUTCMinutes();
   const nowWeekMinutes = nowDay * 1440 + nowMinutes;
@@ -259,6 +268,11 @@ const computeNextOpenTimeText = (
  *
  * Used when a map tap only yields raw coordinates (no place id). We query a
  * small-radius Nearby Search and return the first match as the nearest place.
+ *
+ * Notes for viva:
+ * - We keep the radius tiny (default 40m) because the user tapped a specific point.
+ * - The return type is `NearbyPlace` (our minimal card/marker model), not raw Google JSON.
+ * - On any API/network issue we return `null` so screens can safely ignore it.
  */
 export async function findNearestPlaceAt(
   lat: number,
@@ -318,6 +332,10 @@ export async function findNearestPlaceAt(
  *
  * This is primarily used by the Emergency Services tab, where we want one best
  * candidate to call or navigate to.
+ *
+ * Why it returns only `place_id` (not full details):
+ * - Emergency Services flows only need to dial or navigate.
+ * - Details are fetched separately only when we need richer UI.
  *
  * Strategy:
  * 1) Prefer `rankby=distance` with an explicit Places `type` (police/hospital/pharmacy)
@@ -525,6 +543,9 @@ export async function getNearbyPlaces(
 
   const includeSecondPage = options?.includeSecondPage === true;
 
+  // `includeSecondPage` is primarily for real device usage.
+  // In tests we usually keep it `false` to avoid next_page_token delays.
+
   /**
    * Execute a Nearby Search query and return its `results[]` array.
    * Optionally fetches a second page (for real app usage; tests skip the wait).
@@ -548,6 +569,8 @@ export async function getNearbyPlaces(
       console.error("API Error Message:", data.error_message);
     }
 
+    // Places may return statuses like: OK | ZERO_RESULTS | OVER_QUERY_LIMIT | REQUEST_DENIED.
+    // We treat anything other than OK as “no results” and let caller fall back.
     const out: any[] =
       data.status === "OK" && Array.isArray(data.results) ? data.results : [];
 
@@ -765,6 +788,9 @@ export async function getNearbyPlaces(
 
 /**
  * Retrieves specific contact details using a Place ID.
+ *
+ * Used by Emergency Services when the user taps “Call”.
+ * We intentionally request a small set of fields to keep payload size down.
  */
 export async function getPlaceMobileNumber(
   placeId: string,
@@ -798,6 +824,9 @@ export async function getPlaceMobileNumber(
 /**
  * Autocomplete place suggestions by free-text query.
  * If `lat/lng` are provided, results are biased near that location.
+ *
+ * UI note:
+ * - Returns a short list (max 8) to keep the dropdown fast and readable.
  */
 export async function autocompletePlaces(
   input: string,
@@ -860,6 +889,9 @@ export async function getPlaceCoordinates(
 
 /**
  * Place details for showing a card and placing a marker.
+ *
+ * This is the “richer” call used on the Map screen when a place is selected.
+ * We still constrain fields to what the UI actually renders.
  */
 export async function getPlaceDetails(
   placeId: string,
@@ -898,6 +930,7 @@ export async function getPlaceDetails(
           })
         : undefined;
 
+      // We only keep review ratings (not full text) to keep UI lightweight.
       const reviews: PlaceReview[] | undefined = Array.isArray(
         data.result.reviews,
       )
@@ -959,6 +992,8 @@ export async function getPlaceDetails(
 /**
  * Build an image URL for a Places photo_reference (returned by Place Details).
  * The endpoint returns a redirect to the actual image.
+ *
+ * This helper only builds the URL; the UI decides when/if to fetch it.
  */
 export function getPlacePhotoUrl(
   photoReference: string,
@@ -975,6 +1010,9 @@ export function getPlacePhotoUrl(
 
 /**
  * Nearby places for POI category buttons.
+ *
+ * Used by the Map screen POI chips (e.g., restaurant / police / hospital).
+ * Returns a list of lightweight `NearbyPlace` items that can be drawn as markers.
  */
 export async function searchNearbyPlaces(
   lat: number,

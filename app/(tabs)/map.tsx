@@ -27,6 +27,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -58,6 +59,26 @@ import {
 } from "../../services/sosHeatmap";
 import { useTheme } from "../themeContext";
 
+/**
+ * MapScreen
+ *
+ * Viva overview (what this screen does):
+ * - Renders an interactive map and a custom current-location marker.
+ * - Lets users search places using Google Places autocomplete.
+ * - Supports quick POI categories (police / hospital / pharmacy, etc.) and lists results.
+ * - Shows two bottom sheets:
+ *   1) Nearby list sheet (results + filters)
+ *   2) Selected-place sheet (details + actions)
+ * - Can overlay a simple SOS heatmap visualization.
+ *
+ * Viva overview (how data flows):
+ * - User location comes from Expo Location; camera/follow mode is controlled by state.
+ * - Places data comes from `services/GooglePlacesService`.
+ * - The SOS heatmap currently uses `dummySosAlerts` (hardcoded). In production,
+ *   replace this with a Supabase query (e.g., `sos_alerts` table) and pass the
+ *   DB rows into `aggregateSosAlertsByTown()`.
+ */
+
 // Map tab:
 // - Search + autocomplete
 // - POI category chips (police/hospital/pharmacy/etc.)
@@ -87,6 +108,10 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
   ios: undefined,
 });
 
+/**
+ * Clamp a value into a closed interval.
+ * Used heavily for gesture snapping, interpolation, and UI safety.
+ */
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
 
@@ -94,6 +119,15 @@ type Rgb = { r: number; g: number; b: number };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * Heatmap color model.
+ *
+ * Input: intensity t in [0..1]
+ * Output: RGB color along a Blue→Green→Yellow→Orange→Red gradient.
+ *
+ * In the viva: mention we compute `intensity = townCount / maxCount` and
+ * then map it to a color for the heatmap circle + marker dot.
+ */
 const interpolateHeatmapRgb = (t: number): Rgb => {
   const x = clamp(t, 0, 1);
 
@@ -140,6 +174,17 @@ const shuffleArray = <T,>(items: T[]): T[] => {
   return out;
 };
 
+/**
+ * Review histogram approximation.
+ *
+ * Google Places often gives only:
+ * - average rating (e.g. 4.2)
+ * - total review count (e.g. 1532)
+ * but not the full 1★..5★ breakdown.
+ *
+ * This uses a maximum-entropy distribution that matches the mean rating.
+ * We use it only for UI (a plausible bar chart), not for analytics.
+ */
 const estimateStarCountsMaxEntropy = (
   averageRating: number,
   totalReviews: number,
@@ -964,6 +1009,10 @@ export default function MapScreen() {
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  // SOS heatmap data source (IMPORTANT for viva):
+  // - Right now this is NOT coming from the database; it's hardcoded dummy events.
+  // - The aggregation turns individual SOS events into per-town circles/dots.
+  // - To make it real: fetch rows from Supabase and replace `dummySosAlerts` with that.
   const sosHeatmapTowns = useMemo(
     () => aggregateSosAlertsByTown(dummySosAlerts),
     [],
@@ -2582,27 +2631,30 @@ export default function MapScreen() {
               isDark ? styles.heatmapPanelDark : styles.heatmapPanelLight,
             ]}
           >
-            <TouchableOpacity
-              onPress={() => setHeatmapEnabled((v) => !v)}
-              style={styles.heatmapToggleRow}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons
-                name={heatmapEnabled ? "flame" : "flame-outline"}
-                size={18}
-                color={
-                  heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
-                }
+            <View style={styles.heatmapToggleRow}>
+              <View style={styles.heatmapToggleLeft}>
+                <Ionicons
+                  name={heatmapEnabled ? "flame" : "flame-outline"}
+                  size={18}
+                  color={
+                    heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
+                  }
+                />
+                <Text
+                  style={[
+                    styles.heatmapToggleLabel,
+                    { color: isDark ? "#fff" : "#111827" },
+                  ]}
+                >
+                  Heatmap
+                </Text>
+              </View>
+
+              <Switch
+                value={heatmapEnabled}
+                onValueChange={setHeatmapEnabled}
               />
-              <Text
-                style={[
-                  styles.heatmapToggleLabel,
-                  { color: isDark ? "#fff" : "#111827" },
-                ]}
-              >
-                Heatmap
-              </Text>
-            </TouchableOpacity>
+            </View>
 
             <View
               style={[
@@ -4170,6 +4222,9 @@ export default function MapScreen() {
   );
 }
 
+// Styles
+// - Pure presentation: shadows, spacing, colors.
+// - Kept at the bottom so the main logic reads top-to-bottom.
 const styles = StyleSheet.create({
   floatingShadow: {
     shadowColor: "#000",
@@ -4240,6 +4295,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0,0,0,0.08)",
   },
   heatmapToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heatmapToggleLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
