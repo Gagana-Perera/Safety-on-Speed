@@ -8,11 +8,8 @@ import {
 } from "@/lib/sosTap";
 import { useInternetStatus } from "@/hooks/useInternetStatus";
 import { supabase } from "@/lib/superbase";
-import { sendSOS } from "@/services/sendSOS";
-import { startSOSConference } from "@/services/startSOSConference";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
@@ -358,73 +355,27 @@ export default function Index() {
       () => undefined,
     );
 
-    try {
-      const conferenceUrl =
-        process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL?.trim() ||
-        String(
-          Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL ??
-            "",
-        ).trim();
-      const smsUrl =
-        process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim() ||
-        String(
-          Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL ?? "",
-        ).trim();
-
-      if (!conferenceUrl && !smsUrl) {
-        throw new Error(
-          "Set EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL (conference calls) or EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL (SMS) in your Expo .env file.",
-        );
-      }
-
-      const useConference = Boolean(conferenceUrl);
-      const result = useConference
-        ? await startSOSConference()
-        : await sendSOS();
-      const sentLabel =
-        result.sentCount === 1 ? "1 guardian" : `${result.sentCount} guardians`;
-      const failedLabel =
-        result.failedCount > 0
-          ? ` ${result.failedCount} delivery attempt(s) failed.`
-          : "";
-
-      void Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success,
-      ).catch(() => undefined);
-
-      Alert.alert(
-        "SOS Sent",
-        useConference
-          ? `Conference calls started for ${sentLabel}.${failedLabel}`
-          : `Your current location was sent by SMS to ${sentLabel}.${failedLabel}`,
-      );
-    } catch (error) {
-      void Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Error,
-      ).catch(() => undefined);
-
-      Alert.alert(
-        "SOS Failed",
-        error instanceof Error
-          ? error.message
-          : "Unable to send the SOS alert right now.",
-      );
-    } finally {
-      setIsSendingSOS(false);
-      void loadDashboardState();
-    }
 
     if (nextTaps.length >= 3) {
       clearQuickTimer();
       clearEmergencyWindow();
-      triggerSOSFlow("emergency");
+      void triggerSOSFlow("emergency");
+      return;
+    }
+
+    // Single tap starts a quick SOS after the emergency tap window expires.
+    if (nextTaps.length === 1) {
+      clearQuickTimer();
+      quickTimerRef.current = setTimeout(() => {
+        quickTimerRef.current = null;
+        void triggerSOSFlow("quick");
+      }, EMERGENCY_SOS_TAP_WINDOW_MS);
     }
   }, [
     clearEmergencyWindow,
     clearQuickTimer,
     dashboardLoading,
     isLaunchingSOS,
-    resetTapSequence,
     triggerSOSFlow,
   ]);
 

@@ -20,9 +20,16 @@ export type SendSOSResponse = {
 function parseJsonSafely(text: string) {
   if (!text.trim()) return null;
 
+  try {
+    return JSON.parse(text) as SendSOSResponse & {
+      error?: string;
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function getCurrentUserName(userId: string, fallbackName: string) {
-  // We try the profile name first so the guardian sees a friendly sender name.
   try {
     const { data: profile } = await supabase
       .from("profiles")
@@ -37,23 +44,23 @@ async function getCurrentUserName(userId: string, fallbackName: string) {
 }
 
 export async function sendSOS(): Promise<SendSOSResponse> {
-  // Put this public webhook URL in your Expo .env file.
   const webhookUrl =
     process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim() ||
     String(
       Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL ?? "",
     ).trim();
+
   if (!webhookUrl) {
     throw new Error(
       "Set EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL in your Expo .env file.",
     );
   }
 
-
-export async function sendSOS(
-  alertType: SOSAlertType = "normal",
-): Promise<SendSOSResponse> {
-
+  if (!webhookUrl.startsWith("https://")) {
+    throw new Error(
+      "EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL must be a valid https URL.",
+    );
+  }
 
   const servicesEnabled = await Location.hasServicesEnabledAsync().catch(
     () => true,
@@ -62,7 +69,6 @@ export async function sendSOS(
     throw new Error("Location services are turned off.");
   }
 
-  // The app needs permission before it can read the current GPS location.
   const permission = await Location.requestForegroundPermissionsAsync();
   if (permission.status !== "granted") {
     throw new Error(
@@ -105,28 +111,9 @@ export async function sendSOS(
     authName || user.email || "Safety on Speed user",
   );
 
+  let response: Response;
   try {
-    // DEBUG: Verify session is valid against the database before calling Edge Function
-    const { error: sessionCheckError } = await supabase
-      .from("profiles")
-      .select("id")
-      .limit(1)
-      .single();
-
-    if (sessionCheckError && sessionCheckError.code === "PGRST301") {
-      console.error("[sendSOS] Session invalid via DB check:", sessionCheckError);
-      throw new Error("Your session is invalid (JWT Mismatch). Please sign out and sign in again.");
-    }
-    console.log("[sendSOS] Session verified against DB.");
-
-    // The app sends the current location once. Twilio secrets stay on the server.
-    const url = `${supabaseUrl}/functions/v1/sos-twilio-alert`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseKey,
-      },
+    response = await fetch(webhookUrl, {
       body: JSON.stringify({
         accuracy:
           typeof currentPosition.coords.accuracy === "number"
@@ -134,7 +121,7 @@ export async function sendSOS(
             : null,
         latitude: currentPosition.coords.latitude,
         longitude: currentPosition.coords.longitude,
-        userName: userName,
+        userName,
       }),
       headers: {
         ...(process.env.EXPO_PUBLIC_SUPABASE_KEY ||
@@ -150,24 +137,26 @@ export async function sendSOS(
       },
       method: "POST",
     });
+  } catch {
+    throw new Error(
+      "Network error while contacting the SOS SMS service. Check your internet connection and try again.",
+    );
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[sendSOS] Edge Function Error:", {
-        status: response.status,
-        body: errorText,
-      });
-      throw new Error(`Edge Function returned ${response.status}: ${errorText}`);
-    }
+  const responseText = await response.text().catch(() => "");
+  const responseJson = parseJsonSafely(responseText);
 
-    const data = (await response.json()) as SendSOSResponse;
-    return data;
-  } catch (error) {
-    console.error("[sendSOS] Error:", error);
+  if (!response.ok) {
     throw new Error(
       responseJson?.error ||
         responseJson?.message ||
         "SOS SMS delivery failed.",
     );
   }
+
+  if (!responseJson?.success) {
+    throw new Error(responseJson?.message || "SOS SMS delivery failed.");
+  }
+
+  return responseJson;
 }
