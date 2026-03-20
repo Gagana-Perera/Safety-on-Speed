@@ -10,12 +10,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // TypeScript interfaces
 export interface Post {
-  postpostId?: string;
+  postId: string;
   postTopic: string;
   postTime: string;
   postDate: string;
   postBody: string;
-  // media?: string;
+  postImage?: string;
   likes?: number;
   created_at?: string;
 }

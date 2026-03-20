@@ -1,6 +1,11 @@
 import LocationPreviewMap from "@/components/LocationPreviewMap";
 import { useTheme } from "@/components/theme/ThemeContext";
-import { countGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
+import { countGuardianRecipients, loadGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
+import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
+import {
+  EMERGENCY_SOS_TAP_WINDOW_MS,
+  getEmergencyTapHint,
+} from "@/lib/sosTap";
 import { useInternetStatus } from "@/hooks/useInternetStatus";
 import { supabase } from "@/lib/superbase";
 import { sendSOS } from "@/services/sendSOS";
@@ -29,54 +34,13 @@ import {
   View,
 } from "react-native";
 
-const CURRENT_USER_ID = "a";
-const LOCATION_TASK_NAME = "sos-location-task";
+
+import "@/lib/sosTask";
+
 const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
 
-if (Platform.OS !== "web") {
-  try {
-    if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
-      TaskManager.defineTask(
-        LOCATION_TASK_NAME,
-        async ({ data, error }: { data: any; error: any }) => {
-          if (error) {
-            console.error("Task Manager Error:", error.message);
-            return;
-          }
-
-          if (data) {
-            const { locations } = data as any;
-
-            if (locations && locations.length > 0) {
-              const location = locations[0];
-              const lat = location.coords.latitude;
-              const lng = location.coords.longitude;
-
-              try {
-                await supabase.from("live_locations" as any).upsert(
-                  {
-                    user_id: CURRENT_USER_ID,
-                    latitude: lat,
-                    longitude: lng,
-                    updated_at: new Date().toISOString(),
-                    is_active: true,
-                  },
-                  { onConflict: "user_id" },
-                );
-              } catch (err) {
-                console.error("Background Supabase Error:", err);
-              }
-            }
-          }
-        },
-      );
-    }
-  } catch (e) {
-    console.warn("Failed to define background location task:", e);
-  }
-}
-
 type GpsStatus = "checking" | "off" | "permission-needed" | "ready";
+type SOSLaunchMode = "emergency" | "quick";
 
 function formatGpsStatus(status: GpsStatus) {
   switch (status) {
@@ -109,11 +73,15 @@ export default function Index() {
   const internetStatus = useInternetStatus();
 
   const pulseValue = useRef(new Animated.Value(1)).current;
+  const quickTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const emergencyWindowRef = useRef<NodeJS.Timeout | null>(null);
+  const tapTimestampsRef = useRef<number[]>([]);
 
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("checking");
   const [guardianCount, setGuardianCount] = useState(0);
-  const [isSendingSOS, setIsSendingSOS] = useState(false);
+  const [launchMode, setLaunchMode] = useState<SOSLaunchMode | null>(null);
+  const [tapCount, setTapCount] = useState(0);
 
   // Preprompt state from origin/main
   const [showLocationPreprompt, setShowLocationPreprompt] = useState(false);
@@ -123,10 +91,32 @@ export default function Index() {
   // Uber-style preprompt colors
   const modalSurfaceColor = "#F0F0F0";
   const modalTextColor = "#000000";
+  const isLaunchingSOS = launchMode !== null;
 
   const closeLocationPreprompt = () => {
     setShowLocationPreprompt(false);
   };
+
+  const clearQuickTimer = useCallback(() => {
+    if (quickTimerRef.current) {
+      clearTimeout(quickTimerRef.current);
+      quickTimerRef.current = null;
+    }
+  }, []);
+
+  const clearEmergencyWindow = useCallback(() => {
+    if (emergencyWindowRef.current) {
+      clearTimeout(emergencyWindowRef.current);
+      emergencyWindowRef.current = null;
+    }
+  }, []);
+
+  const resetTapSequence = useCallback(() => {
+    clearQuickTimer();
+    clearEmergencyWindow();
+    tapTimestampsRef.current = [];
+    setTapCount(0);
+  }, [clearEmergencyWindow, clearQuickTimer]);
 
   const getShouldShowLocationPreprompt = useCallback(async () => {
     try {
@@ -214,11 +204,14 @@ export default function Index() {
 
     return () => {
       animation.stop();
+      resetTapSequence();
     };
-  }, [pulseValue]);
+  }, [pulseValue, resetTapSequence]);
 
   useFocusEffect(
     useCallback(() => {
+      setLaunchMode(null);
+      resetTapSequence();
       void loadDashboardState();
 
       let cancelled = false;
@@ -234,7 +227,7 @@ export default function Index() {
       return () => {
         cancelled = true;
       };
-    }, [loadDashboardState, getShouldShowLocationPreprompt]),
+    }, [loadDashboardState, getShouldShowLocationPreprompt, resetTapSequence]),
   );
 
   useEffect(() => {
@@ -242,7 +235,7 @@ export default function Index() {
       "change",
       (state: any) => {
         if (state !== "active") return;
-        hasShownLocationPrepromptThisLaunchRef.current = false;
+        // Keep the ref true if it was already shown; don't reset it just because the app was backgrounded.
 
         void (async () => {
           try {
@@ -307,12 +300,61 @@ export default function Index() {
     setShowLocationPreprompt(false);
   };
 
-  const handleSOSPress = useCallback(async () => {
-    if (dashboardLoading || isSendingSOS) return;
+  const triggerSOSFlow = useCallback(
+    async (mode: "quick" | "emergency") => {
+      setLaunchMode(mode);
 
-    setIsSendingSOS(true);
+      try {
+        // 1. Get current user
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) throw new Error("Please sign in to send SOS.");
 
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(
+        // 2. Load Guardians
+        const guardians = await loadGuardianRecipients(session.user.id);
+        if (guardians.length === 0) {
+          throw new Error("You haven't added any guardians yet.");
+        }
+
+        const phoneNumbers = guardians.map(g => g.phone);
+
+        // 3. Call WhatsApp Service
+        await sendSOSWhatsAppAlert(phoneNumbers);
+
+        // 4. Success Alert
+        Alert.alert(
+          "SOS Alert Sent ✅",
+          `WhatsApp messages have been sent to ${guardians.length} guardian(s).`
+        );
+
+        // 5. Continue to the tracking screen
+        router.push({
+          params: { mode },
+          pathname: "/sos/loading",
+        });
+      } catch (error: any) {
+        console.error("[Index] SOS Trigger Failed:", error);
+        Alert.alert("SOS Failed ❌", error.message || "Unable to send WhatsApp alert.");
+      } finally {
+        setLaunchMode(null);
+        resetTapSequence();
+      }
+    },
+    [resetTapSequence, router],
+  );
+
+  const handleSOSPress = useCallback(() => {
+    if (dashboardLoading || isLaunchingSOS) return;
+
+    const now = Date.now();
+    const recentTaps = tapTimestampsRef.current.filter(
+      (timestamp) => now - timestamp <= EMERGENCY_SOS_TAP_WINDOW_MS,
+    );
+    const nextTaps = [...recentTaps, now];
+
+    tapTimestampsRef.current = nextTaps;
+    setTapCount(nextTaps.length);
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
       () => undefined,
     );
 
@@ -371,19 +413,32 @@ export default function Index() {
       setIsSendingSOS(false);
       void loadDashboardState();
     }
-  }, [dashboardLoading, isSendingSOS, loadDashboardState]);
+
+    if (nextTaps.length >= 3) {
+      clearQuickTimer();
+      clearEmergencyWindow();
+      triggerSOSFlow("emergency");
+    }
+  }, [
+    clearEmergencyWindow,
+    clearQuickTimer,
+    dashboardLoading,
+    isLaunchingSOS,
+    resetTapSequence,
+    triggerSOSFlow,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heroHeader}>
           <Text style={[styles.kicker, { color: theme.icon }]}>
-            Personal Safety
+            {t('personal_safety')}
           </Text>
-          <Text style={[styles.title, { color: theme.text }]}>SOS Control</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('sos_control')}</Text>
           <Text style={[styles.subtitle, { color: theme.icon }]}>
-            Press the SOS button to send your current location by SMS to your
-            guardians. This sends a one-time emergency message only.
+            One tap starts a Quick SOS. Three fast taps starts the emergency
+            flow and prompts a 119 call.
           </Text>
         </View>
 
@@ -401,7 +456,7 @@ export default function Index() {
             style={[
               styles.sosRing,
               {
-                borderColor: isSendingSOS ? "#FFB4B0" : "#F48C87",
+                borderColor: isLaunchingSOS ? "#FFB4B0" : "#F48C87",
                 transform: [{ scale: pulseValue }],
               },
             ]}
@@ -409,11 +464,11 @@ export default function Index() {
             <TouchableOpacity
               accessibilityLabel="SOS Button"
               activeOpacity={0.88}
-              disabled={dashboardLoading || isSendingSOS}
+              disabled={dashboardLoading || isLaunchingSOS}
               onPress={handleSOSPress}
               style={[
                 styles.sosButton,
-                isSendingSOS && styles.sosButtonDisabled,
+                isLaunchingSOS && styles.sosButtonDisabled,
                 {
                   backgroundColor: "#E53935",
                 },
@@ -425,7 +480,11 @@ export default function Index() {
                 <>
                   <Text style={styles.sosLabel}>SOS</Text>
                   <Text style={styles.sosSubLabel}>
-                    {isSendingSOS ? "Sending current location..." : "Send SMS"}
+                    {launchMode === "emergency"
+                      ? "Starting emergency SOS..."
+                      : launchMode === "quick"
+                        ? "Starting Quick SOS..."
+                        : "Tap now"}
                   </Text>
                 </>
               )}
@@ -433,8 +492,10 @@ export default function Index() {
           </Animated.View>
 
           <Text style={[styles.helperText, { color: theme.icon }]}>
-            The button sends one SMS alert with your current Google Maps
-            location. It does not start live tracking.
+            1 tap = Quick SOS. 3 taps = Emergency SOS.
+          </Text>
+          <Text style={[styles.helperText, { color: theme.icon }]}>
+            {getEmergencyTapHint(tapCount)}
           </Text>
         </View>
 
@@ -446,15 +507,15 @@ export default function Index() {
             ]}
           >
             <Text style={[styles.statusLabel, { color: theme.icon }]}>
-              Guardians
+              {t('guardians')}
             </Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {guardianCount}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
               {guardianCount === 0
-                ? "Add guardians before using SOS"
-                : "Configured to receive SOS SMS alerts"}
+                ? t('add_guardians_before_sos')
+                : t('guardians_desc')}
             </Text>
           </View>
 
@@ -464,7 +525,7 @@ export default function Index() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>GPS</Text>
+            <Text style={[styles.statusLabel, { color: theme.icon }]}>{t('gps')}</Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {formatGpsStatus(gpsStatus)}
             </Text>
@@ -481,14 +542,14 @@ export default function Index() {
             ]}
           >
             <Text style={[styles.statusLabel, { color: theme.icon }]}>
-              Internet
+              {t('internet')}
             </Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {formatInternetStatus(internetStatus)}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
-              Automatic SMS delivery uses the Supabase Edge Function and Twilio,
-              so an internet connection is required.
+              Automatic guardian alerts need a connected network and backend
+              endpoint.
             </Text>
           </View>
         </View>
@@ -499,10 +560,10 @@ export default function Index() {
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>
-              Emergency Services
+              {t('emergency_services')}
             </Text>
             <Text style={[styles.actionText, { color: theme.icon }]}>
-              Open hotlines and emergency support contacts.
+              {t('open_hotlines_desc')}
             </Text>
           </TouchableOpacity>
 
@@ -511,12 +572,12 @@ export default function Index() {
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>
-              {guardianCount === 0 ? "Add Guardians" : "Manage Guardians"}
+              {guardianCount === 0 ? t('add_guardians') : t('manage_guardians')}
             </Text>
             <Text style={[styles.actionText, { color: theme.icon }]}>
               {guardianCount === 0
-                ? "Set up contacts before your next emergency."
-                : "Review the contacts that receive SOS alerts."}
+                ? t('setup_contacts_emergency_desc')
+                : t('manage_guardians_desc')}
             </Text>
           </TouchableOpacity>
         </View>
