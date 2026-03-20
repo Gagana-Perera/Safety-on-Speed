@@ -20,7 +20,6 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
-import BackButton from "../backButton";
 import { useTheme } from "@/components/theme/ThemeContext";
 
 const SRI_LANKAN_DISTRICTS = [

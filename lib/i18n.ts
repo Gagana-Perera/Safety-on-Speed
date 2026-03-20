@@ -64,15 +64,25 @@ const resources = {
 
       // Home
 
-      app_title: "Safety on Speed",
-      app_subtitle: "Stay safe, stay connected.",
-      live_location: "Live Location",
-      live_location_desc: "Your location is being tracked to keep you safe.",
-      emergency_services_desc: "Quick access to emergency contacts and services.",
-      news_alerts: "News & Alerts",
-      news_alerts_desc: "Stay updated with the latest safety news in your area.",
-      view_services: "View Services →",
-      view_news: "View News →",
+      personal_safety: "PERSONAL SAFETY",
+      sos_control: "SOS Control",
+      sos_control_desc: "Press the SOS button to send your current location by SMS to your guardians. This sends a one-time emergency message only.",
+      send_sms: "Send SMS",
+      sos_button_desc: "The button sends one SMS alert with your current Google Maps location. It does not start live tracking.",
+      guardians: "GUARDIANS",
+      guardians_desc: "Configured to receive SOS SMS alerts",
+      gps: "GPS",
+      gps_ready: "GPS Ready",
+      gps_ready_desc: "Location access is required before the app can send your SMS alert.",
+      internet: "INTERNET",
+      offline: "Offline",
+      offline_desc: "Automatic SMS delivery uses the Supabase Edge Function and Twilio, so an internet connection is required.",
+      open_hotlines_desc: "Open hotlines and emergency support contacts.",
+      manage_guardians_desc: "Review the contacts that receive SOS alerts.",
+
+      add_guardians_before_sos: "Add guardians before using SOS",
+      add_guardians: "Add Guardians",
+      setup_contacts_emergency_desc: "Set up contacts before your next emergency.",
 
       //Guardians Screen
 
@@ -166,14 +176,25 @@ const resources = {
 
       // Home - Sinhala
 
-      app_subtitle: "ආරක්ෂිතව සිටින්න, සම්බන්ධව සිටින්න.",
-      live_location: "සජීවී ස්ථානය",
-      live_location_desc: "ඔබව ආරක්ෂිතව තබා ගැනීම සඳහා ඔබේ ස්ථානය නිරීක්ෂණය කෙරේ.",
-      emergency_services_desc: "හදිසි සම්බන්ධතා සහ සේවා වෙත ඉක්මන් ප්‍රවේශය.",
-      news_alerts: "පුවත් සහ ඇඟවීම්",
-      news_alerts_desc: "ඔබේ ප්‍රදේශයේ නවතම ආරක්ෂක පුවත් සමඟ යාවත්කාලීනව සිටින්න.",
-      view_services: "සේවා බලන්න →",
-      view_news: "පුවත් බලන්න →",
+      personal_safety: "පෞද්ගලික ආරක්ෂාව",
+      sos_control: "SOS පාලනය",
+      sos_control_desc: "ඔබගේ වත්මන් ස්ථානය SMS මගින් භාරකරුවන් වෙත යැවීමට SOS බොත්තම ඔබන්න. මෙයින් එක් වරක් පමණක් හදිසි පණිවිඩයක් යවනු ලැබේ.",
+      send_sms: "SMS යවන්න",
+      sos_button_desc: "මෙම බොත්තම ඔබගේ වත්මන් Google Maps ස්ථානය සමඟ එක් SMS ඇඟවීමක් යවයි. එය සජීවී ලුහුබැඳීමක් ආරම්භ නොකරයි",
+      guardians: "භාරකරුවන්",
+      guardians_desc: "SOS SMS ඇඟවීම් ලබා ගැනීමට සකසා ඇත",
+      gps: "GPS",
+      gps_ready: "GPS සූදානම්",
+      gps_ready_desc: "යෙදුමට ඔබේ SMS ඇඟවීම යැවීමට පෙර ස්ථාන ප්‍රවේශය අවශ්‍ය වේ.",
+      internet: "අන්තර්ජාලය",
+      offline: "නොබැඳි",
+      offline_desc: "ස්වක්‍රීය SMS බෙදාහැරීම Supabase Edge Function සහ Twilio භාවිතා කරයි, එබැවින් අන්තර්ජාල සම්බන්ධතාවයක් අවශ්‍ය වේ.",
+      open_hotlines_desc: "හදිසි ඇමතුම් සහ හදිසි සහාය සම්බන්ධතා විවෘත කරන්න.",
+      manage_guardians_desc: "SOS ඇඟවීම් ලබන සම්බන්ධතා සමාලෝචනය කරන්න.",
+
+      add_guardians_before_sos: "SOS භාවිතා කිරීමට පෙර භාරකරුවන් එක් කරන්න",
+      add_guardians: "භාරකරුවන් එක් කරන්න",
+      setup_contacts_emergency_desc: "මීළඟ හදිසි අවස්ථාවට පෙර සම්බන්ධතා සකසන්න.",
 
       //Guardians Screen - Sinhala
 
@@ -267,14 +288,25 @@ const resources = {
 
       // Home - Tamil
 
-      app_subtitle: "பாதுகாப்பாக இருங்கள், இணைந்திருங்கள்.",
-      live_location: "நேரலை இருப்பிடம்",
-      live_location_desc: "உங்களை பாதுகாப்பாக வைக்க உங்கள் இருப்பிடம் கண்காணிக்கப்படுகிறது.",
-      emergency_services_desc: "அவசர தொடர்புகள் மற்றும் சேவைகளுக்கான விரைவான அணுகல்.",
-      news_alerts: "செய்திகள் மற்றும் எச்சரிக்கைகள்",
-      news_alerts_desc: "உங்கள் பகுதியில் சமீபத்திய பாதுகாப்பு செய்திகளுடன் புதுப்பித்த நிலையில் இருங்கள்.",
-      view_services: "சேவைகளை காண்க →",
-      view_news: "செய்திகளை காண்க →",
+      personal_safety: "தனிப்பட்ட பாதுகாப்பு",
+      sos_control: "SOS கட்டுப்பாடு",
+      sos_control_desc: "உங்கள் தற்போதைய இருப்பிடத்தை SMS மூலம் உங்கள் பாதுகாவலர்களுக்கு அனுப்ப SOS பொத்தானை அழுத்தவும். இது ஒரு முறை மட்டுமே அவசர செய்தி அனுப்புகிறது.",
+      send_sms: "SMS அனுப்பு",
+      sos_button_desc: "பொத்தான் உங்கள் தற்போதைய Google Maps இருப்பிடத்துடன் ஒரு SMS எச்சரிக்கையை அனுப்புகிறது. இது நேரலை கண்காணிப்பை தொடங்காது.",
+      guardians: "பாதுகாவலர்கள்",
+      guardians_desc: "SOS SMS எச்சரிக்கைகளை பெற கட்டமைக்கப்பட்டுள்ளது",
+      gps: "GPS",
+      gps_ready: "GPS தயார்",
+      gps_ready_desc: "பயன்பாடு உங்கள் SMS எச்சரிக்கையை அனுப்புவதற்கு முன் இருப்பிட அணுகல் தேவை.",
+      internet: "இணையம்",
+      offline: "ஆஃப்லைன்",
+      offline_desc: "தானியங்கி SMS விநியோகம் Supabase Edge Function மற்றும் Twilio ஐ பயன்படுத்துகிறது, எனவே இணைய இணைப்பு தேவை.",
+      open_hotlines_desc: "ஹாட்லைன்கள் மற்றும் அவசர ஆதரவு தொடர்புகளை திறக்கவும்.",
+      manage_guardians_desc: "SOS எச்சரிக்கைகளை பெறும் தொடர்புகளை மதிப்பாய்வு செய்யவும்",
+
+      add_guardians_before_sos: "SOS-ஐப் பயன்படுத்துவதற்கு முன் பாதுகாவலர்களைச் சேர்க்கவும்",
+      add_guardians: "பாதுகாவலர்களைச் சேர்க்கவும்",
+      setup_contacts_emergency_desc: "அடுத்த அவசரநிலைக்கு முன் தொடர்புகளை அமைக்கவும்.",
 
       //Guardians Screen - Tamil
 
