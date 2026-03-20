@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   BackHandler,
   Dimensions,
   Easing,
@@ -27,6 +28,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -35,6 +37,7 @@ import {
 import MapView, {
   Circle,
   LatLng,
+  type MapPressEvent,
   Marker,
   Polyline,
   PROVIDER_GOOGLE,
@@ -57,6 +60,26 @@ import {
   dummySosAlerts,
 } from "../../services/sosHeatmap";
 import { useTheme } from "../themeContext";
+
+/**
+ * MapScreen
+ *
+ * Viva overview (what this screen does):
+ * - Renders an interactive map and a custom current-location marker.
+ * - Lets users search places using Google Places autocomplete.
+ * - Supports quick POI categories (police / hospital / pharmacy, etc.) and lists results.
+ * - Shows two bottom sheets:
+ *   1) Nearby list sheet (results + filters)
+ *   2) Selected-place sheet (details + actions)
+ * - Can overlay a simple SOS heatmap visualization.
+ *
+ * Viva overview (how data flows):
+ * - User location comes from Expo Location; camera/follow mode is controlled by state.
+ * - Places data comes from `services/GooglePlacesService`.
+ * - The SOS heatmap currently uses `dummySosAlerts` (hardcoded). In production,
+ *   replace this with a Supabase query (e.g., `sos_alerts` table) and pass the
+ *   DB rows into `aggregateSosAlertsByTown()`.
+ */
 
 // Map tab:
 // - Search + autocomplete
@@ -87,6 +110,10 @@ const LEGIBLE_SANS_FONT_FAMILY = Platform.select({
   ios: undefined,
 });
 
+/**
+ * Clamp a value into a closed interval.
+ * Used heavily for gesture snapping, interpolation, and UI safety.
+ */
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
 
@@ -94,6 +121,15 @@ type Rgb = { r: number; g: number; b: number };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * Heatmap color model.
+ *
+ * Input: intensity t in [0..1]
+ * Output: RGB color along a Blue→Green→Yellow→Orange→Red gradient.
+ *
+ * In the viva: mention we compute `intensity = townCount / maxCount` and
+ * then map it to a color for the heatmap circle + marker dot.
+ */
 const interpolateHeatmapRgb = (t: number): Rgb => {
   const x = clamp(t, 0, 1);
 
@@ -140,6 +176,17 @@ const shuffleArray = <T,>(items: T[]): T[] => {
   return out;
 };
 
+/**
+ * Review histogram approximation.
+ *
+ * Google Places often gives only:
+ * - average rating (e.g. 4.2)
+ * - total review count (e.g. 1532)
+ * but not the full 1★..5★ breakdown.
+ *
+ * This uses a maximum-entropy distribution that matches the mean rating.
+ * We use it only for UI (a plausible bar chart), not for analytics.
+ */
 const estimateStarCountsMaxEntropy = (
   averageRating: number,
   totalReviews: number,
@@ -221,6 +268,81 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const locationEnableBusyRef = useRef(false);
+  const hasShownLocationAccessNeededRef = useRef(false);
+
+  const enableLocationAndRefresh = useCallback(async () => {
+    if (locationEnableBusyRef.current) return;
+    locationEnableBusyRef.current = true;
+
+    try {
+      try {
+        await AsyncStorage.removeItem("location_preprompt_choice_v3");
+      } catch {
+        // ignore
+      }
+
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (res.status !== "granted") {
+        try {
+          await Linking.openSettings();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      setLoading(true);
+      setLocationDenied(false);
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        mayShowUserSettingsDialog: true,
+      });
+
+      const nextCoords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setCoords(nextCoords);
+      setCoordsAccuracyM(
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
+      );
+      setHasLocation(true);
+
+      const nextRegion: Region = {
+        latitude: nextCoords.latitude,
+        longitude: nextCoords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      setMapRegion(nextRegion);
+      mapRef.current?.animateToRegion(nextRegion, 450);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+      locationEnableBusyRef.current = false;
+    }
+  }, []);
+
+  const showLocationAccessNeeded = useCallback(() => {
+    Alert.alert(
+      "Location Access Needed",
+      "To show nearby hospitals and police stations,\nplease enable location access.",
+      [
+        {
+          text: "Enable Location",
+          onPress: () => {
+            void enableLocationAndRefresh();
+          },
+        },
+        { text: "Not Now", style: "cancel" },
+      ],
+    );
+  }, [enableLocationAndRefresh]);
 
   // ─────────────────────────────────────────────────────────────
   // Search state (top search bar)
@@ -961,9 +1083,21 @@ export default function MapScreen() {
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
+
+  // Heatmap styling:
+  // - When only the heatmap is enabled (no POI chips/results and no selected place),
+  //   make circles slightly darker.
+  // - When POI results are shown (the user tapped a tab/chip) keep the circles lighter.
+  const heatmapDarkOnly =
+    heatmapEnabled && nearbyPlaces.length === 0 && !selectedPlace;
+
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  // SOS heatmap data source (IMPORTANT for viva):
+  // - Right now this is NOT coming from the database; it's hardcoded dummy events.
+  // - The aggregation turns individual SOS events into per-town circles/dots.
+  // - To make it real: fetch rows from Supabase and replace `dummySosAlerts` with that.
   const sosHeatmapTowns = useMemo(
     () => aggregateSosAlertsByTown(dummySosAlerts),
     [],
@@ -1237,10 +1371,38 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
+        // Respect the in-app "Don’t Allow" choice from the Home preprompt.
+        // If set, we avoid prompting for location and keep the default center.
+        // We treat this as an app-level lock: even if the OS permission is
+        // granted (common in Expo Go), features stay blocked until the user
+        // explicitly enables location again.
+        try {
+          const appChoice = await AsyncStorage.getItem(
+            "location_preprompt_choice_v3",
+          );
+          if (appChoice === "deny") {
+            if (!hasShownLocationAccessNeededRef.current) {
+              hasShownLocationAccessNeededRef.current = true;
+              showLocationAccessNeeded();
+            }
+            setLocationDenied(true);
+            setHasLocation(false);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
         // Request permissions
         let { status } = await Location.requestForegroundPermissionsAsync();
 
         if (status !== "granted") {
+          try {
+            await AsyncStorage.setItem("location_preprompt_choice_v3", "deny");
+          } catch {
+            // ignore
+          }
           Alert.alert(
             "Permission Denied",
             "Location is required for safety features.",
@@ -1318,6 +1480,62 @@ export default function MapScreen() {
     });
 
     return () => subscription?.remove();
+  }, []);
+
+  // If the user enables location via Settings (e.g., from the Emergency popup),
+  // re-check permissions and refresh the map center when returning to the app.
+  useEffect(() => {
+    const sub = (AppState as any)?.addEventListener?.(
+      "change",
+      (state: any) => {
+        if (state !== "active") return;
+
+        void (async () => {
+          try {
+            const appChoice = await AsyncStorage.getItem(
+              "location_preprompt_choice_v3",
+            );
+            if (appChoice === "deny") return;
+
+            const perm = await Location.getForegroundPermissionsAsync();
+            if (perm.status !== "granted") return;
+
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+              mayShowUserSettingsDialog: true,
+            });
+
+            const nextCoords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            setCoords(nextCoords);
+            setCoordsAccuracyM(
+              typeof location.coords.accuracy === "number"
+                ? location.coords.accuracy
+                : null,
+            );
+            setHasLocation(true);
+            setLocationDenied(false);
+
+            const nextRegion: Region = {
+              latitude: nextCoords.latitude,
+              longitude: nextCoords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+            setMapRegion(nextRegion);
+            mapRef.current?.animateToRegion(nextRegion, 450);
+          } catch {
+            // Ignore errors; banner remains until we can get a fix.
+          }
+        })();
+      },
+    );
+
+    return () => {
+      sub?.remove?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -1479,8 +1697,25 @@ export default function MapScreen() {
     setFollowUser(true);
 
     try {
+      try {
+        const appChoice = await AsyncStorage.getItem(
+          "location_preprompt_choice_v3",
+        );
+        if (appChoice === "deny") {
+          showLocationAccessNeeded();
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
+        try {
+          await AsyncStorage.setItem("location_preprompt_choice_v3", "deny");
+        } catch {
+          // ignore
+        }
         setLocationDenied(true);
         Alert.alert(
           "Permission Denied",
@@ -2254,7 +2489,7 @@ export default function MapScreen() {
     >
       <View style={styles.mapWrap}>
         <MapView
-          ref={(ref) => {
+          ref={(ref: MapView | null) => {
             mapRef.current = ref;
           }}
           style={[
@@ -2265,8 +2500,8 @@ export default function MapScreen() {
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
           onRegionChangeComplete={(
-            r,
-            details?: { isGesture?: boolean } | undefined,
+            r: Region,
+            details?: { isGesture?: boolean },
           ) => {
             setMapRegion(r);
 
@@ -2294,7 +2529,7 @@ export default function MapScreen() {
           maxZoomLevel={20}
           zoomControlEnabled={true}
           zoomTapEnabled={true}
-          onPress={(e) => {
+          onPress={(e: MapPressEvent) => {
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
@@ -2329,7 +2564,7 @@ export default function MapScreen() {
               if (details) moveToPlace(details);
             })();
           }}
-          onLongPress={(e) => {
+          onLongPress={(e: MapPressEvent) => {
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
@@ -2381,8 +2616,12 @@ export default function MapScreen() {
             ? sosHeatmapTowns.map((t) => {
                 const intensity = clamp(t.count / sosHeatmapMaxCount, 0, 1);
                 const radiusM = Math.min(9000, 650 * Math.sqrt(t.count) + 250);
-                const fillAlpha = 0.05 + intensity * 0.3;
-                const strokeAlpha = 0.1 + intensity * 0.45;
+                const fillAlpha = heatmapDarkOnly
+                  ? 0.08 + intensity * 0.36
+                  : 0.05 + intensity * 0.3;
+                const strokeAlpha = heatmapDarkOnly
+                  ? 0.14 + intensity * 0.5
+                  : 0.1 + intensity * 0.45;
                 const rgb = interpolateHeatmapRgb(intensity);
 
                 return (
@@ -2394,26 +2633,6 @@ export default function MapScreen() {
                       strokeColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${strokeAlpha})`}
                       strokeWidth={2}
                     />
-
-                    <Marker
-                      coordinate={{
-                        latitude: t.latitude,
-                        longitude: t.longitude,
-                      }}
-                      title={t.town}
-                      description={`Total SOS alerts: ${t.count}`}
-                      tracksViewChanges={false}
-                      zIndex={999}
-                    >
-                      <View
-                        style={[
-                          styles.heatmapTownDot,
-                          {
-                            backgroundColor: `rgb(${rgb.r},${rgb.g},${rgb.b})`,
-                          },
-                        ]}
-                      />
-                    </Marker>
                   </React.Fragment>
                 );
               })
@@ -2582,27 +2801,30 @@ export default function MapScreen() {
               isDark ? styles.heatmapPanelDark : styles.heatmapPanelLight,
             ]}
           >
-            <TouchableOpacity
-              onPress={() => setHeatmapEnabled((v) => !v)}
-              style={styles.heatmapToggleRow}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons
-                name={heatmapEnabled ? "flame" : "flame-outline"}
-                size={18}
-                color={
-                  heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
-                }
+            <View style={styles.heatmapToggleRow}>
+              <View style={styles.heatmapToggleLeft}>
+                <Ionicons
+                  name={heatmapEnabled ? "flame" : "flame-outline"}
+                  size={18}
+                  color={
+                    heatmapEnabled ? "#EF4444" : isDark ? "#fff" : theme.icon
+                  }
+                />
+                <Text
+                  style={[
+                    styles.heatmapToggleLabel,
+                    { color: isDark ? "#fff" : "#111827" },
+                  ]}
+                >
+                  Heatmap
+                </Text>
+              </View>
+
+              <Switch
+                value={heatmapEnabled}
+                onValueChange={setHeatmapEnabled}
               />
-              <Text
-                style={[
-                  styles.heatmapToggleLabel,
-                  { color: isDark ? "#fff" : "#111827" },
-                ]}
-              >
-                Heatmap
-              </Text>
-            </TouchableOpacity>
+            </View>
 
             <View
               style={[
@@ -4170,6 +4392,9 @@ export default function MapScreen() {
   );
 }
 
+// Styles
+// - Pure presentation: shadows, spacing, colors.
+// - Kept at the bottom so the main logic reads top-to-bottom.
 const styles = StyleSheet.create({
   floatingShadow: {
     shadowColor: "#000",
@@ -4242,6 +4467,11 @@ const styles = StyleSheet.create({
   heatmapToggleRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heatmapToggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   heatmapToggleLabel: {
@@ -4263,7 +4493,8 @@ const styles = StyleSheet.create({
   },
   heatmapLegendRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 14,
     marginTop: 10,
   },
   heatmapLegendItem: {

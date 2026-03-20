@@ -5,8 +5,8 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
+  Switch,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -241,17 +241,18 @@ export default function MapScreenWeb() {
       />
 
       <View style={styles.heatmapToggleWrap}>
-        <TouchableOpacity
-          style={styles.heatmapToggleButton}
-          onPress={() => setHeatmapEnabled((v) => !v)}
-        >
-          <Ionicons
-            name={heatmapEnabled ? "flame" : "flame-outline"}
-            size={18}
-            color={heatmapEnabled ? "#EF4444" : "#111827"}
-          />
-          <Text style={styles.heatmapToggleText}>Heatmap</Text>
-        </TouchableOpacity>
+        <View style={styles.heatmapToggleButton}>
+          <View style={styles.heatmapToggleLeft}>
+            <Ionicons
+              name={heatmapEnabled ? "flame" : "flame-outline"}
+              size={18}
+              color={heatmapEnabled ? "#EF4444" : "#111827"}
+            />
+            <Text style={styles.heatmapToggleText}>Heatmap</Text>
+          </View>
+
+          <Switch value={heatmapEnabled} onValueChange={setHeatmapEnabled} />
+        </View>
 
         <View
           style={[
@@ -350,11 +351,17 @@ const styles = StyleSheet.create({
   heatmapToggleButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.92)",
+    minWidth: 150,
+  },
+  heatmapToggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   heatmapToggleText: {
     fontSize: 12,
@@ -378,7 +385,8 @@ const styles = StyleSheet.create({
   },
   heatmapLegendRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 14,
     marginTop: 10,
   },
   heatmapLegendItem: {

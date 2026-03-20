@@ -4,6 +4,7 @@
     "strict": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    "moduleSuffixes": [".native", ".ios", ".android", ".web", ""],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],

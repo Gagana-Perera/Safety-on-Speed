@@ -1,15 +1,20 @@
+import LocationPreviewMap from "@/components/LocationPreviewMap";
 import { supabase } from "@/lib/superbase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
-import { Link } from "expo-router";
+import { Link, useFocusEffect } from "expo-router";
 import * as TaskManager from "expo-task-manager";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
   Animated,
+  AppState,
   Easing,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -21,6 +26,9 @@ import { useTheme } from "../themeContext";
 
 const CURRENT_USER_ID = "a";
 const LOCATION_TASK_NAME = "sos-location-task";
+// NOTE: Versioned key so older dev/test values (e.g. "deny") don't
+// permanently suppress the sheet after we tweak the UX.
+const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
 
 if (Platform.OS !== "web") {
   try {
@@ -69,6 +77,99 @@ if (Platform.OS !== "web") {
 export default function Index() {
   const { t } = useTranslation();
   const { theme } = useTheme();
+
+  // Uber-style preprompt is intentionally a light surface.
+  const modalSurfaceColor = "#F0F0F0";
+  const modalTextColor = "#000000";
+
+  // Uber-style pre-permission sheet (shown before the OS prompt).
+  // This improves opt-in rates and explains *why* we need location.
+  const [showLocationPreprompt, setShowLocationPreprompt] = useState(false);
+  const [locationPrepromptBusy, setLocationPrepromptBusy] = useState(false);
+
+  // In Expo Go/dev, permissions are often already granted to Expo Go, which can
+  // make it look like the popup is "not working". To keep testing predictable,
+  // show the popup once per app launch in dev.
+  const hasShownLocationPrepromptThisLaunchRef = useRef(false);
+
+  // In dev (and sometimes in production), the JS runtime can stay alive across
+  // app background/resume, which makes "once per launch" feel like "never again".
+  // Reset the session flag when the app returns so the preprompt can re-appear
+  // on subsequent app opens if permission is still not granted.
+
+  const closeLocationPreprompt = () => {
+    setShowLocationPreprompt(false);
+  };
+
+  const getShouldShowLocationPreprompt = useCallback(async () => {
+    try {
+      const previousChoice = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_CHOICE_KEY,
+      );
+
+      // In Expo Go/dev, permissions are often already granted to Expo Go which can
+      // make it hard to validate the preprompt UX. Force-show once per launch
+      // regardless of stored choice (testing convenience).
+      if (
+        __DEV__ &&
+        !hasShownLocationPrepromptThisLaunchRef.current
+      ) {
+        return true;
+      }
+
+      const fg = await Location.getForegroundPermissionsAsync();
+
+      if (fg.status === "granted") return false;
+
+      // If the user tapped "Don’t Allow" in our in-app preprompt, do not keep
+      // showing this preprompt repeatedly within the same launch.
+      // However, if permission is still not granted, we do allow the sheet to
+      // appear again on a later launch so they can change their mind.
+      if (previousChoice === "deny") {
+        return !hasShownLocationPrepromptThisLaunchRef.current;
+      }
+
+      // If the user never picked an option, show the popup.
+      if (previousChoice == null) return true;
+
+      // For any other stored state (e.g. allow_while but permission got revoked),
+      // it's ok to show the sheet again.
+      return true;
+    } catch {
+      // If anything fails (storage/permissions), show the explanatory sheet.
+      return true;
+    }
+  }, []);
+
+  // On app resume, re-check whether we should show the preprompt.
+  // This covers the common case where the app wasn't fully killed (Expo Go/dev)
+  // and the user expects the prompt to appear again when re-opening the app.
+  useEffect(() => {
+    const sub = (AppState as any)?.addEventListener?.(
+      "change",
+      (state: any) => {
+        if (state !== "active") return;
+        hasShownLocationPrepromptThisLaunchRef.current = false;
+
+        void (async () => {
+          try {
+            const shouldShow = await getShouldShowLocationPreprompt();
+            if (shouldShow) {
+              hasShownLocationPrepromptThisLaunchRef.current = true;
+              setShowLocationPreprompt(true);
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      },
+    );
+
+    return () => {
+      sub?.remove?.();
+    };
+  }, [getShouldShowLocationPreprompt]);
+
   // sos button start
   const [sosMode, setSosMode] = useState<"off" | "single" | "triple">("off");
   const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -82,6 +183,20 @@ export default function Index() {
         "Background tracking is not supported on web.",
       );
       return false;
+    }
+
+    // Respect in-app "Don’t Allow" from the preprompt.
+    // When set, we behave like location is disabled and avoid OS prompts.
+    try {
+      const appChoice = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_CHOICE_KEY,
+      );
+      if (appChoice === "deny") {
+        Alert.alert("Enable location to continue");
+        return false;
+      }
+    } catch {
+      // ignore
     }
 
     let { status: fgStatus } =
@@ -139,6 +254,20 @@ export default function Index() {
       return;
     }
 
+    // Respect in-app "Don’t Allow" from the preprompt.
+    // SOS uses location for sharing/tracking, so we block it when disabled.
+    try {
+      const appChoice = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_CHOICE_KEY,
+      );
+      if (appChoice === "deny") {
+        Alert.alert("Enable location to continue");
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
     }
@@ -184,11 +313,13 @@ export default function Index() {
     tapTimerRef.current = setTimeout(async () => {
       if (tapCountRef.current === 1) {
         setSosMode("single");
-        await startContinuousTracking();
-        Alert.alert(
-          "Tracking Started",
-          "Your live location is now updating in the background.",
-        );
+        const trackingStarted = await startContinuousTracking();
+        if (trackingStarted) {
+          Alert.alert(
+            "Tracking Started",
+            "Your live location is now updating in the background.",
+          );
+        }
       }
 
       tapCountRef.current = 0;
@@ -201,6 +332,94 @@ export default function Index() {
       if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
     };
   }, []);
+
+  // Run when user navigates to Home.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        const shouldShow = await getShouldShowLocationPreprompt();
+        if (cancelled) return;
+        if (shouldShow) {
+          hasShownLocationPrepromptThisLaunchRef.current = true;
+          setShowLocationPreprompt(true);
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [getShouldShowLocationPreprompt]),
+  );
+
+  // Failsafe: also run once on mount. (Some Expo Go/navigation states can make
+  // focus events feel inconsistent during dev.)
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    let cancelled = false;
+    void (async () => {
+      const shouldShow = await getShouldShowLocationPreprompt();
+      if (cancelled) return;
+      if (shouldShow) {
+        hasShownLocationPrepromptThisLaunchRef.current = true;
+        setShowLocationPreprompt(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getShouldShowLocationPreprompt]);
+
+  const requestForegroundLocationWithChoice = async (
+    choice: "once" | "while",
+  ) => {
+    if (locationPrepromptBusy) return;
+    setLocationPrepromptBusy(true);
+
+    try {
+      // If the user previously tapped "Don’t Allow", we store a local lock.
+      // When they now choose an Allow option, clear that lock so features can resume.
+      // IMPORTANT: We do NOT persist an "allow" choice here. For "Allow Once",
+      // the OS may grant only a temporary permission, and we want the preprompt
+      // to appear again next time if needed.
+      try {
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_CHOICE_KEY);
+      } catch {
+        // ignore
+      }
+
+      // Close our in-app sheet before the OS prompt appears.
+      setShowLocationPreprompt(false);
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+
+      const res = await Location.requestForegroundPermissionsAsync();
+
+      // Persist only for "Allow While Using App" so future launches don't
+      // show the preprompt again as long as OS permission remains granted.
+      if (choice === "while" && res.status === "granted") {
+        try {
+          await AsyncStorage.setItem(
+            LOCATION_PREPROMPT_CHOICE_KEY,
+            "allow_while",
+          );
+        } catch {
+          // ignore
+        }
+      }
+    } finally {
+      setLocationPrepromptBusy(false);
+    }
+  };
+
+  const dismissLocationPreprompt = async () => {
+    if (locationPrepromptBusy) return;
+    try {
+      await AsyncStorage.setItem(LOCATION_PREPROMPT_CHOICE_KEY, "deny");
+    } catch {
+      // ignore
+    }
+    setShowLocationPreprompt(false);
+  };
 
   useEffect(() => {
     let pulseLoop: Animated.CompositeAnimation | null = null;
@@ -346,6 +565,111 @@ export default function Index() {
           </Link>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showLocationPreprompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          closeLocationPreprompt();
+        }}
+      >
+        <View style={styles.locationModalWrap}>
+          <Pressable
+            style={styles.locationBackdrop}
+            onPress={() => {
+              closeLocationPreprompt();
+            }}
+          />
+
+          <View
+            style={[
+              styles.locationSheet,
+              { backgroundColor: modalSurfaceColor, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.locationSheetInner}>
+              <View style={styles.locationContent}>
+                <View style={styles.locationHeader}>
+                  <Text
+                    style={[styles.locationTitle, { color: modalTextColor }]}
+                  >
+                    Allow “Safety on Speed” to use your location?
+                  </Text>
+                  <Text
+                    style={[styles.locationBody, { color: modalTextColor }]}
+                  >
+                    To improve SOS support and nearby safety features, we
+                    collect location data while you use the app.
+                  </Text>
+                </View>
+
+                <View style={styles.locationMapWrap}>
+                  <View style={styles.locationMapCard}>
+                    <LocationPreviewMap />
+                    <View style={styles.preciseChip}>
+                      <Text style={styles.preciseChipText}>Precise: On</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.locationActions}>
+                <Pressable
+                  disabled={locationPrepromptBusy}
+                  style={[
+                    styles.locationActionBtn,
+                    { borderTopColor: theme.border },
+                  ]}
+                  onPress={() => {
+                    void requestForegroundLocationWithChoice("once");
+                  }}
+                >
+                  <Text
+                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                  >
+                    Allow Once
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  disabled={locationPrepromptBusy}
+                  style={[
+                    styles.locationActionBtn,
+                    { borderTopColor: theme.border },
+                  ]}
+                  onPress={() => {
+                    void requestForegroundLocationWithChoice("while");
+                  }}
+                >
+                  <Text
+                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                  >
+                    Allow While Using App
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  disabled={locationPrepromptBusy}
+                  style={[
+                    styles.locationActionBtnLast,
+                    { borderTopColor: theme.border },
+                  ]}
+                  onPress={() => {
+                    void dismissLocationPreprompt();
+                  }}
+                >
+                  <Text
+                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                  >
+                    Don’t Allow
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -423,5 +747,98 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "500",
     textAlign: "center",
+  },
+
+  // Location pre-permission sheet styles
+  locationModalWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  locationBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.28)",
+  },
+  locationSheet: {
+    width: "78%",
+    maxWidth: 460,
+    minHeight: 340,
+    maxHeight: 420,
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  locationSheetInner: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  locationContent: {
+    flexShrink: 1,
+  },
+  locationHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  locationMapWrap: {
+    width: "100%",
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+  },
+  locationMapCard: {
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "#ffffff",
+  },
+  preciseChip: {
+    position: "absolute",
+    left: 12,
+    top: 12,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  preciseChipText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2563eb",
+  },
+  locationTitle: {
+    fontSize: 19,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  locationBody: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
+    opacity: 0.9,
+  },
+  locationActions: {
+    backgroundColor: "rgba(240,240,240,0.96)",
+  },
+  locationActionBtn: {
+    paddingVertical: 9,
+    alignItems: "center",
+    borderTopWidth: 1,
+  },
+  locationActionBtnLast: {
+    paddingVertical: 9,
+    alignItems: "center",
+    borderTopWidth: 1,
+  },
+  locationActionText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
