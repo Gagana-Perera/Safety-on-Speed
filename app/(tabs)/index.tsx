@@ -110,10 +110,7 @@ export default function Index() {
       // In Expo Go/dev, permissions are often already granted to Expo Go which can
       // make it hard to validate the preprompt UX. Force-show once per launch
       // regardless of stored choice (testing convenience).
-      if (
-        __DEV__ &&
-        !hasShownLocationPrepromptThisLaunchRef.current
-      ) {
+      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
         return true;
       }
 
