@@ -7,13 +7,14 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/superbase';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 function RootLayoutNav() {
   const { isDark } = useTheme();
 
   const registerPushToken = async () => {
     try {
-      // Only run on real builds, not Expo Go
       if (Constants.appOwnership === 'expo') return;
 
       const Notifications = await import('expo-notifications');
@@ -34,14 +35,66 @@ function RootLayoutNav() {
     }
   };
 
+  const requestDataSharingPermission = async () => {
+    try {
+      // Check if already asked before
+      const alreadyAsked = await AsyncStorage.getItem('data_sharing_asked');
+      if (alreadyAsked) return;
+
+      // Check if user is logged in
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session) return;
+
+      // Show popup
+      Alert.alert(
+        'Data Sharing',
+        'Allow Safety on Speed to share anonymous usage data to help improve the app?',
+        [
+          {
+            text: 'Decline',
+            style: 'cancel',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: false } as any)
+                .eq('id', session.user.id);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+            }
+          },
+          {
+            text: 'Allow',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: true } as any)
+                .eq('id', session.user.id);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.log('Data sharing permission error:', error);
+    }
+  };
+
   useEffect(() => {
-    const requestAllPermissions = async () => {
-      await ImagePicker.requestCameraPermissionsAsync();
-      await Location.requestForegroundPermissionsAsync();
+  const requestAllPermissions = async () => {
+    await ImagePicker.requestCameraPermissionsAsync();
+    await Location.requestForegroundPermissionsAsync();
+    await requestDataSharingPermission();
+    
+    try {
+      const Notifications = await import('expo-notifications');
+      await Notifications.requestPermissionsAsync();
       await registerPushToken();
-    };
-    requestAllPermissions();
-  }, []);
+    } catch (error) {
+      console.log('Notifications skipped on Expo Go:', error);
+    }
+  };
+  requestAllPermissions();
+}, []);
 
   return (
     <>
