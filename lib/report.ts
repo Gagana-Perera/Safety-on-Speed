@@ -1,20 +1,20 @@
-import { supabase } from "./superbase";
 import { getCurrentPositionAsync, LocationAccuracy } from "expo-location";
 import { getCurrentUser } from "./auth";
-
-const location = await getCurrentPositionAsync({ accuracy: LocationAccuracy.High });
+import { supabase } from "./superbase";
 
 export interface ReportData {
-  verification: string;
+  verification: boolean;
   incident_type: string;
-  safety_check: string;
+  safety_check: boolean;
 }
 
 /**
  * Saving a report to the Supabase 'reports' table.
  * we use async to define the function (in the head of the functio) and await inside the fucntion method
  */
-export async function saveReport(reportData:ReportData) { //public saveReport(ReportData reportData)  
+export async function saveReport(reportData: ReportData) { //public saveReport(ReportData reportData)  
+  const location = await getCurrentPositionAsync({ accuracy: LocationAccuracy.High });
+
   const { data, error } = await supabase
     .from("reports") // Ensure this table exists in your Supabase database
     .insert([
@@ -23,8 +23,8 @@ export async function saveReport(reportData:ReportData) { //public saveReport(Re
         incident_type: reportData.incident_type,
         safety_check: reportData.safety_check,
         user_id: (await getCurrentUser()).id,
-        lat: location.coords.latitude,
-        lon: location.coords.longitude,
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
       },
     ])
     .select();

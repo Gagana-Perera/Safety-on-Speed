@@ -2,18 +2,17 @@ import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
 import { useRef, useState } from 'react'
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { getCurrentUser } from '../lib/auth'
-import { saveReport } from '../lib/report'
+import { getCurrentUser } from './../lib/auth'
+import { saveReport } from './../lib/report'
 import BackButton from './backButton'
 import { useTheme } from './themeContext'
-
 
 const report = () => {
   const { theme } = useTheme();
   const router = useRouter();
 
   const [step, setStep] = useState<'VERIFY' | 'DETAILS' | 'SAFETY_CHECK' | 'RESOLUTION'>('VERIFY');
-  const [verification, setVerification] = useState<string | null>(null);
+  const [verification, setVerification] = useState<boolean   | null>(null);
   const [incidentType, setIncidentType] = useState<string | null>(null);
   const [isSafe, setIsSafe] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +46,7 @@ const report = () => {
       const user = await getCurrentUser().catch(() => null);
 
       await saveReport({
-        verification: verification || "Real Incident",
+        verification: verification? true : false,
         incident_type: incidentType || "None",
         safety_check: isSafe ? true : false,
         //user_id: user?.id
@@ -126,7 +125,7 @@ const report = () => {
               <TouchableOpacity
                 style={[styles.primaryButton, { backgroundColor: '#FF4444' }]}
                 onPress={() => {
-                  setVerification('Real Incident');
+                  setVerification(true);
                   transitionTo('DETAILS');
                 }}
               >

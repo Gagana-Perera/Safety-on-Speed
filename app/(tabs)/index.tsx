@@ -106,7 +106,7 @@ export default function Index() {
             Report a safety issue in your area.
           </Text>
           <Link href="/report" style={{ color: theme.text, marginTop: 8 }}>
-            View Report →
+            Make a Report →
           </Link>
         </View>
 
