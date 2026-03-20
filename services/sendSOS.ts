@@ -30,7 +30,6 @@ function parseJsonSafely(text: string) {
 }
 
 async function getCurrentUserName(userId: string, fallbackName: string) {
-  // We try the profile name first so the guardian sees a friendly sender name.
   try {
     const { data: profile } = await supabase
       .from("profiles")
@@ -45,12 +44,12 @@ async function getCurrentUserName(userId: string, fallbackName: string) {
 }
 
 export async function sendSOS(): Promise<SendSOSResponse> {
-  // Put this public webhook URL in your Expo .env file.
   const webhookUrl =
     process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim() ||
     String(
       Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL ?? "",
     ).trim();
+
   if (!webhookUrl) {
     throw new Error(
       "Set EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL in your Expo .env file.",
@@ -70,7 +69,6 @@ export async function sendSOS(): Promise<SendSOSResponse> {
     throw new Error("Location services are turned off.");
   }
 
-  // The app needs permission before it can read the current GPS location.
   const permission = await Location.requestForegroundPermissionsAsync();
   if (permission.status !== "granted") {
     throw new Error(
@@ -89,30 +87,32 @@ export async function sendSOS(): Promise<SendSOSResponse> {
     );
   }
 
+  await supabase.auth.refreshSession();
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  const user = session?.user;
 
-  if (!session?.user) {
-    throw new Error("You need to sign in before sending an SOS alert.");
+  if (!user || !session) {
+    throw new Error("Your session has expired. Please sign in again.");
   }
 
   const authName = [
-    session.user.user_metadata?.first_name,
-    session.user.user_metadata?.last_name,
+    user.user_metadata?.first_name,
+    user.user_metadata?.last_name,
   ]
     .filter(Boolean)
     .join(" ")
     .trim();
 
   const userName = await getCurrentUserName(
-    session.user.id,
-    authName || session.user.email || "Safety on Speed user",
+    user.id,
+    authName || user.email || "Safety on Speed user",
   );
 
   let response: Response;
   try {
-    // The app sends the current location once. Twilio secrets stay on the server.
     response = await fetch(webhookUrl, {
       body: JSON.stringify({
         accuracy:

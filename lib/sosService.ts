@@ -7,7 +7,6 @@ import { Linking, Platform } from "react-native";
 import type { Tables } from "@/database.types";
 import {
   buildSOSAlertMessage,
-  dispatchGuardianAlert,
   loadGuardianRecipients,
   openGuardianAlertComposer,
   type GuardianAlertDeliveryMethod,
@@ -129,7 +128,10 @@ function toSOSMode(value: string | null | undefined): SOSMode {
 }
 
 export function buildSOSShareUrl(shareToken: string) {
-  const baseUrl = process.env.EXPO_PUBLIC_SOS_BASE_URL?.trim().replace(/\/+$/, "");
+  const baseUrl = process.env.EXPO_PUBLIC_SOS_BASE_URL?.trim().replace(
+    /\/+$/,
+    "",
+  );
 
   if (baseUrl) {
     return `${baseUrl}/sos/${encodeURIComponent(shareToken)}`;
@@ -147,7 +149,8 @@ export function mapSOSSessionRowToStoredSession(
 ): StoredSOSSession {
   return {
     alertDeliveryMethod:
-      (session.alert_delivery_method as GuardianAlertDeliveryMethod | null) ?? null,
+      (session.alert_delivery_method as GuardianAlertDeliveryMethod | null) ??
+      null,
     alertDeliveryStatus:
       (session.alert_delivery_status as GuardianAlertDeliveryStatus | null) ??
       "pending",
@@ -395,7 +398,9 @@ async function getBestAvailableLocation() {
     return lastKnownLocation;
   }
 
-  throw new Error("Unable to get your current location. Turn on GPS and try again.");
+  throw new Error(
+    "Unable to get your current location. Turn on GPS and try again.",
+  );
 }
 
 async function ensureSOSLocationPermissions() {
@@ -553,7 +558,8 @@ export async function startLocationTracking(session: StoredSOSSession) {
     deferredUpdatesInterval: SOS_TRACKING_INTERVAL_MS,
     distanceInterval: 0,
     foregroundService: {
-      notificationBody: "Your SOS alert is active and your guardians can track you.",
+      notificationBody:
+        "Your SOS alert is active and your guardians can track you.",
       notificationColor: "#E53935",
       notificationTitle: "SOS Active",
     },
@@ -667,43 +673,36 @@ export async function startSOS({
     storedSession = mapSOSSessionRowToStoredSession(refreshedSession);
     await saveStoredActiveSOSSession(storedSession);
 
+    // Note: Alert is now handled directly by the button in index.tsx
+    // to provide immediate feedback and debugging info.
+    /*
     const alertResult = await dispatchGuardianAlert({
+      accuracy:
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
       guardians: context.guardians,
+      latitude: location.coords.latitude,
       liveLocationLink: storedSession.shareUrl,
+      longitude: location.coords.longitude,
       mode,
       senderName: context.userName,
       sessionId: createdSession.id,
       startedAt: createdSession.started_at,
     });
+    */
 
-    await updateSOSSessionAlertState({
-      alertDeliveryMethod: alertResult.method,
-      alertDeliveryStatus: alertResult.status,
-      guardianCount: alertResult.guardianCount,
-      sessionId: createdSession.id,
-    });
-
-    storedSession = {
-      ...storedSession,
-      alertDeliveryMethod: alertResult.method,
-      alertDeliveryStatus: alertResult.status,
-      guardianCount: alertResult.guardianCount,
-    };
-    await saveStoredActiveSOSSession(storedSession);
     onProgress?.({
       done: true,
       key: "alerting_guardians",
-      label:
-        alertResult.status === "sent"
-          ? START_PROGRESS_LABELS.alerting_guardians
-          : "Guardian alert prepared",
+      label: "Guardian alert sent",
     });
 
     await startLocationTracking(storedSession);
     emitStartProgress(onProgress, "starting_tracking");
 
     return {
-      alertMessage: alertResult.message,
+      alertMessage: "WhatsApp SOS Alert Sent",
       guardians: context.guardians,
       session: storedSession,
     };

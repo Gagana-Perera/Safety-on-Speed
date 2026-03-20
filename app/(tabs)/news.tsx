@@ -82,12 +82,11 @@ const PostCard = ({
 
         {/* <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => setIsLiked(!isLiked)}
         >
           <MaterialIcons 
             color={theme.text} 
-            name={isLiked ? "thumb-up" : "thumb-up-off-alt"} 
-            size={24}
+            name="thumb-up-off-alt" 
+            size={20}
           />
         </TouchableOpacity> */}
       </View>
@@ -100,6 +99,7 @@ const PostCard = ({
 export default function News() {
   const { theme } = useTheme();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [createPostVisible, setCreatePostVisible] = useState(false);
 
   useEffect(() => {
     fetchPosts()
@@ -153,6 +153,17 @@ export default function News() {
       >
         <MaterialIcons name="add-comment" size={30} color={theme.text} />
       </TouchableOpacity>
+
+      <CreatePost 
+        visible={createPostVisible} 
+        onClose={() => setCreatePostVisible(false)}
+        onSuccess={() => {
+          // Refresh posts after successful creation
+          fetchPosts()
+            .then((data) => setPosts(data))
+            .catch((error) => console.error('Error fetching posts:', error));
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -273,16 +284,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 10,
   },
-  // mediaText: {
-  //   color: "#666",
-  //   fontSize: 12,
-  // },
   actionButtons: {
     flexDirection: "row",
     gap: 20,
   },
   actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     padding: 5,
+  },
+  helpfulText: {
+    fontSize: 14,
   },
   actionIcon: {
     fontSize: 20,

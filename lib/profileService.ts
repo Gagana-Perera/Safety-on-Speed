@@ -31,12 +31,11 @@ export const getMergedProfileData = async () => {
       // Your App Settings (Defaulting to true/safe values if empty)
       language: profileData?.language || "en",
       location: profileData?.location || null,
-      emailNotif: profileData?.email_notif ?? true,
       pushNotif: profileData?.push_notif ?? true,
       alertNotif: profileData?.alert_notif ?? true,
-      personalDataAccess: profileData?.personal_data_access ?? true,
-      cameraAccess: profileData?.camera_access ?? true,
-      liveLocation: profileData?.live_location ?? true,
+      personalDataAccess: profileData?.personal_data_access ?? false,
+      cameraAccess: profileData?.camera_access ?? false,
+      liveLocation: profileData?.live_location ?? false,
     };
 
     return mergedData;
