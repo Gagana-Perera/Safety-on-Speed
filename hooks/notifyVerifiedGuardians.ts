@@ -1,5 +1,4 @@
-import { Linking, Share } from "react-native";
-
+import { Linking, Share, Alert } from "react-native";
 import type { Tables } from "@/database.types";
 import { loadCachedGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
@@ -295,3 +294,55 @@ export async function openGuardianAlertComposer({
 
   return { method: "share-sheet" as const };
 }
+
+export const notifyVerifiedGuardians = async (userId: string, liveLocationLink: string) => {
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('alert_notif')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return;
+    }
+
+    if (!profile?.alert_notif) {
+      console.log('Alert notifications disabled by user.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('guardians')
+      .select('g1_name, g1_phone, g1_verified, g2_name, g2_phone, g2_verified, g3_name, g3_phone, g3_verified, g4_name, g4_phone, g4_verified, g5_name, g5_phone, g5_verified')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      console.log('No guardians found to notify.');
+      return;
+    }
+
+    const guardians = extractGuardianRecipients(data as any);
+    if (guardians.length === 0) {
+      console.log('No verified guardians found to notify.');
+      return;
+    }
+
+    for (const guardian of guardians) {
+      await supabase.functions.invoke('send-sos-sms', {
+        body: {
+          phone: guardian.phone,
+          message: `SOS Alert! Someone needs help! Track live location: ${liveLocationLink}`
+        }
+      });
+      console.log(`SMS sent to ${guardian.name} (${guardian.phone})`);
+    }
+
+    Alert.alert('Guardians Notified', `Sent alert to ${guardians.length} verified guardians.`);
+
+  } catch (err) {
+    console.error('Unexpected error notifying guardians:', err);
+  }
+};

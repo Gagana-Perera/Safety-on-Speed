@@ -34,6 +34,7 @@ import {
 } from "react-native";
 import MapView, {
   LatLng,
+  MapPressEvent,
   Marker,
   Polyline,
   PROVIDER_GOOGLE,
@@ -2163,7 +2164,7 @@ export default function MapScreen() {
     >
       <View style={styles.mapWrap}>
         <MapView
-          ref={(ref) => {
+          ref={(ref: MapView | null) => {
             mapRef.current = ref;
           }}
           style={[
@@ -2174,7 +2175,7 @@ export default function MapScreen() {
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
           onRegionChangeComplete={(
-            r,
+            r: Region,
             details?: { isGesture?: boolean } | undefined,
           ) => {
             setMapRegion(r);
@@ -2203,7 +2204,7 @@ export default function MapScreen() {
           maxZoomLevel={20}
           zoomControlEnabled={true}
           zoomTapEnabled={true}
-          onPress={(e) => {
+          onPress={(e: MapPressEvent) => {
             // Make single-tap feel like Google Maps: try to open nearest place.
             // (Especially useful on iOS where POI taps don't provide a placeId.)
             const apiKey = ensureGoogleApiKey();
@@ -2242,7 +2243,7 @@ export default function MapScreen() {
               if (details) moveToPlace(details);
             })();
           }}
-          onLongPress={(e) => {
+          onLongPress={(e: MapPressEvent) => {
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;

@@ -1,4 +1,25 @@
+/**
+ * Google Places integration layer.
+ *
+ * This module is intentionally the only place that knows how to talk to the
+ * Google Places HTTP APIs. Screens call these helpers instead of building URLs
+ * directly.
+ *
+ * Why this exists:
+ * - Keeps UI code focused on UX/state, not network plumbing.
+ * - Centralizes heuristics (e.g., "avoid specialty-only hospitals") so behavior
+ *   is consistent across Emergency Services + Map.
+ * - Makes it easy to mock `fetch()` in Jest tests.
+ *
+ * Endpoints used:
+ * - Nearby Search: `nearbysearch/json`
+ * - Place Details: `details/json`
+ * - Photo: `photo`
+ */
 const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
+
+// `EXPO_PUBLIC_*` variables are safe to read in the app bundle in Expo.
+// In local/dev you typically set this in `.env` or `app.config.js`.
 
 /**
  * Google Places helpers used across the app.
@@ -23,6 +44,17 @@ export type PlaceCoordinates = {
   longitude: number;
 };
 
+// The exported types below are intentionally “screen-friendly”:
+// - They match what our UI cards and markers need.
+// - They avoid leaking raw Google response shapes into the rest of the app.
+
+/**
+ * Heuristic: Identify specialty-only facilities that are often *not* a good
+ * default for the Emergency Services "hospital" action (e.g., eye/dental).
+ *
+ * This is not used to block results entirely; it is used to *prefer* general
+ * hospitals when available.
+ */
 function isLikelySpecialtyHospitalName(name: string): boolean {
   // Emergency UX expects an emergency-capable general hospital.
   // Places can return specialty facilities (e.g., eye hospitals) for `type=hospital`.
@@ -38,6 +70,12 @@ function isLikelySpecialtyHospitalName(name: string): boolean {
   );
 }
 
+/**
+ * Heuristic: Detect whether a hospital name suggests ER/A&E capability.
+ *
+ * Used to prefer emergency-capable facilities for non-emergency hospital
+ * searches (where the user still expects an ER-capable option).
+ */
 function isEmergencyLikeHospitalName(name: string): boolean {
   // Detect common “ER/A&E/Emergency” signals in a place name.
   // This is a heuristic to prefer emergency-capable facilities when available.
@@ -50,6 +88,10 @@ function isEmergencyLikeHospitalName(name: string): boolean {
   );
 }
 
+/**
+ * Heuristic: For Places `type=police`, ensure we only accept actual police
+ * stations and not nearby venues that happen to be tagged with the police type.
+ */
 function isExactPoliceStationName(name: string): boolean {
   const n = String(name ?? "").trim();
   if (!n) return false;
@@ -114,6 +156,10 @@ export type NearbyPlace = {
   wheelchairAccessibleEntrance?: boolean;
 };
 
+/**
+ * Places returns times as `HHMM` strings (e.g. "0930"). This parser validates the
+ * format and returns minutes from midnight.
+ */
 const parseHhmmToMinutes = (hhmm: unknown): number | null => {
   if (typeof hhmm !== "string") return null;
   if (!/^\d{4}$/.test(hhmm)) return null;
@@ -124,6 +170,10 @@ const parseHhmmToMinutes = (hhmm: unknown): number | null => {
   return h * 60 + m;
 };
 
+/**
+ * Converts minutes from midnight to a human-friendly 12h clock string.
+ * Example: `0 -> "12:00 AM"`, `13*60+5 -> "1:05 PM"`.
+ */
 const formatMinutesTo12Hour = (minutes: number): string => {
   const h24 = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -133,6 +183,13 @@ const formatMinutesTo12Hour = (minutes: number): string => {
   return `${h}:${String(m).padStart(2, "0")} ${suffix}`;
 };
 
+/**
+ * Computes a friendly "opens at" label when a place is currently closed.
+ *
+ * Inputs are raw Places Details fields (`opening_hours` / `current_opening_hours`)
+ * and `utc_offset_minutes`. We keep the implementation defensive because these
+ * fields can be absent or shaped differently depending on the place.
+ */
 const computeNextOpenTimeText = (
   result: any,
   isOpenNow: boolean | undefined,
@@ -154,6 +211,8 @@ const computeNextOpenTimeText = (
   // Compute "now" in the place's local time using utc_offset_minutes.
   // Places Details provides the offset for the place's timezone; we convert Date.now() into that local time.
   const nowLocal = new Date(Date.now() + utcOffsetMinutes * 60_000);
+  // We intentionally read the shifted date via getUTC* so that the offset-adjusted
+  // timestamp acts like a “local clock” independent of the device timezone.
   const nowDay = nowLocal.getUTCDay();
   const nowMinutes = nowLocal.getUTCHours() * 60 + nowLocal.getUTCMinutes();
   const nowWeekMinutes = nowDay * 1440 + nowMinutes;
@@ -204,6 +263,17 @@ const computeNextOpenTimeText = (
   By setting a small radius (e.g., 40 meters), you limit the search to places very close to the tapped spot,
   increasing the chance that the result matches the exact location.
 */
+/**
+ * Reverse-lookup: coordinates -> nearest place.
+ *
+ * Used when a map tap only yields raw coordinates (no place id). We query a
+ * small-radius Nearby Search and return the first match as the nearest place.
+ *
+ * Notes for viva:
+ * - We keep the radius tiny (default 40m) because the user tapped a specific point.
+ * - The return type is `NearbyPlace` (our minimal card/marker model), not raw Google JSON.
+ * - On any API/network issue we return `null` so screens can safely ignore it.
+ */
 export async function findNearestPlaceAt(
   lat: number,
   lng: number,
@@ -258,13 +328,26 @@ export async function findNearestPlaceAt(
 }
 
 /**
- * Finds the unique Place ID for the absolute closest service.
+ * Finds the unique Place ID for the *closest* matching service.
+ *
+ * This is primarily used by the Emergency Services tab, where we want one best
+ * candidate to call or navigate to.
+ *
+ * Why it returns only `place_id` (not full details):
+ * - Emergency Services flows only need to dial or navigate.
+ * - Details are fetched separately only when we need richer UI.
+ *
  * Strategy:
- * - Prefer `rankby=distance` for well-defined types (police/hospital/pharmacy) so the nearest
- *   results are actually included in the response.
- * - Fall back to radius-based searches if rank-by-distance returns no usable candidates.
+ * 1) Prefer `rankby=distance` with an explicit Places `type` (police/hospital/pharmacy)
+ *    so the nearest candidates are in the result set.
+ * 2) Run multiple keyword attempts when needed (especially for hospitals) and
+ *    pick the nearest across all attempts (not "first non-empty").
+ * 3) Fall back to radius-based queries if rank-by-distance gives no usable candidates.
+ *
+ * Important: This function contains product heuristics:
+ * - Hospitals: prefer non-specialty facilities; optionally prefer emergency-like names.
+ * - Police: only accept results that look like actual police stations.
  */
-//call the near by places service with the cor-ordinates and the type of the place.
 export async function getNearbyPlaces(
   lat: number,
   lng: number,
@@ -276,8 +359,9 @@ export async function getNearbyPlaces(
     return null;
   }
 
-  // Haversine distance (great-circle distance) to choose the truly closest result.
-  // We compute this ourselves instead of trusting Places ordering.
+  // Haversine distance (great-circle distance). We compute this ourselves rather
+  // than relying on Places ordering so we can safely merge results across keyword
+  // attempts and still pick the true nearest place.
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const haversineMeters = (
     lat1: number,
@@ -354,6 +438,14 @@ export async function getNearbyPlaces(
   // This avoids a hard single-radius limit while still bounding API calls.
   const radii = [5_000, 15_000, 40_000];
 
+  /**
+   * Chooses the best `place_id` from a Nearby Search result set.
+   *
+   * Returns multiple "tiers" for hospital searches:
+   * - `bestEmergencyHospitalId`: emergency-like and non-specialty
+   * - `bestGeneralHospitalId`: non-specialty (any)
+   * - `bestAnyId`: absolute closest (fallback)
+   */
   const pickClosestPlaceId = (
     results: any[],
   ): {
@@ -430,6 +522,12 @@ export async function getNearbyPlaces(
     };
   };
 
+  /**
+   * Dedup results by `place_id` when we aggregate across multiple queries.
+   *
+   * We keep the first-seen object for that `place_id` because all we need for
+   * selection is `place_id`, `geometry.location`, `name`, and `types`.
+   */
   const mergeResultsByPlaceId = (results: any[]): any[] => {
     const map = new Map<string, any>();
     for (const r of results) {
@@ -445,6 +543,13 @@ export async function getNearbyPlaces(
 
   const includeSecondPage = options?.includeSecondPage === true;
 
+  // `includeSecondPage` is primarily for real device usage.
+  // In tests we usually keep it `false` to avoid next_page_token delays.
+
+  /**
+   * Execute a Nearby Search query and return its `results[]` array.
+   * Optionally fetches a second page (for real app usage; tests skip the wait).
+   */
   const fetchNearbySearchResults = async (
     params: URLSearchParams,
     logLabel: string,
@@ -464,6 +569,8 @@ export async function getNearbyPlaces(
       console.error("API Error Message:", data.error_message);
     }
 
+    // Places may return statuses like: OK | ZERO_RESULTS | OVER_QUERY_LIMIT | REQUEST_DENIED.
+    // We treat anything other than OK as “no results” and let caller fall back.
     const out: any[] =
       data.status === "OK" && Array.isArray(data.results) ? data.results : [];
 
@@ -556,7 +663,8 @@ export async function getNearbyPlaces(
             baseParams,
             "rankby=distance:fallback",
           );
-          if (typedFallbackResults.length) aggregated.push(...typedFallbackResults);
+          if (typedFallbackResults.length)
+            aggregated.push(...typedFallbackResults);
         }
       }
 
@@ -680,6 +788,9 @@ export async function getNearbyPlaces(
 
 /**
  * Retrieves specific contact details using a Place ID.
+ *
+ * Used by Emergency Services when the user taps “Call”.
+ * We intentionally request a small set of fields to keep payload size down.
  */
 export async function getPlaceMobileNumber(
   placeId: string,
@@ -713,6 +824,9 @@ export async function getPlaceMobileNumber(
 /**
  * Autocomplete place suggestions by free-text query.
  * If `lat/lng` are provided, results are biased near that location.
+ *
+ * UI note:
+ * - Returns a short list (max 8) to keep the dropdown fast and readable.
  */
 export async function autocompletePlaces(
   input: string,
@@ -775,6 +889,9 @@ export async function getPlaceCoordinates(
 
 /**
  * Place details for showing a card and placing a marker.
+ *
+ * This is the “richer” call used on the Map screen when a place is selected.
+ * We still constrain fields to what the UI actually renders.
  */
 export async function getPlaceDetails(
   placeId: string,
@@ -813,6 +930,7 @@ export async function getPlaceDetails(
           })
         : undefined;
 
+      // We only keep review ratings (not full text) to keep UI lightweight.
       const reviews: PlaceReview[] | undefined = Array.isArray(
         data.result.reviews,
       )
@@ -874,6 +992,8 @@ export async function getPlaceDetails(
 /**
  * Build an image URL for a Places photo_reference (returned by Place Details).
  * The endpoint returns a redirect to the actual image.
+ *
+ * This helper only builds the URL; the UI decides when/if to fetch it.
  */
 export function getPlacePhotoUrl(
   photoReference: string,
@@ -890,6 +1010,9 @@ export function getPlacePhotoUrl(
 
 /**
  * Nearby places for POI category buttons.
+ *
+ * Used by the Map screen POI chips (e.g., restaurant / police / hospital).
+ * Returns a list of lightweight `NearbyPlace` items that can be drawn as markers.
  */
 export async function searchNearbyPlaces(
   lat: number,

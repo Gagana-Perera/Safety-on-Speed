@@ -4,18 +4,14 @@ import "./global.css";
 import "@/lib/sosTask";
 import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
 
-// 1. Create a component specifically to hold the logic that needs the Theme
 function RootLayoutNav() {
   // Now this works because this component is INSIDE the ThemeProvider
   const { isDark } = useTheme();
 
   return (
     <>
-      {/* Dynamic Status Bar */}
       <StatusBar style={isDark ? "light" : "dark"} />
-
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Your Screens */}
         <Stack.Screen name="index" />
         <Stack.Screen name="session" />
         <Stack.Screen name="auth/login" />
@@ -32,12 +28,15 @@ function RootLayoutNav() {
         <Stack.Screen name="sos/loading" />
         <Stack.Screen name="sos/active" />
         <Stack.Screen name="sos/[token]" />
+        <Stack.Screen
+          name="report"
+          options={{ presentation: "transparentModal", animation: "fade" }}
+        />
       </Stack>
     </>
   );
 }
 
-// 2. The Main Export just sets up the Provider
 export default function RootLayout() {
   return (
     <ThemeProvider>

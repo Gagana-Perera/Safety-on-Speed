@@ -29,16 +29,31 @@ const resources = {
       live_location_sub: "Share location in real-time",
       
       sign_out: "Sign Out",
+      app_version: "App Version 1.2.0",
 
       //Emergency Contact Screen
 
       emergency_services: "Emergency Services",
       emergency_hotlines: "EMERGENCY HOTLINES",
+      emergency_contacts: "Emergency Contacts",
       ambulance_service: "Ambulance Service",
+      women_child_bureau: "Women & Child Bureau",
       fire_rescue: "Fire & Rescue",
       hospital: "Hospitals",
       police_station: "Police Stations",
       call: "Call",
+
+      // Home
+
+      app_title: "Safety on Speed",
+      app_subtitle: "Stay safe, stay connected.",
+      live_location: "Live Location",
+      live_location_desc: "Your location is being tracked to keep you safe.",
+      emergency_services_desc: "Quick access to emergency contacts and services.",
+      news_alerts: "News & Alerts",
+      news_alerts_desc: "Stay updated with the latest safety news in your area.",
+      view_services: "View Services →",
+      view_news: "View News →",
 
       //Guardians Screen
 
@@ -55,6 +70,19 @@ const resources = {
 
       pharmacies: "Pharmacies",
       search_places: "Search places",
+      sort_by_distance: "Sort by distance",
+      wheelchair_accessible: "Wheelchair accessible",
+      open_now: "Open now",
+      search_here: "Search here",
+      nearby_places: "Nearby places",
+
+      //Edit Profile
+
+      change_profile_photo: "Change Profile Photo",
+      first_name: "FIRST NAME",
+      last_name: "LAST NAME",
+      email_address: "EMAIL ADDRESS",
+      save_changes: "Save Changes",
     }
   },
   si: {
@@ -84,16 +112,30 @@ const resources = {
       live_location_sub: "තත්‍ය කාලීනව ස්ථානය බෙදා ගන්න",
       
       sign_out: "ඉවත් වන්න",
+      app_version: "යෙදුම් අනුවාදය 1.2.0",
 
       //Emergency Contact Screen - Sinhala
 
       emergency_services: "හදිසි සේවා",
       emergency_hotlines: "හදිසි ඇමතුම් අංක",
+      emergency_contacts: "හදිසි සම්බන්ධතා",
       ambulance_service: "ගිලන් රථ සේවාව",
+      women_child_bureau: "කාන්තා හා ළමා කාර්යාංශය",
       fire_rescue: "ගිනි නිවීම් සහ ගලවා ගැනීම",
       hospital: "රෝහල",
       police_station: "පොලිස් ස්ථානය",
       call: "ඇමතුම",
+
+      // Home - Sinhala
+
+      app_subtitle: "ආරක්ෂිතව සිටින්න, සම්බන්ධව සිටින්න.",
+      live_location: "සජීවී ස්ථානය",
+      live_location_desc: "ඔබව ආරක්ෂිතව තබා ගැනීම සඳහා ඔබේ ස්ථානය නිරීක්ෂණය කෙරේ.",
+      emergency_services_desc: "හදිසි සම්බන්ධතා සහ සේවා වෙත ඉක්මන් ප්‍රවේශය.",
+      news_alerts: "පුවත් සහ ඇඟවීම්",
+      news_alerts_desc: "ඔබේ ප්‍රදේශයේ නවතම ආරක්ෂක පුවත් සමඟ යාවත්කාලීනව සිටින්න.",
+      view_services: "සේවා බලන්න →",
+      view_news: "පුවත් බලන්න →",
 
       //Guardians Screen - Sinhala
 
@@ -110,6 +152,19 @@ const resources = {
 
       pharmacies: "ෆාමසි",
       search_places: "ස්ථාන සොයන්න",
+      sort_by_distance: "දුර අනුව වර්ග කරන්න",
+      wheelchair_accessible: "රෝද පුටු ප්‍රවේශය",
+      open_now: "දැන් විවෘතයි",
+      search_here: "මෙහි සොයන්න",
+      nearby_places: "ආසන්න ස්ථාන",
+
+      //Edit Profile - Sinhala
+
+      change_profile_photo: "පැතිකඩ ඡායාරූපය වෙනස් කරන්න",
+      first_name: "මුල් නම",
+      last_name: "අවසාන නම",
+      email_address: "විද්‍යුත් තැපැල් ලිපිනය",
+      save_changes: "වෙනස්කම් සුරකින්න",
     }
   },
   ta: {
@@ -139,16 +194,30 @@ const resources = {
       live_location_sub: "நிகழ்நேரத்தில் இருப்பிடத்தைப் பகிரவும்",
       
       sign_out: "வெளியேறு",
+      app_version: "பயன்பாட்டு பதிப்பு 1.2.0",
 
       //Emergency Contact Screen - Tamil
 
       emergency_services: "அவசர சேவைகள்",
       emergency_hotlines: "அவசர நேரடி இணைப்புகள்",
+      emergency_contacts: "அவசர தொடர்புகள்",
       ambulance_service: "ஆம்புலன்ஸ் சேவை",
+      women_child_bureau: "பெண்கள் மற்றும் குழந்தை பணியகம்",
       fire_rescue: "தீ & மீட்பு",
       hospital: "மருத்துவமனை",
       police_station: "காவல் நிலையம்",
       call: "அழைப்பு",
+
+      // Home - Tamil
+
+      app_subtitle: "பாதுகாப்பாக இருங்கள், இணைந்திருங்கள்.",
+      live_location: "நேரலை இருப்பிடம்",
+      live_location_desc: "உங்களை பாதுகாப்பாக வைக்க உங்கள் இருப்பிடம் கண்காணிக்கப்படுகிறது.",
+      emergency_services_desc: "அவசர தொடர்புகள் மற்றும் சேவைகளுக்கான விரைவான அணுகல்.",
+      news_alerts: "செய்திகள் மற்றும் எச்சரிக்கைகள்",
+      news_alerts_desc: "உங்கள் பகுதியில் சமீபத்திய பாதுகாப்பு செய்திகளுடன் புதுப்பித்த நிலையில் இருங்கள்.",
+      view_services: "சேவைகளை காண்க →",
+      view_news: "செய்திகளை காண்க →",
 
       //Guardians Screen - Tamil
 
@@ -165,6 +234,20 @@ const resources = {
 
       pharmacies: "மருந்தகங்கள்",
       search_places: "இடங்களை தேடுங்கள்",
+      sort_by_distance: "தூரத்தின் படி வரிசைப்படுத்து",
+      wheelchair_accessible: "ஊனமுற்றோர் கூடை அணுகல்",
+      open_now: "இப்போது திறந்திருக்கிறது",
+      search_here: "இங்கே தேடுங்கள்",
+      nearby_places: "அருகிலுள்ள இடங்கள்",
+
+      //Edit Profile - Tamil
+
+      change_profile_photo: "சுயவிவர புகைப்படத்தை மாற்றவும்",
+      first_name: "முதல் பெயர்",
+      last_name: "கடைசி பெயர்",
+      email_address: "மின்னஞ்சல் முகவரி",
+      save_changes: "மாற்றங்களை சேமிக்கவும்",
+
     }
   }
 };

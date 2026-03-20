@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -30,6 +31,7 @@ export default function EditProfile() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
+  const { t } = useTranslation();
 
   const DEFAULT_AVATAR =
     "https://images.unsplash.com/photo-1633332755192-727a05c4013d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2.5&w=256&h=256&q=80";
@@ -191,7 +193,7 @@ export default function EditProfile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={{ marginLeft: 16 }}>
+        <View style={{ marginLeft: 16, marginTop: 16 }}>
           <BackButton color={theme.text} size={24} />
         </View>
 
@@ -234,7 +236,7 @@ export default function EditProfile() {
 
             <TouchableOpacity onPress={changeAvatar} disabled={uploading}>
               <Text style={styles.changePhotoText}>
-                {uploading ? "Uploading..." : "Change Profile Photo"}
+                {uploading ? "Uploading..." : t('change_profile_photo')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -243,7 +245,7 @@ export default function EditProfile() {
           <View style={styles.form}>
             {/* First Name */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>First Name</Text>
+              <Text style={styles.label}>{t('first_name')}</Text>
               <View
                 style={[styles.inputContainer, { backgroundColor: theme.card }]}
               >
@@ -265,7 +267,7 @@ export default function EditProfile() {
 
             {/* Last Name */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Last Name</Text>
+              <Text style={styles.label}>{t('last_name')}</Text>
               <View
                 style={[styles.inputContainer, { backgroundColor: theme.card }]}
               >
@@ -287,7 +289,7 @@ export default function EditProfile() {
 
             {/* Phone Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.label}>{t('phone_number')}</Text>
               <View
                 style={[styles.inputContainer, { backgroundColor: theme.card }]}
               >
@@ -310,7 +312,7 @@ export default function EditProfile() {
 
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>{t('email_address')}</Text>
               <View
                 style={[styles.inputContainer, { backgroundColor: theme.card }]}
               >
@@ -334,7 +336,7 @@ export default function EditProfile() {
 
             {/* Location Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Location</Text>
+              <Text style={styles.label}>{t('location')}</Text>
               <View
                 style={[styles.inputContainer, { backgroundColor: theme.card }]}
               >
@@ -364,7 +366,7 @@ export default function EditProfile() {
               {saving ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text style={styles.saveBtnText}>Save Changes</Text>
+                <Text style={styles.saveBtnText}>{t('save_changes')}</Text>
               )}
             </TouchableOpacity>
           </View>

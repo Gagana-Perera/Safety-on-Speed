@@ -48,16 +48,15 @@ export default function CreatePost() {
       setUploading(true);
       
       const newPost = {
-        username: "CurrentUser", // Replace with actual user data
+        postTopic: subject,
         postTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         postDate: new Date().toLocaleDateString('en-US'),
-        body: `${subject}\n\n${body}`,
-        media: image || undefined,
-        likes: 0,
-        bookmarks: 0,
+        postBody: body,
+        // media: image || undefined,
+        // likes: 0,
       };
 
-      const result = await createPost(newPost);
+      const result = await createPost(newPost as any);
       
       if (result) {
         Alert.alert("Success", "Post created successfully!", [

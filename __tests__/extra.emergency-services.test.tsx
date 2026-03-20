@@ -1,10 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react-native";
-import React from "react";
 import { Alert, Linking } from "react-native";
 
 import EmergencyServices from "../app/(tabs)/extra";
@@ -29,24 +29,37 @@ jest.mock("@expo/vector-icons", () => {
   };
 });
 
-jest.mock("../app/themeContext", () => {
-  return {
-    useTheme: () => ({
-      theme: { background: "#000000" },
-    }),
-  };
-});
+jest.mock("@/components/theme/ThemeContext", () => ({
+  useTheme: () => ({
+    theme: {
+      mode: "light",
+      background: "#000000",
+      card: "#111111",
+      border: "#222222",
+      text: "#ffffff",
+      icon: "#ffffff",
+    },
+    isDark: true,
+    toggleTheme: () => {},
+  }),
+}));
 
 describe("EmergencyServices (Emergency Services page)", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.spyOn(Alert, "alert").mockImplementation(() => {});
     jest.spyOn(Linking, "canOpenURL").mockResolvedValue(true as any);
     jest.spyOn(Linking, "openURL").mockResolvedValue(undefined as any);
+    jest
+      .spyOn(Linking, "openSettings" as any)
+      .mockResolvedValue(undefined as any);
 
     process.env.EXPO_PUBLIC_GOOGLE_API_KEY = "test-key";
 
     mockGetNearbyPlaces.mockReset();
     mockGetPlaceMobileNumber.mockReset();
+
+    // Ensure no location choice leaks between tests.
+    await AsyncStorage.clear();
 
     // Reset router mock calls (provided by jest.setup.ts)
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -171,5 +184,28 @@ describe("EmergencyServices (Emergency Services page)", () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const expoRouter = require("expo-router");
     expect(expoRouter.__router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks nearby place actions when user chose Don’t Allow on Home", async () => {
+    await AsyncStorage.setItem("location_preprompt_choice_v3", "deny");
+
+    render(<EmergencyServices />);
+
+    fireEvent.press(screen.getByLabelText("Hospital Map"));
+
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith(
+        "Location Access Needed",
+        "To show nearby hospitals and police stations,\nplease enable location access.",
+        expect.arrayContaining([
+          expect.objectContaining({ text: "Enable Location" }),
+          expect.objectContaining({ text: "Not Now" }),
+        ]),
+      );
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const expoRouter = require("expo-router");
+    expect(expoRouter.__router.push).not.toHaveBeenCalled();
   });
 });
