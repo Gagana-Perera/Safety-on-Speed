@@ -15,7 +15,6 @@ function RootLayoutNav() {
 
   const registerPushToken = async () => {
     try {
-      if (Constants.appOwnership === 'expo') return;
 
       const Notifications = await import('expo-notifications');
       const { data: token } = await Notifications.getExpoPushTokenAsync();
@@ -85,12 +84,14 @@ function RootLayoutNav() {
     await Location.requestForegroundPermissionsAsync();
     await requestDataSharingPermission();
     
-    try {
-      const Notifications = await import('expo-notifications');
-      await Notifications.requestPermissionsAsync();
-      await registerPushToken();
-    } catch (error) {
-      console.log('Notifications skipped on Expo Go:', error);
+    if (Constants.executionEnvironment  !== 'storeClient') {
+      try {
+        const Notifications = await import('expo-notifications');
+        await Notifications.requestPermissionsAsync();
+        await registerPushToken();
+      } catch (error) {
+        console.log('Notifications skipped on Expo Go:', error);
+      }
     }
   };
   requestAllPermissions();
