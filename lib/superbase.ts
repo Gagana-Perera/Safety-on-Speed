@@ -6,8 +6,8 @@ import { Database } from "../database.types";
 
 // AsyncStorage has no 2048-byte limit (unlike SecureStore),
 // so large JWTs (Supabase session tokens) are stored correctly.
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY || "";
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+export const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY || "";
 const isServer = typeof window === "undefined";
 
 const webStorage = {
