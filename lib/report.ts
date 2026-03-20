@@ -8,8 +8,6 @@ export interface ReportData {
   verification: string;
   incident_type: string;
   safety_check: string;
-  user_id?: string;
-
 }
 
 /**
@@ -24,7 +22,7 @@ export async function saveReport(reportData:ReportData) { //public saveReport(Re
         verification: reportData.verification,
         incident_type: reportData.incident_type,
         safety_check: reportData.safety_check,
-        user_id: reportData.user_id,
+        user_id: (await getCurrentUser()).id,
         lat: location.coords.latitude,
         lon: location.coords.longitude,
       },

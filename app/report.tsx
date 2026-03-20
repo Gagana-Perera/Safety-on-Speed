@@ -49,8 +49,8 @@ const report = () => {
       await saveReport({
         verification: verification || "Real Incident",
         incident_type: incidentType || "None",
-        safety_check: isSafe ? "Safe" : "Not Safe",
-        user_id: user?.id
+        safety_check: isSafe ? true : false,
+        //user_id: user?.id
       });
 
       handleClose();
