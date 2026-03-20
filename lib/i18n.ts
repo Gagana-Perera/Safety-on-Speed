@@ -77,7 +77,7 @@ const resources = {
       //Guardians Screen
 
       manage_guardians: "Manage Guardians",
-      edit_guardian: "Edit Guardian",
+      edit_guardian: "Edit Guardians",
       guardian_sub: "Add up to 5 contacts that will be notified if you are in danger.",
       contact: "Contact",
       name: "Name",
@@ -178,7 +178,7 @@ const resources = {
       //Guardians Screen - Sinhala
 
       manage_guardians: "භාරකරුවන් කළමනාකරණය",
-      edit_guardian: "භාරකරු සංස්කරණය කරන්න",
+      edit_guardian: "භාරකරුවන් සංස්කරණය කරන්න",
       guardian_sub: "ඔබ අනතුරේ සිටී නම් දැනුම් දෙනු ලබන සම්බන්ධතා 5 දක්වා එකතු කරන්න.",
       contact: "සම්බන්ධතාව",
       name: "නම",
@@ -279,7 +279,7 @@ const resources = {
       //Guardians Screen - Tamil
 
       manage_guardians: "பாதுகாவலர்களை நிர்வகி",
-      edit_guardian: "பாதுகாவலரை திருத்து",
+      edit_guardian: "பாதுகாவலர்களை திருத்து",
       guardian_sub: "நீங்கள் ஆபத்தில் இருந்தால் அறிவிக்கப்படும் 5 தொடர்புகள் வரை சேர்க்கவும்.",
       contact: "தொடர்பு",
       name: "பெயர்",
