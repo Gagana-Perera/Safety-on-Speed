@@ -13,6 +13,7 @@
  * - Prefetches in the background once GPS becomes available.
  */
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -20,6 +21,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   Linking,
   Platform,
   SafeAreaView,
@@ -35,6 +37,9 @@ import {
   getNearbyPlaces,
   getPlaceMobileNumber,
 } from "../../services/GooglePlacesService";
+
+// Keep this key consistent with Home's preprompt.
+const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
 
 /**
  * Data model for a card.
@@ -182,6 +187,78 @@ export default function EmergencyServices() {
   const router = useRouter();
   const { theme } = useTheme();
 
+  const showLocationAccessNeeded = React.useCallback(() => {
+    Alert.alert(
+      "Location Access Needed",
+      "To show nearby hospitals and police stations,\nplease enable location access.",
+      [
+        {
+          text: "Enable Location",
+          onPress: () => {
+            void (async () => {
+              // User explicitly wants to enable location: lift the in-app lock.
+              try {
+                await AsyncStorage.removeItem(LOCATION_PREPROMPT_CHOICE_KEY);
+              } catch {
+                // ignore
+              }
+
+              // Prefer the OS prompt first; if it can't be shown / stays denied,
+              // fall back to opening Settings.
+              try {
+                const res = await Location.requestForegroundPermissionsAsync();
+                if (res.status !== "granted") {
+                  try {
+                    await Linking.openSettings();
+                  } catch {
+                    // ignore
+                  }
+                  return;
+                }
+
+                // Permission granted: kick the GPS bootstrap.
+                setGpsBootstrapKey((k) => k + 1);
+              } catch {
+                try {
+                  await Linking.openSettings();
+                } catch {
+                  // ignore
+                }
+              }
+            })();
+          },
+        },
+        { text: "Not Now", style: "cancel" },
+      ],
+    );
+  }, []);
+
+  const canUseNearbyPlaceFeatures = React.useCallback(async () => {
+    // Enforce in-app “Don’t Allow” as a real denial.
+    try {
+      const choice = await AsyncStorage.getItem(LOCATION_PREPROMPT_CHOICE_KEY);
+      if (choice === "deny") {
+        showLocationAccessNeeded();
+        return false;
+      }
+    } catch {
+      // If storage fails, fall back to OS permission checks.
+    }
+
+    try {
+      const fg = await Location.getForegroundPermissionsAsync();
+      if (fg.status !== "granted") {
+        showLocationAccessNeeded();
+        return false;
+      }
+    } catch {
+      showLocationAccessNeeded();
+      return false;
+    }
+
+    return true;
+  }, [showLocationAccessNeeded]);
+
   // Visual tokens derived from the current theme.
   const EMERGENCY_ICON_COLOR = theme.mode === "light" ? "#000000" : "#8FD3FF";
 
@@ -205,6 +282,9 @@ export default function EmergencyServices() {
     lng: number;
   } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Bump this value to force the GPS bootstrap effect to re-run.
+  const [gpsBootstrapKey, setGpsBootstrapKey] = useState(0);
 
   const locationWatchRef = React.useRef<Location.LocationSubscription | null>(
     null,
@@ -262,7 +342,27 @@ export default function EmergencyServices() {
       try {
         setGpsError(null);
 
-        let { status } = await Location.requestForegroundPermissionsAsync();
+        // If the user chose “Don’t Allow” on Home, do not prompt on this screen.
+        // Nearby actions will be blocked and will show the Location Access Needed popup.
+        try {
+          const choice = await AsyncStorage.getItem(
+            LOCATION_PREPROMPT_CHOICE_KEY,
+          );
+          if (choice === "deny") {
+            setGpsError("App location disabled");
+            setUserLocation(null);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
+        // Avoid re-prompting if permission is already granted.
+        const currentPerm = await Location.getForegroundPermissionsAsync();
+        const status =
+          currentPerm.status === "granted"
+            ? "granted"
+            : (await Location.requestForegroundPermissionsAsync()).status;
         if (status !== "granted") {
           setGpsError("Permission denied");
           Alert.alert(
@@ -335,7 +435,23 @@ export default function EmergencyServices() {
       locationWatchRef.current?.remove();
       locationWatchRef.current = null;
     };
-  }, []);
+  }, [gpsBootstrapKey]);
+
+  // If we sent the user to Settings, re-check permissions when they come back.
+  useEffect(() => {
+    const sub = (AppState as any)?.addEventListener?.(
+      "change",
+      (state: any) => {
+        if (state !== "active") return;
+        if (userLocation) return;
+        setGpsBootstrapKey((k) => k + 1);
+      },
+    );
+
+    return () => {
+      sub?.remove?.();
+    };
+  }, [userLocation]);
 
   const userLat = userLocation?.lat ?? null;
   const userLng = userLocation?.lng ?? null;
@@ -552,6 +668,9 @@ export default function EmergencyServices() {
       return;
     }
 
+    const allowed = await canUseNearbyPlaceFeatures();
+    if (!allowed) return;
+
     if (userLat === null || userLng === null) {
       Alert.alert(
         "Waiting for GPS",
@@ -626,6 +745,9 @@ export default function EmergencyServices() {
       );
       return;
     }
+
+    const allowed = await canUseNearbyPlaceFeatures();
+    if (!allowed) return;
 
     console.log(
       `[Map] Starting search for ${item.name} at ${userLat}, ${userLng}`,
@@ -773,12 +895,10 @@ export default function EmergencyServices() {
    */
   const renderCard = (item: ServiceItem, opts?: { marginBottom?: number }) => {
     const isCallDisabled =
-      (loadingStatus?.id === item.id && loadingStatus?.type === "call") ||
-      (item.category === "place" && userLat === null);
+      loadingStatus?.id === item.id && loadingStatus?.type === "call";
 
     const isMapDisabled =
-      (loadingStatus?.id === item.id && loadingStatus?.type === "map") ||
-      (item.category === "place" && userLat === null);
+      loadingStatus?.id === item.id && loadingStatus?.type === "map";
 
     return (
       <View

@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import {
   Alert,
   Animated,
+  AppState,
   Easing,
   Linking,
   Modal,
@@ -91,41 +92,83 @@ export default function Index() {
   // show the popup once per app launch in dev.
   const hasShownLocationPrepromptThisLaunchRef = useRef(false);
 
+  // In dev (and sometimes in production), the JS runtime can stay alive across
+  // app background/resume, which makes "once per launch" feel like "never again".
+  // Reset the session flag when the app returns so the preprompt can re-appear
+  // on subsequent app opens if permission is still not granted.
+
   const closeLocationPreprompt = () => {
     setShowLocationPreprompt(false);
   };
 
   const getShouldShowLocationPreprompt = useCallback(async () => {
     try {
-      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
-        return true;
-      }
-
       const previousChoice = await AsyncStorage.getItem(
         LOCATION_PREPROMPT_CHOICE_KEY,
       );
+
+      // In Expo Go/dev, permissions are often already granted to Expo Go which can
+      // make it hard to validate the preprompt UX. Force-show once per launch
+      // regardless of stored choice (testing convenience).
+      if (
+        __DEV__ &&
+        !hasShownLocationPrepromptThisLaunchRef.current
+      ) {
+        return true;
+      }
 
       const fg = await Location.getForegroundPermissionsAsync();
 
       if (fg.status === "granted") return false;
 
+      // If the user tapped "Don’t Allow" in our in-app preprompt, do not keep
+      // showing this preprompt repeatedly within the same launch.
+      // However, if permission is still not granted, we do allow the sheet to
+      // appear again on a later launch so they can change their mind.
+      if (previousChoice === "deny") {
+        return !hasShownLocationPrepromptThisLaunchRef.current;
+      }
+
       // If the user never picked an option, show the popup.
       if (previousChoice == null) return true;
 
-      // Only respect our in-app "Don't Allow" after Android has permanently
-      // blocked OS prompts (canAskAgain=false).
-      const osPermanentlyBlocked =
-        fg.status === "denied" && fg.canAskAgain === false;
-      const userHardDenied = previousChoice === "deny" && osPermanentlyBlocked;
-
-      // After the user dismissed with "Don't Allow" AND OS is permanently
-      // blocked, don't keep showing.
-      return !userHardDenied;
+      // For any other stored state (e.g. allow_while but permission got revoked),
+      // it's ok to show the sheet again.
+      return true;
     } catch {
       // If anything fails (storage/permissions), show the explanatory sheet.
       return true;
     }
   }, []);
+
+  // On app resume, re-check whether we should show the preprompt.
+  // This covers the common case where the app wasn't fully killed (Expo Go/dev)
+  // and the user expects the prompt to appear again when re-opening the app.
+  useEffect(() => {
+    const sub = (AppState as any)?.addEventListener?.(
+      "change",
+      (state: any) => {
+        if (state !== "active") return;
+        hasShownLocationPrepromptThisLaunchRef.current = false;
+
+        void (async () => {
+          try {
+            const shouldShow = await getShouldShowLocationPreprompt();
+            if (shouldShow) {
+              hasShownLocationPrepromptThisLaunchRef.current = true;
+              setShowLocationPreprompt(true);
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      },
+    );
+
+    return () => {
+      sub?.remove?.();
+    };
+  }, [getShouldShowLocationPreprompt]);
 
   // sos button start
   const [sosMode, setSosMode] = useState<"off" | "single" | "triple">("off");
@@ -140,6 +183,20 @@ export default function Index() {
         "Background tracking is not supported on web.",
       );
       return false;
+    }
+
+    // Respect in-app "Don’t Allow" from the preprompt.
+    // When set, we behave like location is disabled and avoid OS prompts.
+    try {
+      const appChoice = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_CHOICE_KEY,
+      );
+      if (appChoice === "deny") {
+        Alert.alert("Enable location to continue");
+        return false;
+      }
+    } catch {
+      // ignore
     }
 
     let { status: fgStatus } =
@@ -197,6 +254,20 @@ export default function Index() {
       return;
     }
 
+    // Respect in-app "Don’t Allow" from the preprompt.
+    // SOS uses location for sharing/tracking, so we block it when disabled.
+    try {
+      const appChoice = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_CHOICE_KEY,
+      );
+      if (appChoice === "deny") {
+        Alert.alert("Enable location to continue");
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
     }
@@ -242,11 +313,13 @@ export default function Index() {
     tapTimerRef.current = setTimeout(async () => {
       if (tapCountRef.current === 1) {
         setSosMode("single");
-        await startContinuousTracking();
-        Alert.alert(
-          "Tracking Started",
-          "Your live location is now updating in the background.",
-        );
+        const trackingStarted = await startContinuousTracking();
+        if (trackingStarted) {
+          Alert.alert(
+            "Tracking Started",
+            "Your live location is now updating in the background.",
+          );
+        }
       }
 
       tapCountRef.current = 0;
@@ -304,11 +377,35 @@ export default function Index() {
     setLocationPrepromptBusy(true);
 
     try {
+      // If the user previously tapped "Don’t Allow", we store a local lock.
+      // When they now choose an Allow option, clear that lock so features can resume.
+      // IMPORTANT: We do NOT persist an "allow" choice here. For "Allow Once",
+      // the OS may grant only a temporary permission, and we want the preprompt
+      // to appear again next time if needed.
+      try {
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_CHOICE_KEY);
+      } catch {
+        // ignore
+      }
+
       // Close our in-app sheet before the OS prompt appears.
       setShowLocationPreprompt(false);
       await new Promise<void>((resolve) => setTimeout(resolve, 250));
 
-      await Location.requestForegroundPermissionsAsync();
+      const res = await Location.requestForegroundPermissionsAsync();
+
+      // Persist only for "Allow While Using App" so future launches don't
+      // show the preprompt again as long as OS permission remains granted.
+      if (choice === "while" && res.status === "granted") {
+        try {
+          await AsyncStorage.setItem(
+            LOCATION_PREPROMPT_CHOICE_KEY,
+            "allow_while",
+          );
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setLocationPrepromptBusy(false);
     }

@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   BackHandler,
   Dimensions,
   Easing,
@@ -267,6 +268,81 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [hasLocation, setHasLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const locationEnableBusyRef = useRef(false);
+  const hasShownLocationAccessNeededRef = useRef(false);
+
+  const enableLocationAndRefresh = useCallback(async () => {
+    if (locationEnableBusyRef.current) return;
+    locationEnableBusyRef.current = true;
+
+    try {
+      try {
+        await AsyncStorage.removeItem("location_preprompt_choice_v3");
+      } catch {
+        // ignore
+      }
+
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (res.status !== "granted") {
+        try {
+          await Linking.openSettings();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      setLoading(true);
+      setLocationDenied(false);
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        mayShowUserSettingsDialog: true,
+      });
+
+      const nextCoords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setCoords(nextCoords);
+      setCoordsAccuracyM(
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
+      );
+      setHasLocation(true);
+
+      const nextRegion: Region = {
+        latitude: nextCoords.latitude,
+        longitude: nextCoords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      setMapRegion(nextRegion);
+      mapRef.current?.animateToRegion(nextRegion, 450);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+      locationEnableBusyRef.current = false;
+    }
+  }, []);
+
+  const showLocationAccessNeeded = useCallback(() => {
+    Alert.alert(
+      "Location Access Needed",
+      "To show nearby hospitals and police stations,\nplease enable location access.",
+      [
+        {
+          text: "Enable Location",
+          onPress: () => {
+            void enableLocationAndRefresh();
+          },
+        },
+        { text: "Not Now", style: "cancel" },
+      ],
+    );
+  }, [enableLocationAndRefresh]);
 
   // ─────────────────────────────────────────────────────────────
   // Search state (top search bar)
@@ -1295,10 +1371,38 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
+        // Respect the in-app "Don’t Allow" choice from the Home preprompt.
+        // If set, we avoid prompting for location and keep the default center.
+        // We treat this as an app-level lock: even if the OS permission is
+        // granted (common in Expo Go), features stay blocked until the user
+        // explicitly enables location again.
+        try {
+          const appChoice = await AsyncStorage.getItem(
+            "location_preprompt_choice_v3",
+          );
+          if (appChoice === "deny") {
+            if (!hasShownLocationAccessNeededRef.current) {
+              hasShownLocationAccessNeededRef.current = true;
+              showLocationAccessNeeded();
+            }
+            setLocationDenied(true);
+            setHasLocation(false);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
         // Request permissions
         let { status } = await Location.requestForegroundPermissionsAsync();
 
         if (status !== "granted") {
+          try {
+            await AsyncStorage.setItem("location_preprompt_choice_v3", "deny");
+          } catch {
+            // ignore
+          }
           Alert.alert(
             "Permission Denied",
             "Location is required for safety features.",
@@ -1376,6 +1480,62 @@ export default function MapScreen() {
     });
 
     return () => subscription?.remove();
+  }, []);
+
+  // If the user enables location via Settings (e.g., from the Emergency popup),
+  // re-check permissions and refresh the map center when returning to the app.
+  useEffect(() => {
+    const sub = (AppState as any)?.addEventListener?.(
+      "change",
+      (state: any) => {
+        if (state !== "active") return;
+
+        void (async () => {
+          try {
+            const appChoice = await AsyncStorage.getItem(
+              "location_preprompt_choice_v3",
+            );
+            if (appChoice === "deny") return;
+
+            const perm = await Location.getForegroundPermissionsAsync();
+            if (perm.status !== "granted") return;
+
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+              mayShowUserSettingsDialog: true,
+            });
+
+            const nextCoords = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            setCoords(nextCoords);
+            setCoordsAccuracyM(
+              typeof location.coords.accuracy === "number"
+                ? location.coords.accuracy
+                : null,
+            );
+            setHasLocation(true);
+            setLocationDenied(false);
+
+            const nextRegion: Region = {
+              latitude: nextCoords.latitude,
+              longitude: nextCoords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+            setMapRegion(nextRegion);
+            mapRef.current?.animateToRegion(nextRegion, 450);
+          } catch {
+            // Ignore errors; banner remains until we can get a fix.
+          }
+        })();
+      },
+    );
+
+    return () => {
+      sub?.remove?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -1537,8 +1697,25 @@ export default function MapScreen() {
     setFollowUser(true);
 
     try {
+      try {
+        const appChoice = await AsyncStorage.getItem(
+          "location_preprompt_choice_v3",
+        );
+        if (appChoice === "deny") {
+          showLocationAccessNeeded();
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
+        try {
+          await AsyncStorage.setItem("location_preprompt_choice_v3", "deny");
+        } catch {
+          // ignore
+        }
         setLocationDenied(true);
         Alert.alert(
           "Permission Denied",
