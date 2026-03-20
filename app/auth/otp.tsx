@@ -1,7 +1,8 @@
 import { clearSignupDraft, getSignupDraft } from "@/lib/signup-draft";
 import { supabase } from "@/lib/superbase";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -103,6 +104,40 @@ export default function SignUpOtp() {
     }
   }
 
+  const requestDataSharingPermission = async (userId: string) => {
+    return new Promise<void>((resolve) => {
+      Alert.alert(
+        'Data Sharing',
+        'Allow Safety on Speed to share anonymous usage data to help improve the app?',
+        [
+          {
+            text: 'Decline',
+            style: 'cancel',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: false } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+              resolve();
+            }
+          },
+          {
+            text: 'Allow',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: true } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+              resolve();
+            }
+          }
+        ]
+      );
+    });
+  };
+
   async function handleVerify() {
     if (verifying) return;
     if (otp.length !== OTP_LENGTH) {
@@ -152,7 +187,10 @@ export default function SignUpOtp() {
         // Don't stop flow?
       }
 
-      // 4. Redirect to Guardian Setup
+      // 4. Ask data sharing permission ← add this
+      await requestDataSharingPermission(user.id);
+
+      // 5. Redirect to Guardian Setup ← this was 4 before
       clearSignupDraft();
       Alert.alert("Success", "Account created successfully!");
 
