@@ -48,9 +48,9 @@ export default function Profile() {
   // Toggles
   const [pushNotif, setPushNotif] = useState(true);
   const [AlertNotif, setAlertNotif] = useState(true);
-  const [personalDataAccess, setPersonalDataAccess] = useState(true);
-  const [cameraAccess, setCameraAccess] = useState(true);
-  const [liveLocation, setLiveLocation] = useState(true);
+  const [personalDataAccess, setPersonalDataAccess] = useState(false);
+  const [cameraAccess, setCameraAccess] = useState(false);
+  const [liveLocation, setLiveLocation] = useState(false);
   const [language, setLanguage] = useState("English");
   const [locationRegion, setLocationRegion] = useState("Choose");
 
@@ -94,9 +94,9 @@ export default function Profile() {
 
             if (!data.fullName || data.fullName.trim() === "") {
               Alert.alert(
-                "Profile Incomplete",
-                "Please update your name so we can identify you.",
-                [{ text: "Update Now", onPress: () => router.push("/editProfile") }]
+                t('profile_incomplete'),
+                t('profile_incomplete_msg'),
+                [{ text: t('update_now'), onPress: () => router.push("/editProfile") }]
               );
             }
           }
@@ -113,7 +113,7 @@ export default function Profile() {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user && isActive) {
-          setEmail(session.user.email || "No Email");
+          setEmail(session.user.email || t('no_email'));
         }
       });
 
@@ -147,7 +147,7 @@ export default function Profile() {
       setLocationRegion("Locating...");
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Please allow location access in settings.');
+        Alert.alert(t('permission_denied'), t('location_permission_msg'));
         setLocationRegion("Choose");
         return;
       }
@@ -164,16 +164,16 @@ export default function Profile() {
       }
     } catch (e) {
       console.log(e);
-      Alert.alert("Error", "Could not fetch GPS location.");
+      Alert.alert(t('error'), t('gps_error_msg'));
       setLocationRegion("Choose");
     }
   };
 
   const showLocationPicker = () => {
-    Alert.alert("Location Settings", "Choose an option", [
-      { text: "Use My GPS", onPress: fetchGPSLocation },
-      { text: "Choose Manually", onPress: () => setDistrictModalVisible(true) },
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t('location_settings'), t('choose_option'), [
+      { text: t('use_gps'), onPress: fetchGPSLocation },
+      { text: t('choose_manually'), onPress: () => setDistrictModalVisible(true) },
+      { text: t('cancel'), style: "cancel" },
     ]);
   };
 
@@ -185,7 +185,7 @@ export default function Profile() {
     if (field === "camera_access" && newValue) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Camera Access', 'Please allow camera access in your device settings.');
+        Alert.alert(t('camera_access_label'), t('camera_access_sub'));
         return;
       }
     }
@@ -193,7 +193,7 @@ export default function Profile() {
     if (field === "live_location" && newValue) {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Location Access', 'Please allow location access in your device settings.');
+        Alert.alert(t('permission_denied'), t('location_permission_msg'));
         return;
       }
     }
@@ -220,10 +220,10 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t('sign_out'), t('sign_out_confirm'), [
+      { text: t('cancel'), style: "cancel" },
       {
-        text: "Sign Out",
+        text: t('sign_out'),
         style: "destructive",
         onPress: async () => {
           await supabase.auth.signOut();
@@ -255,11 +255,11 @@ export default function Profile() {
   };
 
   const showLanguagePicker = () => {
-    Alert.alert("Select Language", "Choose your preferred language", [
+    Alert.alert(t('select_language'), t('choose_language'), [
       { text: "English", onPress: () => changeLanguage("en", "English") },
       { text: "සිංහල (Sinhala)", onPress: () => changeLanguage("si", "Sinhala") },
       { text: "தமிழ் (Tamil)", onPress: () => changeLanguage("ta", "Tamil") },
-      { text: "Cancel", style: "cancel" },
+      { text: t('cancel'), style: "cancel" },
     ]);
   };
 
@@ -327,7 +327,7 @@ export default function Profile() {
           />
           <View style={styles.modalCloseHint}>
             <Feather name="x-circle" size={20} color="white" />
-            <Text style={styles.modalCloseText}>Tap anywhere to close</Text>
+            <Text style={styles.modalCloseText}>{t('tap_to_close')}</Text>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -341,7 +341,7 @@ export default function Profile() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.pickerContainer, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Select District</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('select_district')}</Text>
             <ScrollView style={{ maxHeight: 400, width: '100%' }}>
               {SRI_LANKAN_DISTRICTS.map((item) => (
                 <TouchableOpacity
@@ -360,7 +360,7 @@ export default function Profile() {
               style={styles.closeButton}
               onPress={() => setDistrictModalVisible(false)}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Close</Text>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -390,10 +390,10 @@ export default function Profile() {
           ) : (
             <>
               <Text style={[styles.name, { color: theme.text }]}>
-                {fullName || "User Name"}
+                {fullName || t('user_name')}
               </Text>
               <Text style={[styles.email, { color: theme.text }]}>
-                {email || "No Email"}
+                {email || t('no_email')}
               </Text>
               {phoneNumber ? (
                 <Text style={[styles.email, { color: theme.text, marginTop: 2 }]}>

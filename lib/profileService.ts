@@ -33,9 +33,9 @@ export const getMergedProfileData = async () => {
       location: profileData?.location || null,
       pushNotif: profileData?.push_notif ?? true,
       alertNotif: profileData?.alert_notif ?? true,
-      personalDataAccess: profileData?.personal_data_access ?? true,
-      cameraAccess: profileData?.camera_access ?? true,
-      liveLocation: profileData?.live_location ?? true,
+      personalDataAccess: profileData?.personal_data_access ?? false,
+      cameraAccess: profileData?.camera_access ?? false,
+      liveLocation: profileData?.live_location ?? false,
     };
 
     return mergedData;
