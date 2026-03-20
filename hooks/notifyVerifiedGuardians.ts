@@ -100,10 +100,6 @@ export async function loadGuardianRecipients(
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) {
-    console.error("Error fetching guardians:", error);
-  }
-
   const remoteRecipients = extractGuardianRecipients(
     (data as GuardiansRow | null) ?? null,
   );
@@ -113,12 +109,24 @@ export async function loadGuardianRecipients(
   }
 
   const cachedRecipients = await loadCachedGuardians(userId);
-  return (cachedRecipients ?? []).map((recipient) => ({
+  const mappedCachedRecipients = (cachedRecipients ?? []).map((recipient) => ({
     isVerified: false,
     name: recipient.name.trim(),
     phone: normalizePhone(recipient.phone.trim()),
     whatsappNumber: normalizePhone(recipient.phone.trim()),
   }));
+
+  if (mappedCachedRecipients.length > 0) {
+    return mappedCachedRecipients;
+  }
+
+  if (error) {
+    throw new Error(
+      "Unable to load guardian contacts right now. Check your internet connection and try again.",
+    );
+  }
+
+  return mappedCachedRecipients;
 }
 
 export async function countGuardianRecipients(userId: string) {
