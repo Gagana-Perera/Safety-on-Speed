@@ -31,7 +31,6 @@ export const getMergedProfileData = async () => {
       // Your App Settings (Defaulting to true/safe values if empty)
       language: profileData?.language || "en",
       location: profileData?.location || null,
-      emailNotif: profileData?.email_notif ?? true,
       pushNotif: profileData?.push_notif ?? true,
       alertNotif: profileData?.alert_notif ?? true,
       personalDataAccess: profileData?.personal_data_access ?? true,

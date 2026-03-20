@@ -13,12 +13,10 @@ const resources = {
       location: "Location",
       
       notifications: "NOTIFICATIONS",
-      email_notif_label: "Email Notifications",
-      email_notif_sub: "Receive daily summaries",
       push_notif_label: "Push Notification",
       push_notif_sub: "Security & Update alerts",
       alert_notif_label: "Alert Notification",
-      alert_notif_sub: "Security & Update alerts",
+      alert_notif_sub: "SOS & Emergency alerts",
       
       privacy: "PRIVACY & PERMISSIONS",
       personal_data_label: "Personal Data Access",
@@ -96,12 +94,10 @@ const resources = {
       location: "ස්ථානය",
       
       notifications: "දැනුම්දීම්",
-      email_notif_label: "විද්‍යුත් තැපැල් දැනුම්දීම්",
-      email_notif_sub: "දෛනික සාරාංශ ලබා ගන්න",
       push_notif_label: "තල්ලු දැනුම්දීම්",
       push_notif_sub: "ආරක්ෂක සහ යාවත්කාලීන ඇඟවීම්",
       alert_notif_label: "ඇඟවීම් දැනුම්දීම්",
-      alert_notif_sub: "ආරක්ෂක සහ යාවත්කාලීන ඇඟවීම්",
+      alert_notif_sub: "SOS සහ හදිසි ඇඟවීම්",
       
       privacy: "පෞද්ගලිකත්වය සහ අවසර",
       personal_data_label: "පුද්ගලික දත්ත ප්‍රවේශය",
@@ -178,12 +174,10 @@ const resources = {
       location: "இடம்",
       
       notifications: "அறிவிப்புகள்",
-      email_notif_label: "மின்னஞ்சல் அறிவிப்புகள்",
-      email_notif_sub: "தினசரி சுருக்கங்களைப் பெறுங்கள்",
       push_notif_label: "புஷ் அறிவிப்பு",
       push_notif_sub: "பாதுகாப்பு மற்றும் புதுப்பிப்பு எச்சரிக்கைகள்",
       alert_notif_label: "எச்சரிக்கை அறிவிப்பு",
-      alert_notif_sub: "பாதுகாப்பு மற்றும் புதுப்பிப்பு எச்சரிக்கைகள்",
+      alert_notif_sub: "SOS மற்றும் அவசர எச்சரிக்கைகள்",
       
       privacy: "தனியுரிமை மற்றும் அனுமதிகள்",
       personal_data_label: "தனிப்பட்ட தரவு அணுகல்",
