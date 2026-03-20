@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
-import { useTheme } from "../themeContext";
+import { useTheme } from "@/components/theme/ThemeContext";
 
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";

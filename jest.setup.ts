@@ -1,9 +1,14 @@
 import "@testing-library/jest-native/extend-expect";
 
-jest.mock("@react-native-async-storage/async-storage", () =>
-  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+process.env.EXPO_PUBLIC_SUPABASE_KEY = "test-anon-key";
+
+jest.mock(
+  "@react-native-async-storage/async-storage",
+  () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
 );
 
+jest.mock("react-native-url-polyfill/auto", () => ({}));
 const originalConsoleWarn = console.warn;
 const originalConsoleError = console.error;
 const originalConsoleLog = console.log;

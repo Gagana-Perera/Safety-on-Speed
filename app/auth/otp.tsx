@@ -161,7 +161,7 @@ export default function SignUpOtp() {
         // Default: after OTP verification, land inside the app.
         "/(tabs)";
 
-      router.replace(nextRoute);
+      router.replace(nextRoute as any);
     } catch (error: any) {
       console.error(
         `[Signup OTP Error] Verification process failed. Context: email=${draft.email} | Error:`,

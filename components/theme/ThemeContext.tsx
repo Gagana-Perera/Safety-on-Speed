@@ -1,16 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
-// Define Colors
 const LightTheme = {
   mode: "light",
   background: "#FFFFFF",
   text: "#000000",
   card: "#F0F0F0",
   border: "#E0E0E0",
-  // Light mode: keep icons/SVGs solid black for maximum contrast.
   icon: "#000000",
 };
 
@@ -23,21 +21,41 @@ const DarkTheme = {
   icon: "#F0F0F0",
 };
 
-const ThemeContext = createContext({
+type ThemeContextValue = {
+  isDark: boolean;
+  theme: typeof LightTheme;
+  toggleTheme: () => void;
+};
+
+const ThemeContext = createContext<ThemeContextValue>({
   theme: LightTheme,
   isDark: false,
   toggleTheme: () => {},
 });
 
-export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+const THEME_STORAGE_KEY = "userTheme";
+
+const webThemeStorage = {
+  getItem: async (key: string) => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(key);
+  },
+  setItem: async (key: string, value: string) => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(key, value);
+  },
+};
+
+const themeStorage = Platform.OS === "web" ? webThemeStorage : AsyncStorage;
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const [isDark, setIsDark] = useState(systemScheme === "dark");
 
-  // Load saved theme
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem("userTheme");
+        const savedTheme = await themeStorage.getItem(THEME_STORAGE_KEY);
         if (savedTheme !== null) {
           setIsDark(savedTheme === "dark");
         }
@@ -45,17 +63,16 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("Error loading theme:", error);
       }
     };
-    loadTheme();
+
+    void loadTheme();
   }, []);
 
   const toggleTheme = async () => {
-    const newThemeStatus = !isDark;
-    setIsDark(newThemeStatus);
+    const nextIsDark = !isDark;
+    setIsDark(nextIsDark);
+
     try {
-      await AsyncStorage.setItem(
-        "userTheme",
-        newThemeStatus ? "dark" : "light",
-      );
+      await themeStorage.setItem(THEME_STORAGE_KEY, nextIsDark ? "dark" : "light");
     } catch (error) {
       console.log("Error saving theme:", error);
     }
@@ -65,12 +82,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
-      {/* CONTROL STATUS BAR HERE - This prevents the crash loop! */}
       <StatusBar style={isDark ? "light" : "dark"} />
-
       {children}
     </ThemeContext.Provider>
   );
-};
+}
 
-export const useTheme = () => useContext(ThemeContext);
+export function useTheme() {
+  return useContext(ThemeContext);
+}
