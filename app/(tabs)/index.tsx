@@ -120,23 +120,31 @@ export default function Index() {
   }, [clearEmergencyWindow, clearQuickTimer]);
 
   const getShouldShowLocationPreprompt = useCallback(async () => {
+    // 1. If we already showed it this launch, don't show it again.
+    if (hasShownLocationPrepromptThisLaunchRef.current) {
+      return false;
+    }
+
     try {
+      // 2. If already granted, no need to show at all.
+      const fg = await Location.getForegroundPermissionsAsync();
+      if (fg.status === "granted") return false;
+
+      // 3. Check persistent storage for previous decisions.
       const previousChoice = await AsyncStorage.getItem(
         LOCATION_PREPROMPT_CHOICE_KEY,
       );
 
-      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
-        return true;
-      }
+      // If they explicitly denied, we respect that and don't show it again this launch.
+      // (This is handled by the launch guard above, but kept for clarity).
+      if (previousChoice === "deny") return false;
 
-      const fg = await Location.getForegroundPermissionsAsync();
-      if (fg.status === "granted") return false;
+      // If they chose "allow_while", we check why it's not granted yet. 
+      // If it's not granted, it means they might have revoked it or it's a new session.
+      // We return true to help them get back to the right state.
+      if (previousChoice === "allow_while") return true;
 
-      if (previousChoice === "deny") {
-        return !hasShownLocationPrepromptThisLaunchRef.current;
-      }
-
-      if (previousChoice == null) return true;
+      // Default: If they haven't seen it or haven't made a permanent choice, show it.
       return true;
     } catch {
       return true;
@@ -779,18 +787,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.28)",
   },
   locationSheet: {
-    width: "78%",
-    maxWidth: 460,
-    minHeight: 340,
-    maxHeight: 420,
-    borderRadius: 22,
+    width: "82%",
+    maxWidth: 440,
+    borderRadius: Platform.OS === "ios" ? 22 : 12, // More Android-native feel
     overflow: "hidden",
     borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
-    elevation: 8,
+    elevation: 10,
   },
   locationSheetInner: {
     flex: 1,
@@ -800,14 +806,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   locationHeader: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 10,
   },
   locationMapWrap: {
     width: "100%",
-    paddingHorizontal: 14,
-    paddingBottom: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
   locationMapCard: {
     borderRadius: 14,
@@ -831,32 +837,33 @@ const styles = StyleSheet.create({
     color: "#2563eb",
   },
   locationTitle: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: "800",
     textAlign: "center",
   },
   locationBody: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
-    opacity: 0.9,
+    opacity: 0.85,
   },
   locationActions: {
-    backgroundColor: "rgba(240,240,240,0.96)",
+    backgroundColor: Platform.OS === "ios" ? "rgba(240,240,240,0.96)" : "#F8F8F8",
+    paddingBottom: Platform.OS === "android" ? 6 : 0, 
   },
   locationActionBtn: {
-    paddingVertical: 9,
+    paddingVertical: 14,
     alignItems: "center",
     borderTopWidth: 1,
   },
   locationActionBtnLast: {
-    paddingVertical: 9,
+    paddingVertical: 14,
     alignItems: "center",
     borderTopWidth: 1,
   },
   locationActionText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: Platform.OS === "ios" ? "600" : "700",
   },
 });
