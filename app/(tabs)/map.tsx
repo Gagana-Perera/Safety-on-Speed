@@ -36,6 +36,7 @@ import {
 import MapView, {
   Circle,
   LatLng,
+  type MapPressEvent,
   Marker,
   Polyline,
   PROVIDER_GOOGLE,
@@ -1006,6 +1007,14 @@ export default function MapScreen() {
   const [trafficEnabled, setTrafficEnabled] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
+
+  // Heatmap styling:
+  // - When only the heatmap is enabled (no POI chips/results and no selected place),
+  //   make circles slightly darker.
+  // - When POI results are shown (the user tapped a tab/chip) keep the circles lighter.
+  const heatmapDarkOnly =
+    heatmapEnabled && nearbyPlaces.length === 0 && !selectedPlace;
+
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
@@ -2303,7 +2312,7 @@ export default function MapScreen() {
     >
       <View style={styles.mapWrap}>
         <MapView
-          ref={(ref) => {
+          ref={(ref: MapView | null) => {
             mapRef.current = ref;
           }}
           style={[
@@ -2314,8 +2323,8 @@ export default function MapScreen() {
           {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
           initialRegion={initialRegion}
           onRegionChangeComplete={(
-            r,
-            details?: { isGesture?: boolean } | undefined,
+            r: Region,
+            details?: { isGesture?: boolean },
           ) => {
             setMapRegion(r);
 
@@ -2343,7 +2352,7 @@ export default function MapScreen() {
           maxZoomLevel={20}
           zoomControlEnabled={true}
           zoomTapEnabled={true}
-          onPress={(e) => {
+          onPress={(e: MapPressEvent) => {
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
@@ -2378,7 +2387,7 @@ export default function MapScreen() {
               if (details) moveToPlace(details);
             })();
           }}
-          onLongPress={(e) => {
+          onLongPress={(e: MapPressEvent) => {
             const apiKey = ensureGoogleApiKey();
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
@@ -2430,8 +2439,12 @@ export default function MapScreen() {
             ? sosHeatmapTowns.map((t) => {
                 const intensity = clamp(t.count / sosHeatmapMaxCount, 0, 1);
                 const radiusM = Math.min(9000, 650 * Math.sqrt(t.count) + 250);
-                const fillAlpha = 0.05 + intensity * 0.3;
-                const strokeAlpha = 0.1 + intensity * 0.45;
+                const fillAlpha = heatmapDarkOnly
+                  ? 0.08 + intensity * 0.36
+                  : 0.05 + intensity * 0.3;
+                const strokeAlpha = heatmapDarkOnly
+                  ? 0.14 + intensity * 0.5
+                  : 0.1 + intensity * 0.45;
                 const rgb = interpolateHeatmapRgb(intensity);
 
                 return (
@@ -2443,26 +2456,6 @@ export default function MapScreen() {
                       strokeColor={`rgba(${rgb.r},${rgb.g},${rgb.b},${strokeAlpha})`}
                       strokeWidth={2}
                     />
-
-                    <Marker
-                      coordinate={{
-                        latitude: t.latitude,
-                        longitude: t.longitude,
-                      }}
-                      title={t.town}
-                      description={`Total SOS alerts: ${t.count}`}
-                      tracksViewChanges={false}
-                      zIndex={999}
-                    >
-                      <View
-                        style={[
-                          styles.heatmapTownDot,
-                          {
-                            backgroundColor: `rgb(${rgb.r},${rgb.g},${rgb.b})`,
-                          },
-                        ]}
-                      />
-                    </Marker>
                   </React.Fragment>
                 );
               })
@@ -4323,7 +4316,8 @@ const styles = StyleSheet.create({
   },
   heatmapLegendRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 14,
     marginTop: 10,
   },
   heatmapLegendItem: {

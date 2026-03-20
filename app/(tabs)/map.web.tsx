@@ -385,7 +385,8 @@ const styles = StyleSheet.create({
   },
   heatmapLegendRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 14,
     marginTop: 10,
   },
   heatmapLegendItem: {
