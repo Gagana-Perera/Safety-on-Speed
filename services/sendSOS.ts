@@ -35,13 +35,17 @@ function parseJsonSafely(text: string) {
 
 async function getCurrentUserName(userId: string, fallbackName: string) {
   // We try the profile name first so the guardian sees a friendly sender name.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", userId)
-    .maybeSingle();
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
 
-  return profile?.full_name?.trim() || fallbackName;
+    return profile?.full_name?.trim() || fallbackName;
+  } catch {
+    return fallbackName;
+  }
 }
 
 export async function sendSOS(): Promise<SendSOSResponse> {
