@@ -438,6 +438,14 @@ export default function Profile() {
               type="link"
             />
           </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.push('/auth/editguardians')}>
+            <SettingRow
+              icon="users"
+              label={t('edit_guardian')}
+              type="link"
+            />
+          </TouchableOpacity>
         </View>
 
         {/* --- NOTIFICATIONS --- */}
