@@ -1,7 +1,8 @@
 import { Linking, Share, Alert } from "react-native";
 import type { Tables } from "@/database.types";
 import { loadCachedGuardians } from "@/lib/saveguardians";
-import { supabase } from "@/lib/superbase";
+import { supabase, supabaseKey, supabaseUrl } from "@/lib/superbase";
+import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
 
 export type SOSMode = "quick" | "emergency";
 
@@ -166,15 +167,21 @@ function buildBroadcastWhatsAppUrl(message: string) {
 }
 
 export async function dispatchGuardianAlert({
+  accuracy,
   guardians,
+  latitude,
   liveLocationLink,
+  longitude,
   mode,
   senderName,
   sessionId,
   startedAt,
 }: {
+  accuracy?: number | null;
   guardians: GuardianRecipient[];
+  latitude: number;
   liveLocationLink: string;
+  longitude: number;
   mode: SOSMode;
   senderName: string;
   sessionId: string;
@@ -196,8 +203,34 @@ export async function dispatchGuardianAlert({
     };
   }
 
-  const webhookUrl = process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim();
-  if (!webhookUrl) {
+  try {
+    await supabase.auth.refreshSession();
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    const data = await sendSOSWhatsAppAlert(guardians.map((g) => g.phone));
+    
+    const method: GuardianAlertDeliveryMethod = "whatsapp-api";
+
+    return {
+      guardianCount: guardians.length,
+      message:
+        typeof data?.message === "string" &&
+        data.message.trim().length > 0
+          ? data.message
+          : message,
+      method,
+      status: "sent",
+    };
+  } catch (error) {
+    console.error("[dispatchGuardianAlert] Error:", error);
+    // If auto-delivery fails, we fallback to manual whatsapp if possible.
     return {
       guardianCount: guardians.length,
       message,
@@ -205,71 +238,6 @@ export async function dispatchGuardianAlert({
       status: "pending",
     };
   }
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const response = await fetch(webhookUrl, {
-    body: JSON.stringify({
-      guardians,
-      liveLocationLink,
-      message,
-      mode,
-      senderName,
-      sessionId,
-      startedAt,
-    }),
-    headers: {
-      ...(process.env.EXPO_PUBLIC_SUPABASE_KEY
-        ? { apikey: process.env.EXPO_PUBLIC_SUPABASE_KEY }
-        : {}),
-      ...(session?.access_token
-        ? { Authorization: `Bearer ${session.access_token}` }
-        : {}),
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const rawBody = await response.text().catch(() => "");
-    let errorMessage = rawBody.trim();
-
-    if (rawBody) {
-      try {
-        const parsed = JSON.parse(rawBody) as { error?: unknown; message?: unknown };
-        if (typeof parsed.error === "string" && parsed.error.trim().length > 0) {
-          errorMessage = parsed.error;
-        } else if (
-          typeof parsed.message === "string" &&
-          parsed.message.trim().length > 0
-        ) {
-          errorMessage = parsed.message;
-        }
-      } catch {
-        // Leave the plain-text response body as-is.
-      }
-    }
-
-    throw new Error(errorMessage || "Guardian alert delivery failed.");
-  }
-
-  const responseBody = (await response
-    .json()
-    .catch(() => null)) as AlertWebhookSuccessResponse | null;
-  const method: GuardianAlertDeliveryMethod =
-    responseBody?.provider === "sms" ? "sms-api" : "whatsapp-api";
-
-  return {
-    guardianCount: guardians.length,
-    message:
-      typeof responseBody?.message === "string" && responseBody.message.trim().length > 0
-        ? responseBody.message
-        : message,
-    method,
-    status: "sent",
-  };
 }
 
 export async function openGuardianAlertComposer({
