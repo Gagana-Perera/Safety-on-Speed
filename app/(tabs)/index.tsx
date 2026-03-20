@@ -8,27 +8,26 @@ import {
 } from "@/lib/sosTap";
 import { useInternetStatus } from "@/hooks/useInternetStatus";
 import { supabase } from "@/lib/superbase";
+import { sendSOS } from "@/services/sendSOS";
+import { startSOSConference } from "@/services/startSOSConference";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as TaskManager from "expo-task-manager";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import i18n from "../../lib/i18n";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
   Animated,
   AppState,
-  Easing,
-  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -125,6 +124,9 @@ export default function Index() {
         LOCATION_PREPROMPT_CHOICE_KEY,
       );
 
+      // In Expo Go/dev, permissions are often already granted to Expo Go which can
+      // make it hard to validate the preprompt UX. Force-show once per launch
+      // regardless of stored choice (testing convenience).
       if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
         return true;
       }
@@ -158,7 +160,9 @@ export default function Index() {
         return;
       }
 
-      const guardianTotal = await countGuardianRecipients(userId).catch(() => 0);
+      const guardianTotal = await countGuardianRecipients(userId).catch(
+        () => 0,
+      );
       const servicesEnabled = await Location.hasServicesEnabledAsync().catch(
         () => false,
       );
@@ -209,7 +213,7 @@ export default function Index() {
       setLaunchMode(null);
       resetTapSequence();
       void loadDashboardState();
-      
+
       let cancelled = false;
       void (async () => {
         const shouldShow = await getShouldShowLocationPreprompt();
@@ -354,19 +358,60 @@ export default function Index() {
       () => undefined,
     );
 
-    if (nextTaps.length === 1) {
-      clearQuickTimer();
-      clearEmergencyWindow();
+    try {
+      const conferenceUrl =
+        process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL?.trim() ||
+        String(
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL ??
+            "",
+        ).trim();
+      const smsUrl =
+        process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim() ||
+        String(
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL ?? "",
+        ).trim();
 
-      quickTimerRef.current = setTimeout(() => {
-        triggerSOSFlow("quick");
-      }, EMERGENCY_SOS_TAP_WINDOW_MS);
+      if (!conferenceUrl && !smsUrl) {
+        throw new Error(
+          "Set EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL (conference calls) or EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL (SMS) in your Expo .env file.",
+        );
+      }
 
-      emergencyWindowRef.current = setTimeout(() => {
-        resetTapSequence();
-      }, EMERGENCY_SOS_TAP_WINDOW_MS);
+      const useConference = Boolean(conferenceUrl);
+      const result = useConference
+        ? await startSOSConference()
+        : await sendSOS();
+      const sentLabel =
+        result.sentCount === 1 ? "1 guardian" : `${result.sentCount} guardians`;
+      const failedLabel =
+        result.failedCount > 0
+          ? ` ${result.failedCount} delivery attempt(s) failed.`
+          : "";
 
-      return;
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => undefined);
+
+      Alert.alert(
+        "SOS Sent",
+        useConference
+          ? `Conference calls started for ${sentLabel}.${failedLabel}`
+          : `Your current location was sent by SMS to ${sentLabel}.${failedLabel}`,
+      );
+    } catch (error) {
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Error,
+      ).catch(() => undefined);
+
+      Alert.alert(
+        "SOS Failed",
+        error instanceof Error
+          ? error.message
+          : "Unable to send the SOS alert right now.",
+      );
+    } finally {
+      setIsSendingSOS(false);
+      void loadDashboardState();
     }
 
     if (nextTaps.length >= 3) {
@@ -402,6 +447,7 @@ export default function Index() {
             styles.heroCard,
             {
               backgroundColor: theme.card,
+
               borderColor: theme.border,
             },
           ]}
@@ -484,7 +530,8 @@ export default function Index() {
               {formatGpsStatus(gpsStatus)}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
-              Location access is required for live tracking.
+              Location access is required before the app can send your SMS
+              alert.
             </Text>
           </View>
 
@@ -521,7 +568,7 @@ export default function Index() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push("/auth/addguardians")}
+            onPress={() => router.push("/auth/addguardians" as any)}
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>

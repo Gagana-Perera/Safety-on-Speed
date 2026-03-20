@@ -2,19 +2,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Origin": "*",
-};
-
-type AlertType = "emergency" | "normal";
-
 type RequestBody = {
   accuracy?: number | null;
   latitude?: number;
   longitude?: number;
-  message?: string;
   userName?: string;
 };
 
@@ -28,6 +19,12 @@ type TwilioErrorBody = {
   message?: string;
 };
 
+const corsHeaders = {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+};
+
 function jsonResponse(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     headers: {
@@ -38,24 +35,18 @@ function jsonResponse(status: number, body: Record<string, unknown>) {
   });
 }
 
+function xmlResponse(status: number, xml: string) {
+  return new Response(xml, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/xml; charset=utf-8",
+    },
+    status,
+  });
+}
+
 function isValidE164PhoneNumber(phone: string) {
   return /^\+\d{8,15}$/.test(phone.trim());
-}
-
-function buildGoogleMapsUrl(latitude: number, longitude: number) {
-  return `https://www.google.com/maps?q=${latitude},${longitude}`;
-}
-
-function buildSmsMessage(
-  alertType: AlertType,
-  userName: string,
-  mapsLink: string,
-) {
-  if (alertType === "emergency") {
-    return `EMERGENCY SOS: ${userName} triggered a critical alert. Location: ${mapsLink}. Immediate attention required.`;
-  }
-
-  return `SOS ALERT: ${userName} may be in danger. Location: ${mapsLink}. Please check immediately.`;
 }
 
 function buildTwilioAuthHeader(accountSid: string, authToken: string) {
@@ -103,11 +94,26 @@ async function loadGuardianPhonesForUser(
   return [...new Set(phones)].slice(0, 5);
 }
 
+function xmlEscape(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function safeConferenceName(raw: string) {
+  // Twilio conference names are simple strings; keep it predictable.
+  // Allow letters, numbers, dash, underscore, dot.
+  const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 120);
+  return cleaned || `sos-${crypto.randomUUID()}`;
+}
+
 async function createSOSHistoryRecord(
   supabase: ReturnType<typeof createClient>,
   {
     accuracy,
-    alertType,
     guardianCount,
     latitude,
     longitude,
@@ -115,7 +121,6 @@ async function createSOSHistoryRecord(
     userName,
   }: {
     accuracy: number | null;
-    alertType: AlertType;
     guardianCount: number;
     latitude: number;
     longitude: number;
@@ -123,14 +128,13 @@ async function createSOSHistoryRecord(
     userName: string;
   },
 ) {
-  // Each one-time SOS SMS creates a completed session record plus one location point.
   const startedAt = new Date().toISOString();
 
   const { data: sessionRow, error: sessionError } = await supabase
     .from("sos_sessions")
     .insert({
       accuracy,
-      alert_delivery_method: "sms-api",
+      alert_delivery_method: "voice-conference",
       alert_delivery_status: "pending",
       ended_at: startedAt,
       first_lat: latitude,
@@ -139,7 +143,7 @@ async function createSOSHistoryRecord(
       last_lat: latitude,
       last_lng: longitude,
       last_updated_at: startedAt,
-      mode: alertType === "emergency" ? "emergency" : "quick",
+      mode: "emergency",
       status: "ended",
       user_id: userId,
       user_name: userName,
@@ -148,18 +152,25 @@ async function createSOSHistoryRecord(
     .single();
 
   if (sessionError || !sessionRow?.id) {
-    console.warn("SOS history record creation failed (SMS will still be attempted):", sessionError?.message);
-    return null;
+    throw new Error(
+      sessionError?.message || "Unable to create the SOS history record.",
+    );
   }
 
-  await supabase.from("sos_locations").insert({
+  const { error: locationError } = await supabase.from("sos_locations").insert({
     accuracy,
     lat: latitude,
     lng: longitude,
     session_id: sessionRow.id,
-  } as any);
+  } as never);
 
-  return sessionRow.id;
+  if (locationError) {
+    throw new Error(
+      locationError.message || "Unable to save the SOS location history.",
+    );
+  }
+
+  return sessionRow.id as string;
 }
 
 async function finalizeSOSHistoryRecord(
@@ -185,16 +196,80 @@ async function finalizeSOSHistoryRecord(
   }
 }
 
+function buildTwiml(conferenceName: string, userName: string) {
+  const escapedConference = xmlEscape(conferenceName);
+  const escapedName = xmlEscape(userName);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Emergency alert from ${escapedName}. Joining safety conference.</Say>
+  <Dial>
+    <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="false">${escapedConference}</Conference>
+  </Dial>
+</Response>`;
+}
+
+function buildTwimlUrl({
+  requestUrl,
+  conferenceName,
+  userName,
+  token,
+}: {
+  requestUrl: URL;
+  conferenceName: string;
+  userName: string;
+  token: string;
+}) {
+  const basePath = requestUrl.pathname.replace(/\/$/, "");
+  const twimlPath = basePath.endsWith("/twiml")
+    ? basePath
+    : `${basePath}/twiml`;
+
+  const twimlUrl = new URL(`${requestUrl.origin}${twimlPath}`);
+  twimlUrl.searchParams.set("conference", conferenceName);
+  twimlUrl.searchParams.set("userName", userName);
+  twimlUrl.searchParams.set("token", token);
+  return twimlUrl.toString();
+}
+
 Deno.serve(async (request: Request) => {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  const isTwimlRequest = pathname.endsWith("/twiml");
+
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Twilio hits this URL (no Authorization header) to fetch TwiML.
+  if (isTwimlRequest) {
+    if (request.method !== "GET") {
+      return jsonResponse(405, {
+        error: "Method not allowed.",
+        success: false,
+      });
+    }
+
+    const token = url.searchParams.get("token")?.trim() ?? "";
+    const expectedToken = Deno.env.get("TWILIO_TWIML_TOKEN")?.trim() ?? "";
+
+    if (!expectedToken || token !== expectedToken) {
+      return jsonResponse(401, { error: "Unauthorized.", success: false });
+    }
+
+    const conferenceName = safeConferenceName(
+      url.searchParams.get("conference")?.trim() ?? "sos-conference",
+    );
+
+    const userName =
+      url.searchParams.get("userName")?.trim() || "Safety on Speed user";
+
+    return xmlResponse(200, buildTwiml(conferenceName, userName));
+  }
+
+  // Start conference + dial guardians.
   if (request.method !== "POST") {
-    return jsonResponse(405, {
-      error: "Method not allowed.",
-      success: false,
-    });
+    return jsonResponse(405, { error: "Method not allowed.", success: false });
   }
 
   try {
@@ -212,30 +287,43 @@ Deno.serve(async (request: Request) => {
       });
     }
 
-    // --- AUTH BYPASS START ---
-    // We are skipping the getUser() check because of the persistent 401 Invalid JWT issues.
-    // This allows the Twilio SMS to send regardless of token synchronization problems.
-    const user = { id: "00000000-0000-0000-0000-000000000000" }; // Mock ID
-    
-    // Initialize the client without specific Authorization headers
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    // --- AUTH BYPASS END ---
+    if (!authHeader) {
+      return jsonResponse(401, {
+        error: "Missing Authorization header.",
+        success: false,
+      });
+    }
 
-    // The Expo app sends one current GPS reading.
-    // Guardian numbers are loaded server-side from the logged-in user's saved guardians.
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return jsonResponse(401, { error: "Unauthorized.", success: false });
+    }
+
     const body = (await request.json().catch(() => null)) as RequestBody | null;
     const accuracy =
       typeof body?.accuracy === "number" && Number.isFinite(body.accuracy)
         ? body.accuracy
         : null;
-    const alertType: AlertType =
-      body?.alertType === "emergency" ? "emergency" : "normal";
     const latitude = Number(body?.latitude);
     const longitude = Number(body?.longitude);
+
     const userName =
       typeof body?.userName === "string" && body.userName.trim().length > 0
         ? body.userName.trim()
         : "Safety on Speed user";
+
     const guardians = await loadGuardianPhonesForUser(supabase, user.id);
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -255,35 +343,50 @@ Deno.serve(async (request: Request) => {
 
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID")?.trim();
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN")?.trim();
-    const twilioMessagingServiceSid = Deno.env.get(
-      "TWILIO_MESSAGING_SERVICE_SID",
-    )?.trim();
-    const twilioFromNumber = Deno.env.get("TWILIO_FROM_NUMBER")?.trim();
 
-    // Twilio secrets stay server-side so they are never exposed in the app bundle.
-    if (
-      !twilioAccountSid ||
-      !twilioAuthToken ||
-      (!twilioMessagingServiceSid && !twilioFromNumber)
-    ) {
+    // Use a dedicated voice-capable number if provided.
+    const twilioFromNumber =
+      Deno.env.get("TWILIO_VOICE_FROM_NUMBER")?.trim() ||
+      Deno.env.get("TWILIO_FROM_NUMBER")?.trim();
+
+    const twimlToken = Deno.env.get("TWILIO_TWIML_TOKEN")?.trim();
+
+    if (!twilioAccountSid || !twilioAuthToken || !twilioFromNumber) {
       return jsonResponse(500, {
         error:
-          "Twilio secrets are missing. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and either TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER.",
+          "Twilio secrets are missing. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VOICE_FROM_NUMBER (or TWILIO_FROM_NUMBER).",
         success: false,
       });
     }
 
-    const mapsLink = buildGoogleMapsUrl(latitude, longitude);
-    const smsBody = customMessage ?? buildSmsMessage(alertType, userName, mapsLink);
+    if (!twimlToken) {
+      return jsonResponse(500, {
+        error:
+          "Missing TWILIO_TWIML_TOKEN secret for TwiML endpoint protection.",
+        success: false,
+      });
+    }
+
+    const conferenceName = safeConferenceName(
+      `sos-${user.id}-${new Date().toISOString()}`,
+    );
+
     const historySessionId = await createSOSHistoryRecord(supabase, {
       accuracy,
-      alertType,
       guardianCount: guardians.length,
       latitude,
       longitude,
       userId: user.id,
       userName,
     });
+
+    const twimlUrl = buildTwimlUrl({
+      requestUrl: url,
+      conferenceName,
+      userName,
+      token: twimlToken,
+    });
+
     const results: Array<{
       error?: string;
       sid?: string;
@@ -291,20 +394,16 @@ Deno.serve(async (request: Request) => {
       to: string;
     }> = [];
 
-    // Twilio sends one SMS per guardian so each result can be tracked separately.
     for (const guardian of guardians) {
       try {
         const params = new URLSearchParams();
-        if (twilioMessagingServiceSid) {
-          params.set("MessagingServiceSid", twilioMessagingServiceSid);
-        } else if (twilioFromNumber) {
-          params.set("From", twilioFromNumber);
-        }
+        params.set("From", twilioFromNumber);
         params.set("To", guardian);
-        params.set("Body", smsBody);
+        params.set("Url", twimlUrl);
+        params.set("Method", "GET");
 
         const response = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`,
           {
             body: params.toString(),
             headers: {
@@ -324,7 +423,7 @@ Deno.serve(async (request: Request) => {
             .catch(() => null)) as TwilioErrorBody | null;
 
           results.push({
-            error: errorBody?.message || "Twilio SMS request failed.",
+            error: errorBody?.message || "Twilio call request failed.",
             status: "failed",
             to: guardian,
           });
@@ -345,7 +444,7 @@ Deno.serve(async (request: Request) => {
           error:
             error instanceof Error
               ? error.message
-              : "Unexpected error while sending SMS.",
+              : "Unexpected error while starting call.",
           status: "failed",
           to: guardian,
         });
@@ -354,7 +453,6 @@ Deno.serve(async (request: Request) => {
 
     const sentCount = results.filter((item) => item.status === "sent").length;
     const failedCount = results.length - sentCount;
-    const firstFailure = results.find((item) => item.status === "failed");
 
     await finalizeSOSHistoryRecord(supabase, {
       sessionId: historySessionId,
@@ -362,17 +460,13 @@ Deno.serve(async (request: Request) => {
     });
 
     return jsonResponse(sentCount > 0 ? 200 : 502, {
-      error:
-        sentCount > 0
-          ? undefined
-          : firstFailure?.error || "Failed to send SOS SMS.",
+      conferenceName,
       failedCount,
       historySessionId,
       message:
         sentCount > 0
-          ? `SOS SMS sent to ${sentCount} guardian(s).`
-          : firstFailure?.error || "Failed to send SOS SMS.",
-      provider: "sms",
+          ? `Conference calls started for ${sentCount} guardian(s).`
+          : "Failed to start conference calls.",
       results,
       sentCount,
       success: sentCount > 0,
@@ -382,7 +476,7 @@ Deno.serve(async (request: Request) => {
       error:
         error instanceof Error
           ? error.message
-          : "Unexpected error while sending SOS SMS.",
+          : "Unexpected error while starting SOS conference calls.",
       success: false,
     });
   }
