@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Text, View, StyleSheet, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, Modal, Pressable } from "react-native";
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost } from '@/lib/newsApi';
-import { router } from 'expo-router';
 import { useTheme } from './themeContext';
 
-export default function CreatePost() {
+interface CreatePostProps {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export default function CreatePost({ visible, onClose, onSuccess }: CreatePostProps) {
   const { theme } = useTheme();
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");
@@ -34,10 +38,6 @@ export default function CreatePost() {
     }
   };
 
-  const removeImage = () => {
-    setImage(null);
-  };
-
   const handleSubmit = async () => {
     if (!subject.trim() || !body.trim()) {
       Alert.alert("Missing Fields", "Please fill in both subject and body.");
@@ -48,23 +48,26 @@ export default function CreatePost() {
       setUploading(true);
       
       const newPost = {
+        postId: `post_${Date.now()}`,
         postTopic: subject,
         postTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         postDate: new Date().toLocaleDateString('en-US'),
         postBody: body,
-        // media: image || undefined,
-        // likes: 0,
+        postImage: image || undefined,
       };
 
       const result = await createPost(newPost);
       
       if (result) {
         Alert.alert("Success", "Post created successfully!", [
-          { text: "OK", onPress: () => router.back() }
+          { text: "OK", onPress: () => {
+            setSubject("");
+            setBody("");
+            setImage(null);
+            onSuccess?.();
+            onClose();
+          }}
         ]);
-        setSubject("");
-        setBody("");
-        setImage(null);
       } else {
         Alert.alert("Error", "Failed to create post. Please try again.");
       }
@@ -77,26 +80,21 @@ export default function CreatePost() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Create Post</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={[styles.postCard, { backgroundColor: theme.card }]}>
-          <View style={styles.postHeader}>
-            <View style={styles.userInfo}>
-              <View style={styles.avatar} />
-              <View>
-                <Text style={[styles.username, { color: theme.text }]}>CurrentUser</Text>
-                <Text style={[styles.postTime, { color: theme.text }]}>Now</Text>
-              </View>
-            </View>
-          </View>
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable 
+        style={styles.overlay}
+        onPress={onClose}
+      >
+        <Pressable 
+          style={[styles.modalContent, { backgroundColor: theme.card }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <Text style={[styles.modalTitle, { color: theme.text }]}>Create Post</Text>
 
           <View style={styles.bodyContainer}>
             <TextInput
@@ -115,7 +113,7 @@ export default function CreatePost() {
               value={body}
               onChangeText={setBody}
               multiline
-              numberOfLines={6}
+              numberOfLines={4}
               textAlignVertical="top"
             />
           </View>
@@ -129,7 +127,7 @@ export default function CreatePost() {
               />
               <TouchableOpacity 
                 style={styles.removeImageButton}
-                onPress={removeImage}
+                onPress={() => setImage(null)}
               >
                 <MaterialIcons name="close" size={20} color={theme.text} />
               </TouchableOpacity>
@@ -145,25 +143,46 @@ export default function CreatePost() {
               <Text style={[styles.actionIcon, { color: theme.text }]}>Add Image</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <TouchableOpacity 
-          style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <ActivityIndicator color={theme.text} />
-          ) : (
-            <Text style={[styles.submitButtonText, { color: theme.text }]}>Post</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+          <TouchableOpacity 
+            style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator color={theme.text} />
+            ) : (
+              <Text style={[styles.submitButtonText, { color: theme.text }]}>Post</Text>
+            )}
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    borderRadius: 15,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 15,
+    marginTop: 10,
+    textAlign: 'center',
+  },
   container: {
     flex: 1,
   },
@@ -197,30 +216,6 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     elevation: 2,
   },
-  postHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#4A9EFF",
-  },
-  username: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  postTime: {
-    fontSize: 12,
-  },
   bodyContainer: {
     marginBottom: 15,
   },
@@ -236,7 +231,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   bodyInput: {
-    minHeight: 120,
+    minHeight: 100,
   },
   mediaContainer: {
     borderRadius: 15,
@@ -245,7 +240,7 @@ const styles = StyleSheet.create({
   },
   mediaImage: {
     width: "100%",
-    height: 200,
+    height: 150,
     borderRadius: 10,
   },
   removeImageButton: {
@@ -259,6 +254,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: "row",
     gap: 20,
+    marginBottom: 15,
   },
   actionButton: {
     padding: 5,
@@ -271,9 +267,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: "#0494CB",
-    marginHorizontal: 15,
-    marginVertical: 10,
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -288,7 +282,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
   },
 });
