@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "./global.css";
-import { ThemeProvider, useTheme } from "./themeContext";
+import "@/lib/sosTask";
+import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
 
 function RootLayoutNav() {
   // Now this works because this component is INSIDE the ThemeProvider
@@ -24,6 +25,9 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/change-password" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editProfile" />
+        <Stack.Screen name="sos/loading" />
+        <Stack.Screen name="sos/active" />
+        <Stack.Screen name="sos/[token]" />
         <Stack.Screen
           name="report"
           options={{ presentation: "transparentModal", animation: "fade" }}

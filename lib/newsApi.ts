@@ -62,7 +62,7 @@ export const fetchPosts = async (): Promise<Post[]> => {
 };
 
 // Create a new post
-export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise<Post | null> => {
+export const createPost = async (post: Omit<Post, 'postpostId' | 'created_at'>): Promise<Post | null> => {
   const { data, error } = await supabase
     .from('posts')
     .insert([post])

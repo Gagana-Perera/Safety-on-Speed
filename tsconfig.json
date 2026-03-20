@@ -4,9 +4,12 @@
     "strict": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    "moduleSuffixes": [".native", ".ios", ".android", ".web", ""],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
+      "@/*": [
+        "./*"
+      ],
       "@expo/vector-icons": [
         "./node_modules/@expo/vector-icons/build/Icons.d.ts"
       ]
@@ -17,7 +20,14 @@
     "**/*.ts",
     "**/*.tsx",
     "nativewind-env.d.ts",
-    "declarations.d.ts"
+    "declarations.d.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "build"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "supabase/functions"
+  ]
 }

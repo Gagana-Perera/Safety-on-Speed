@@ -56,7 +56,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
         postImage: image || undefined,
       };
 
-      const result = await createPost(newPost);
+      const result = await createPost(newPost as any);
       
       if (result) {
         Alert.alert("Success", "Post created successfully!", [

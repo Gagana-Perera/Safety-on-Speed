@@ -34,7 +34,7 @@ export default function SessionGate() {
   }
 
   return loggedIn ? (
-    <Redirect href="/(tabs)/" />
+    <Redirect href="/(tabs)" />
   ) : (
     <Redirect href="/auth/login" />
   );
