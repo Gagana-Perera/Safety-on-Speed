@@ -20,7 +20,6 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
-import BackButton from "../backButton";
 import { useTheme } from "@/components/theme/ThemeContext";
 
 const SRI_LANKAN_DISTRICTS = [
@@ -46,12 +45,11 @@ export default function Profile() {
   const [viewingAvatar, setViewingAvatar] = useState(false);
 
   // Toggles
-  const [emailNotif, setEmailNotif] = useState(true);
   const [pushNotif, setPushNotif] = useState(true);
   const [AlertNotif, setAlertNotif] = useState(true);
-  const [personalDataAccess, setPersonalDataAccess] = useState(true);
-  const [cameraAccess, setCameraAccess] = useState(true);
-  const [liveLocation, setLiveLocation] = useState(true);
+  const [personalDataAccess, setPersonalDataAccess] = useState(false);
+  const [cameraAccess, setCameraAccess] = useState(false);
+  const [liveLocation, setLiveLocation] = useState(false);
   const [language, setLanguage] = useState("English");
   const [locationRegion, setLocationRegion] = useState("Choose");
 
@@ -64,65 +62,57 @@ export default function Profile() {
       let isActive = true;
 
       const fetchProfileData = async () => {
-      try {
-        if (isActive) setLoading(true);
+        try {
+          if (isActive) setLoading(true);
 
-        // Fetch the merged data from your new service
-        const data = await getMergedProfileData();
+          const data = await getMergedProfileData();
 
-        if (isActive && data) {
-          // 1. Basic Information
-          setFullName(data.fullName);
-          setEmail(data.email);
-          setPhoneNumber(data.phone);
-          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
+          if (isActive && data) {
+            setFullName(data.fullName);
+            setEmail(data.email);
+            setPhoneNumber(data.phone);
+            if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
 
-          // 2. Location
-          if (data.location) {
-            setLocationRegion(data.location);
+            if (data.location) {
+              setLocationRegion(data.location);
+            }
+
+            if (data.language === 'si') setLanguage('Sinhala');
+            else if (data.language === 'ta') setLanguage('Tamil');
+            else setLanguage('English');
+
+            if (i18n && typeof i18n.changeLanguage === 'function') {
+              i18n.changeLanguage(data.language);
+            }
+
+            setPushNotif(data.pushNotif);
+            setAlertNotif(data.alertNotif);
+            setPersonalDataAccess(data.personalDataAccess);
+            setCameraAccess(data.cameraAccess);
+            setLiveLocation(data.liveLocation);
+
+            if (!data.fullName || data.fullName.trim() === "") {
+              Alert.alert(
+                t('profile_incomplete'),
+                t('profile_incomplete_msg'),
+                [{ text: t('update_now'), onPress: () => router.push("/editProfile") }]
+              );
+            }
           }
-
-          // 3. Language & Translations
-          if (data.language === 'si') setLanguage('Sinhala');
-          else if (data.language === 'ta') setLanguage('Tamil');
-          else setLanguage('English');
-
-          if (i18n && typeof i18n.changeLanguage === 'function') {
-            i18n.changeLanguage(data.language);
-          }
-
-          // 4. Notification & Privacy Toggles
-          setEmailNotif(data.emailNotif);
-          setPushNotif(data.pushNotif);
-          setAlertNotif(data.alertNotif);
-          setPersonalDataAccess(data.personalDataAccess);
-          setCameraAccess(data.cameraAccess);
-          setLiveLocation(data.liveLocation);
-
-          // 5. Missing Name Alert
-          if (!data.fullName || data.fullName.trim() === "") {
-            Alert.alert(
-              "Profile Incomplete",
-              "Please update your name so we can identify you.",
-              [{ text: "Update Now", onPress: () => router.push("/editProfile") }]
-            );
-          }
+        } catch (error) {
+          console.error("Error setting profile data:", error);
+        } finally {
+          if (isActive) setLoading(false);
         }
-      } catch (error) {
-        console.error("Error setting profile data:", error);
-      } finally {
-        if (isActive) setLoading(false);
-      }
-    };
+      };
 
       fetchProfileData();
 
-      // Listen for auth state changes
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user && isActive) {
-          setEmail(session.user.email || "No Email");
+          setEmail(session.user.email || t('no_email'));
         }
       });
 
@@ -135,7 +125,7 @@ export default function Profile() {
 
   // --- LOCATION LOGIC ---
   const updateLocationInDB = async (newLoc: string) => {
-    setLocationRegion(newLoc); // Update UI instantly
+    setLocationRegion(newLoc);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -156,7 +146,7 @@ export default function Profile() {
       setLocationRegion("Locating...");
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Please allow location access in settings.');
+        Alert.alert(t('permission_denied'), t('location_permission_msg'));
         setLocationRegion("Choose");
         return;
       }
@@ -168,49 +158,45 @@ export default function Profile() {
       });
 
       if (reverse.length > 0) {
-        // District is usually stored in 'subregion' in Sri Lanka
         const city = reverse[0].city || reverse[0].subregion || "Colombo";
         updateLocationInDB(city);
       }
     } catch (e) {
       console.log(e);
-      Alert.alert("Error", "Could not fetch GPS location.");
+      Alert.alert(t('error'), t('gps_error_msg'));
       setLocationRegion("Choose");
     }
   };
 
   const showLocationPicker = () => {
-  Alert.alert("Location Settings", "Choose an option", [
-    { text: "Use My GPS", onPress: fetchGPSLocation },
-    { text: "Choose Manually", onPress: () => setDistrictModalVisible(true) },
-    { text: "Cancel", style: "cancel" },
-  ]);
-};
+    Alert.alert(t('location_settings'), t('choose_option'), [
+      { text: t('use_gps'), onPress: fetchGPSLocation },
+      { text: t('choose_manually'), onPress: () => setDistrictModalVisible(true) },
+      { text: t('cancel'), style: "cancel" },
+    ]);
+  };
 
   // Update Preferences in database
   const toggleSetting = async (
-    field: "email_notif" | "push_notif" | "alert_notif" | "personal_data_access" | "camera_access" | "live_location",
+    field: "push_notif" | "alert_notif" | "personal_data_access" | "camera_access" | "live_location",
     newValue: boolean,
   ) => {
-    // --- Request actual permissions when toggling ON ---
     if (field === "camera_access" && newValue) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Camera Access', 'Please allow camera access in your device settings.');
-        return; // Don't save if permission denied
+        Alert.alert(t('camera_access_label'), t('camera_access_sub'));
+        return;
       }
     }
 
     if (field === "live_location" && newValue) {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Location Access', 'Please allow location access in your device settings.');
-        return; // Don't save if permission denied
+        Alert.alert(t('permission_denied'), t('location_permission_msg'));
+        return;
       }
     }
 
-    // --- Rest stays the same ---
-    if (field === "email_notif") setEmailNotif(newValue);
     if (field === "push_notif") setPushNotif(newValue);
     if (field === "alert_notif") setAlertNotif(newValue);
     if (field === "personal_data_access") setPersonalDataAccess(newValue);
@@ -233,10 +219,10 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t('sign_out'), t('sign_out_confirm'), [
+      { text: t('cancel'), style: "cancel" },
       {
-        text: "Sign Out",
+        text: t('sign_out'),
         style: "destructive",
         onPress: async () => {
           await supabase.auth.signOut();
@@ -247,18 +233,16 @@ export default function Profile() {
   };
 
   const changeLanguage = async (langCode: string, langLabel: string) => {
-    // 1. Update UI immediately for a snappy feel
     setLanguage(langLabel);
     i18n.changeLanguage(langCode);
 
-    // 2. Save to Supabase in the background
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const { error } = await supabase
         .from("profiles")
-        .update({ language: langCode } as any) // "as any" bypasses TS errors until you sync your database types
+        .update({ language: langCode } as any)
         .eq("id", session.user.id);
 
       if (error) {
@@ -270,15 +254,14 @@ export default function Profile() {
   };
 
   const showLanguagePicker = () => {
-    Alert.alert("Select Language", "Choose your preferred language", [
+    Alert.alert(t('select_language'), t('choose_language'), [
       { text: "English", onPress: () => changeLanguage("en", "English") },
       { text: "සිංහල (Sinhala)", onPress: () => changeLanguage("si", "Sinhala") },
       { text: "தமிழ் (Tamil)", onPress: () => changeLanguage("ta", "Tamil") },
-      { text: "Cancel", style: "cancel" },
+      { text: t('cancel'), style: "cancel" },
     ]);
   };
 
-  // Reusable Row Component
   const SettingRow = ({
     icon,
     label,
@@ -288,13 +271,10 @@ export default function Profile() {
     subText = "",
   }: any) => (
     <View style={[styles.row, { borderBottomColor: theme.border }]}>
-      {/* 1. Added flex: 1 and some padding so it doesn't touch the switch */}
       <View style={[styles.rowLeft, { flex: 1, paddingRight: 15 }]}>
         <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
           <Feather name={icon} size={20} color={theme.text} />
         </View>
-        
-        {/* 2. Added flex: 1 to this View so the text is forced to wrap */}
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowLabel, { color: theme.text }]}>
             {label}
@@ -306,8 +286,6 @@ export default function Profile() {
           ) : null}
         </View>
       </View>
-
-      {/* The Right Side (Switch or Chevron) stays the same */}
       <View>
         {type === "switch" ? (
           <Switch
@@ -348,7 +326,7 @@ export default function Profile() {
           />
           <View style={styles.modalCloseHint}>
             <Feather name="x-circle" size={20} color="white" />
-            <Text style={styles.modalCloseText}>Tap anywhere to close</Text>
+            <Text style={styles.modalCloseText}>{t('tap_to_close')}</Text>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -362,12 +340,11 @@ export default function Profile() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.pickerContainer, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Select District</Text>
-            
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('select_district')}</Text>
             <ScrollView style={{ maxHeight: 400, width: '100%' }}>
               {SRI_LANKAN_DISTRICTS.map((item) => (
-                <TouchableOpacity 
-                  key={item} 
+                <TouchableOpacity
+                  key={item}
                   style={styles.districtItem}
                   onPress={() => {
                     updateLocationInDB(item);
@@ -378,12 +355,11 @@ export default function Profile() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-
-            <TouchableOpacity 
-              style={styles.closeButton} 
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => setDistrictModalVisible(false)}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Close</Text>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -394,15 +370,12 @@ export default function Profile() {
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
-            {/* Tap avatar to VIEW full screen */}
             <TouchableOpacity onPress={() => setViewingAvatar(true)}>
               <Image
                 source={{ uri: avatarUrl || DEFAULT_AVATAR }}
                 style={styles.avatar}
               />
             </TouchableOpacity>
-
-            {/* Edit badge navigates to Edit Profile */}
             <TouchableOpacity
               style={styles.editBadge}
               onPress={() => router.push("/editProfile")}
@@ -412,32 +385,26 @@ export default function Profile() {
           </View>
 
           {loading ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.text}
-              style={{ marginTop: 10 }}
-            />
+            <ActivityIndicator size="small" color={theme.text} style={{ marginTop: 10 }} />
           ) : (
             <>
               <Text style={[styles.name, { color: theme.text }]}>
-                {fullName || "User Name"}
+                {fullName || t('user_name')}
               </Text>
               <Text style={[styles.email, { color: theme.text }]}>
-                {email || "No Email"}
+                {email || t('no_email')}
               </Text>
               {phoneNumber ? (
                 <Text style={[styles.email, { color: theme.text, marginTop: 2 }]}>
                   {phoneNumber}
-                </Text> 
+                </Text>
               ) : null}
             </>
           )}
         </View>
 
-        {/* --- 1. APPEARANCE --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        {/* --- APPEARANCE --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
             {t('appearance')}
           </Text>
@@ -449,10 +416,8 @@ export default function Profile() {
           />
         </View>
 
-        {/* --- 4. GENERAL --- */}
-        <View
-          style={[styles.sectionContainer, { backgroundColor: theme.card }]}
-        >
+        {/* --- GENERAL --- */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
             {t('general')}
           </Text>
@@ -460,7 +425,7 @@ export default function Profile() {
             <SettingRow
               icon="globe"
               label={t('language')}
-              value={language} // Displays "English", "Sinhala", etc.
+              value={language}
               type="link"
             />
           </TouchableOpacity>
@@ -472,20 +437,21 @@ export default function Profile() {
               type="link"
             />
           </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.push('/auth/editguardians')}>
+            <SettingRow
+              icon="users"
+              label={t('edit_guardian')}
+              type="link"
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* --- 2. NOTIFICATIONS --- */}
+        {/* --- NOTIFICATIONS --- */}
         <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
             {t('notifications')}
           </Text>
-          <SettingRow
-            icon="mail"
-            label={t('email_notif_label')}
-            subText={t('email_notif_sub')}
-            value={emailNotif}
-            onValueChange={(val: boolean) => toggleSetting("email_notif", val)}
-          />
           <SettingRow
             icon="bell"
             label={t('push_notif_label')}
@@ -502,7 +468,7 @@ export default function Profile() {
           />
         </View>
 
-        {/* --- 3. PRIVACY --- */}
+        {/* --- PRIVACY --- */}
         <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.icon }]}>
             {t('privacy')}
@@ -512,27 +478,21 @@ export default function Profile() {
             label={t('personal_data_label')}
             subText={t('personal_data_sub')}
             value={personalDataAccess}
-            onValueChange={(val: boolean) =>
-              toggleSetting("personal_data_access", val)
-            }
+            onValueChange={(val: boolean) => toggleSetting("personal_data_access", val)}
           />
           <SettingRow
             icon="camera"
             label={t('camera_access_label')}
             subText={t('camera_access_sub')}
             value={cameraAccess}
-            onValueChange={(val: boolean) =>
-              toggleSetting("camera_access", val)
-            }
+            onValueChange={(val: boolean) => toggleSetting("camera_access", val)}
           />
           <SettingRow
             icon="map-pin"
             label={t('live_location_label')}
             subText={t('live_location_sub')}
             value={liveLocation}
-            onValueChange={(val: boolean) =>
-              toggleSetting("live_location", val)
-            }
+            onValueChange={(val: boolean) => toggleSetting("live_location", val)}
           />
         </View>
 
@@ -653,9 +613,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
     gap: 8,
   },
-  modalCloseText: { 
-    color: "rgba(255,255,255,0.5)", 
-    fontSize: 14 
+  modalCloseText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 14
   },
   pickerContainer: {
     width: '80%',
@@ -664,10 +624,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 5,
   },
-  modalTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    marginBottom: 15 
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15
   },
   districtItem: {
     paddingVertical: 12,

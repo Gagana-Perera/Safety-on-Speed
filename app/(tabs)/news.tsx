@@ -4,9 +4,9 @@ import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
 import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { fetchPosts, type Post } from '@/lib/newsApi';
-import { useTheme } from "@/components/theme/ThemeContext";
+import CreatePost from '@/app/createpost';
+import { useTheme } from '@/components/theme/ThemeContext';
 
 // this part controls the post card
 
@@ -53,20 +53,16 @@ const PostCard = ({ postTopic, postDate, postTime, postBody, media, theme }: any
       )} */}
 
       <View style={styles.actionButtons}>
-
-        {/* this icon is to show that the post was helpful */}
-
-        {/* <TouchableOpacity 
+        <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => setIsLiked(!isLiked)}
         >
           <MaterialIcons 
             color={theme.text} 
-            name={isLiked ? "thumb-up" : "thumb-up-off-alt"} 
-            size={24}
+            name="thumb-up-off-alt" 
+            size={20}
           />
-        </TouchableOpacity> */}
-
+          <Text style={[styles.helpfulText, { color: theme.text }]}>Was this helpful?</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -77,6 +73,7 @@ const PostCard = ({ postTopic, postDate, postTime, postBody, media, theme }: any
 export default function News() {
   const { theme } = useTheme();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [createPostVisible, setCreatePostVisible] = useState(false);
 
   useEffect(() => {
     fetchPosts()
@@ -118,10 +115,21 @@ export default function News() {
 
       <TouchableOpacity 
         style={styles.createPostButton}
-        onPress={() => router.push('/createpost')}
+        onPress={() => setCreatePostVisible(true)}
       >
         <MaterialIcons name="add-comment" size={30} color={theme.text} />
       </TouchableOpacity>
+
+      <CreatePost 
+        visible={createPostVisible} 
+        onClose={() => setCreatePostVisible(false)}
+        onSuccess={() => {
+          // Refresh posts after successful creation
+          fetchPosts()
+            .then((data) => setPosts(data))
+            .catch((error) => console.error('Error fetching posts:', error));
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -243,16 +251,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 10,
   },
-  // mediaText: {
-  //   color: "#666",
-  //   fontSize: 12,
-  // },
   actionButtons: {
     flexDirection: "row",
     gap: 20,
   },
   actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     padding: 5,
+  },
+  helpfulText: {
+    fontSize: 14,
   },
   actionIcon: {
     fontSize: 20,

@@ -15,6 +15,7 @@ import * as Location from "expo-location";
 import { Link, useRouter } from "expo-router";
 import * as TaskManager from "expo-task-manager";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import i18n from "../../lib/i18n";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -387,9 +388,9 @@ export default function Index() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heroHeader}>
           <Text style={[styles.kicker, { color: theme.icon }]}>
-            Personal Safety
+            {t('personal_safety')}
           </Text>
-          <Text style={[styles.title, { color: theme.text }]}>SOS Control</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('sos_control')}</Text>
           <Text style={[styles.subtitle, { color: theme.icon }]}>
             One tap starts a Quick SOS. Three fast taps starts the emergency
             flow and prompts a 119 call.
@@ -460,15 +461,15 @@ export default function Index() {
             ]}
           >
             <Text style={[styles.statusLabel, { color: theme.icon }]}>
-              Guardians
+              {t('guardians')}
             </Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {guardianCount}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
               {guardianCount === 0
-                ? "Add guardians before using SOS"
-                : "Configured to receive SOS SMS alerts"}
+                ? t('add_guardians_before_sos')
+                : t('guardians_desc')}
             </Text>
           </View>
 
@@ -478,7 +479,7 @@ export default function Index() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>GPS</Text>
+            <Text style={[styles.statusLabel, { color: theme.icon }]}>{t('gps')}</Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {formatGpsStatus(gpsStatus)}
             </Text>
@@ -494,7 +495,7 @@ export default function Index() {
             ]}
           >
             <Text style={[styles.statusLabel, { color: theme.icon }]}>
-              Internet
+              {t('internet')}
             </Text>
             <Text style={[styles.statusValue, { color: theme.text }]}>
               {formatInternetStatus(internetStatus)}
@@ -512,10 +513,10 @@ export default function Index() {
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>
-              Emergency Services
+              {t('emergency_services')}
             </Text>
             <Text style={[styles.actionText, { color: theme.icon }]}>
-              Open hotlines and emergency support contacts.
+              {t('open_hotlines_desc')}
             </Text>
           </TouchableOpacity>
 
@@ -524,12 +525,12 @@ export default function Index() {
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>
-              {guardianCount === 0 ? "Add Guardians" : "Manage Guardians"}
+              {guardianCount === 0 ? t('add_guardians') : t('manage_guardians')}
             </Text>
             <Text style={[styles.actionText, { color: theme.icon }]}>
               {guardianCount === 0
-                ? "Set up contacts before your next emergency."
-                : "Review the contacts that receive SOS alerts."}
+                ? t('setup_contacts_emergency_desc')
+                : t('manage_guardians_desc')}
             </Text>
           </TouchableOpacity>
         </View>
