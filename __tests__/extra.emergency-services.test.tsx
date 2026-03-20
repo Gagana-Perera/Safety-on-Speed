@@ -29,13 +29,20 @@ jest.mock("@expo/vector-icons", () => {
   };
 });
 
-jest.mock("../app/themeContext", () => {
-  return {
-    useTheme: () => ({
-      theme: { background: "#000000" },
-    }),
-  };
-});
+jest.mock("@/components/theme/ThemeContext", () => ({
+  useTheme: () => ({
+    theme: {
+      mode: "light",
+      background: "#000000",
+      card: "#111111",
+      border: "#222222",
+      text: "#ffffff",
+      icon: "#ffffff",
+    },
+    isDark: true,
+    toggleTheme: () => {},
+  }),
+}));
 
 describe("EmergencyServices (Emergency Services page)", () => {
   beforeEach(async () => {

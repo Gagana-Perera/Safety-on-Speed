@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost } from '@/lib/newsApi';
 import { router } from 'expo-router';
-import { useTheme } from './themeContext';
+import { useTheme } from "@/components/theme/ThemeContext";
 
 export default function CreatePost() {
   const { theme } = useTheme();
@@ -56,7 +56,7 @@ export default function CreatePost() {
         // likes: 0,
       };
 
-      const result = await createPost(newPost);
+      const result = await createPost(newPost as any);
       
       if (result) {
         Alert.alert("Success", "Post created successfully!", [

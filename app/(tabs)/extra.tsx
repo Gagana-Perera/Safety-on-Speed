@@ -31,7 +31,7 @@ import {
   View,
 } from "react-native";
 import BackButton from "../../components/backButton";
-import { useTheme } from "../themeContext";
+import { useTheme } from "@/components/theme/ThemeContext";
 
 import {
   getNearbyPlaces,

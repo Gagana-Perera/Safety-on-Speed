@@ -35,20 +35,20 @@ jest.mock("react-i18next", () => {
   };
 });
 
-jest.mock("../app/themeContext", () => {
-  return {
-    useTheme: () => ({
-      theme: {
-        mode: "light",
-        background: "#ffffff",
-        card: "#f5f5f5",
-        border: "#e5e7eb",
-        text: "#000000",
-        icon: "#111111",
-      },
-    }),
-  };
-});
+jest.mock("@/components/theme/ThemeContext", () => ({
+  useTheme: () => ({
+    theme: {
+      mode: "light",
+      background: "#ffffff",
+      card: "#f5f5f5",
+      border: "#e5e7eb",
+      text: "#000000",
+      icon: "#111111",
+    },
+    isDark: false,
+    toggleTheme: () => {},
+  }),
+}));
 
 import Index from "../app/(tabs)/index";
 
