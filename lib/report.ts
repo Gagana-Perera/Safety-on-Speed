@@ -2,7 +2,7 @@ import { supabase } from "./superbase";
 
 export interface ReportData {
   verification: string;
-  incident_details: string;
+  incident_type: string;
   safety_check: string;
   user_id?: string;
 }
@@ -16,7 +16,7 @@ export async function saveReport(reportData: ReportData) {
     .insert([
       {
         verification: reportData.verification,
-        incident_details: reportData.incident_details,
+        incident_type: reportData.incident_type,
         safety_check: reportData.safety_check,
         user_id: reportData.user_id,
       },

@@ -48,7 +48,7 @@ const report = () => {
       
       await saveReport({
         verification: verification || "Real Incident",
-        incident_details: incidentType || "None",
+        incident_type: incidentType || "None",
         safety_check: isSafe ? "Safe" : "Not Safe",
         user_id: user?.id
       });
