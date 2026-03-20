@@ -1,6 +1,6 @@
 import { clearSignupDraft, getSignupDraft } from "@/lib/signup-draft";
 import { supabase } from "@/lib/superbase";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {

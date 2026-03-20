@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from '@expo/vector-icons';
 import { fetchPosts, type Post } from '@/lib/newsApi';
 import CreatePost from '@/app/createpost';
-import { useTheme } from '../themeContext';
+import { useTheme } from '@/components/theme/ThemeContext';
 
 // this part controls the post card
 
