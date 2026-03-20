@@ -37,7 +37,8 @@ describe("guardian alert helpers", () => {
 
     expect(message).toContain("EMERGENCY SOS");
     expect(message).toContain("Alex");
-    expect(message).toContain("https://example.com/sos/token");
+    expect(message).toContain("Live location:\nhttps://example.com/sos/token");
+    expect(message).toContain("Tracking remains live until SOS is stopped.");
     expect(message).toContain("Please respond immediately.");
   });
 });

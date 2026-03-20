@@ -16,7 +16,7 @@ import {
   type StartSOSProgress,
 } from "@/lib/sosService";
 
-import { useTheme } from "../themeContext";
+import { useTheme } from "@/components/theme/ThemeContext";
 
 const STEP_ORDER: StartSOSProgress["key"][] = [
   "creating_session",

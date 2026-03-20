@@ -20,7 +20,7 @@ import {
 } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
 import BackButton from "./backButton";
-import { useTheme } from "./themeContext";
+import { useTheme } from "@/components/theme/ThemeContext";
 export default function EditProfile() {
   const router = useRouter();
   const { theme } = useTheme();

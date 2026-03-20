@@ -715,7 +715,46 @@ export async function openPendingGuardianAlert(session: StoredSOSSession) {
   return nextSession;
 }
 
+function extractSupabaseRelationName(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  const candidates = ["message", "details", "hint"]
+    .map((key) => {
+      const value = error[key as keyof typeof error];
+      return typeof value === "string" ? value : "";
+    })
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const schemaCacheMatch = candidate.match(
+      /Could not find the table '([^']+)' in the schema cache/i,
+    );
+    if (schemaCacheMatch?.[1]) {
+      return schemaCacheMatch[1];
+    }
+
+    const relationMissingMatch = candidate.match(
+      /relation ["']?([^"']+)["']? does not exist/i,
+    );
+    if (relationMissingMatch?.[1]) {
+      return relationMissingMatch[1];
+    }
+  }
+
+  return null;
+}
+
 export function getSOSStatusMessage(error: unknown) {
+  const missingRelation = extractSupabaseRelationName(error);
+  if (
+    missingRelation === "public.sos_sessions" ||
+    missingRelation === "public.sos_locations"
+  ) {
+    return "SOS database setup is incomplete. Run the SQL in db_schema.sql in your Supabase project, then reopen the app.";
+  }
+
   if (
     typeof error === "object" &&
     error !== null &&

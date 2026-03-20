@@ -17,6 +17,7 @@ export type GuardianAlertDeliveryMethod =
   | "manual-whatsapp"
   | "none"
   | "share-sheet"
+  | "sms-api"
   | "whatsapp-api";
 
 export type GuardianAlertDeliveryStatus = "pending" | "sent" | "skipped";
@@ -26,6 +27,11 @@ export type GuardianAlertDeliveryResult = {
   message: string;
   method: GuardianAlertDeliveryMethod;
   status: GuardianAlertDeliveryStatus;
+};
+
+type AlertWebhookSuccessResponse = {
+  message?: string;
+  provider?: "sms" | "whatsapp";
 };
 
 type GuardiansRow = Pick<
@@ -138,9 +144,9 @@ export function buildSOSAlertMessage({
       ? "Please respond immediately."
       : "Please check in as soon as possible.";
 
-  return `${label} from ${senderName}\n\nLive location: ${liveLocationLink}\nTime: ${new Date(
+  return `${label} from ${senderName}\n\nLive location:\n${liveLocationLink}\n\nTime: ${new Date(
     startedAt,
-  ).toLocaleString()}\n\n${responseLine}`;
+  ).toLocaleString()}\nTracking remains live until SOS is stopped.\n\n${responseLine}`;
 }
 
 function buildSingleRecipientWhatsAppUrl(recipient: GuardianRecipient, message: string) {
@@ -193,6 +199,10 @@ export async function dispatchGuardianAlert({
     };
   }
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const response = await fetch(webhookUrl, {
     body: JSON.stringify({
       guardians,
@@ -204,19 +214,53 @@ export async function dispatchGuardianAlert({
       startedAt,
     }),
     headers: {
+      ...(process.env.EXPO_PUBLIC_SUPABASE_KEY
+        ? { apikey: process.env.EXPO_PUBLIC_SUPABASE_KEY }
+        : {}),
+      ...(session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {}),
       "Content-Type": "application/json",
     },
     method: "POST",
   });
 
   if (!response.ok) {
-    throw new Error("Guardian alert delivery failed.");
+    const rawBody = await response.text().catch(() => "");
+    let errorMessage = rawBody.trim();
+
+    if (rawBody) {
+      try {
+        const parsed = JSON.parse(rawBody) as { error?: unknown; message?: unknown };
+        if (typeof parsed.error === "string" && parsed.error.trim().length > 0) {
+          errorMessage = parsed.error;
+        } else if (
+          typeof parsed.message === "string" &&
+          parsed.message.trim().length > 0
+        ) {
+          errorMessage = parsed.message;
+        }
+      } catch {
+        // Leave the plain-text response body as-is.
+      }
+    }
+
+    throw new Error(errorMessage || "Guardian alert delivery failed.");
   }
+
+  const responseBody = (await response
+    .json()
+    .catch(() => null)) as AlertWebhookSuccessResponse | null;
+  const method: GuardianAlertDeliveryMethod =
+    responseBody?.provider === "sms" ? "sms-api" : "whatsapp-api";
 
   return {
     guardianCount: guardians.length,
-    message,
-    method: "whatsapp-api",
+    message:
+      typeof responseBody?.message === "string" && responseBody.message.trim().length > 0
+        ? responseBody.message
+        : message,
+    method,
     status: "sent",
   };
 }

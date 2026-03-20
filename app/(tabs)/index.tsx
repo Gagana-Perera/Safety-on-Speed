@@ -1,9 +1,11 @@
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   ScrollView,
   StyleSheet,
@@ -11,26 +13,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 
+import { useTheme } from "@/components/theme/ThemeContext";
 import { countGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
 import { useInternetStatus } from "@/hooks/useInternetStatus";
-import {
-  getStoredActiveSOSSession,
-  hydrateStoredSOSSession,
-  type StoredSOSSession,
-} from "@/lib/sosService";
-import {
-  EMERGENCY_SOS_TAP_WINDOW_MS,
-  QUICK_SOS_CONFIRM_DELAY_MS,
-  getEmergencyTapHint,
-} from "@/lib/sosTap";
 import { supabase } from "@/lib/superbase";
-
-import { useTheme } from "../themeContext";
+import { sendSOS } from "@/services/sendSOS";
 
 type GpsStatus = "checking" | "off" | "permission-needed" | "ready";
-type LaunchMode = "emergency" | "quick" | null;
 
 function formatGpsStatus(status: GpsStatus) {
   switch (status) {
@@ -62,33 +52,11 @@ export default function HomeSOSScreen() {
   const internetStatus = useInternetStatus();
 
   const pulseValue = useRef(new Animated.Value(1)).current;
-  const quickTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const emergencyWindowRef = useRef<NodeJS.Timeout | null>(null);
-  const tapTimestampsRef = useRef<number[]>([]);
 
-  const [activeSession, setActiveSession] = useState<StoredSOSSession | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("checking");
   const [guardianCount, setGuardianCount] = useState(0);
-  const [launchMode, setLaunchMode] = useState<LaunchMode>(null);
-  const [tapCount, setTapCount] = useState(0);
-
-  const isLaunching = launchMode !== null;
-
-  const resetTapSequence = useCallback(() => {
-    if (quickTimerRef.current) {
-      clearTimeout(quickTimerRef.current);
-      quickTimerRef.current = null;
-    }
-
-    if (emergencyWindowRef.current) {
-      clearTimeout(emergencyWindowRef.current);
-      emergencyWindowRef.current = null;
-    }
-
-    tapTimestampsRef.current = [];
-    setTapCount(0);
-  }, []);
+  const [isSendingSOS, setIsSendingSOS] = useState(false);
 
   const loadDashboardState = useCallback(async () => {
     setDashboardLoading(true);
@@ -100,20 +68,12 @@ export default function HomeSOSScreen() {
 
       const userId = session?.user?.id;
       if (!userId) {
-        setActiveSession(null);
         setGuardianCount(0);
         setGpsStatus("permission-needed");
         return;
       }
 
-      const [guardianTotal, hydratedSession] = await Promise.all([
-        countGuardianRecipients(userId).catch(() => 0),
-        hydrateStoredSOSSession(userId).catch(async () => {
-          const stored = await getStoredActiveSOSSession();
-          return stored?.userId === userId ? stored : null;
-        }),
-      ]);
-
+      const guardianTotal = await countGuardianRecipients(userId).catch(() => 0);
       const servicesEnabled = await Location.hasServicesEnabledAsync().catch(
         () => false,
       );
@@ -122,7 +82,6 @@ export default function HomeSOSScreen() {
       );
 
       setGuardianCount(guardianTotal);
-      setActiveSession(hydratedSession);
 
       if (!servicesEnabled) {
         setGpsStatus("off");
@@ -156,9 +115,8 @@ export default function HomeSOSScreen() {
 
     return () => {
       animation.stop();
-      resetTapSequence();
     };
-  }, [pulseValue, resetTapSequence]);
+  }, [pulseValue]);
 
   useFocusEffect(
     useCallback(() => {
@@ -166,83 +124,49 @@ export default function HomeSOSScreen() {
     }, [loadDashboardState]),
   );
 
-  const navigateToSOSFlow = useCallback(
-    (mode: Exclude<LaunchMode, null>) => {
-      setLaunchMode(mode);
-      resetTapSequence();
+  const handleSOSPress = useCallback(async () => {
+    if (dashboardLoading || isSendingSOS) return;
 
-      void Haptics.notificationAsync(
-        mode === "emergency"
-          ? Haptics.NotificationFeedbackType.Warning
-          : Haptics.NotificationFeedbackType.Success,
-      ).catch(() => undefined);
+    // This state disables the button so the same alert is not sent twice.
+    setIsSendingSOS(true);
 
-      router.push({
-        params: { mode },
-        pathname: "/sos/loading",
-      });
-
-      setTimeout(() => {
-        setLaunchMode(null);
-      }, 300);
-    },
-    [resetTapSequence, router],
-  );
-
-  const handleSOSPress = useCallback(() => {
-    if (dashboardLoading || isLaunching) return;
-
-    if (activeSession?.status === "active") {
-      router.push({
-        params: { sessionId: activeSession.sessionId },
-        pathname: "/sos/active",
-      });
-      return;
-    }
-
-    const now = Date.now();
-    tapTimestampsRef.current = [
-      ...tapTimestampsRef.current.filter(
-        (timestamp) => now - timestamp <= EMERGENCY_SOS_TAP_WINDOW_MS,
-      ),
-      now,
-    ];
-
-    const nextTapCount = tapTimestampsRef.current.length;
-    setTapCount(nextTapCount);
-
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(
       () => undefined,
     );
 
-    if (nextTapCount === 1) {
-      quickTimerRef.current = setTimeout(() => {
-        navigateToSOSFlow("quick");
-      }, QUICK_SOS_CONFIRM_DELAY_MS);
+    try {
+      const result = await sendSOS();
+      const sentLabel =
+        result.sentCount === 1 ? "1 guardian" : `${result.sentCount} guardians`;
+      const failedLabel =
+        result.failedCount > 0
+          ? ` ${result.failedCount} message(s) failed.`
+          : "";
 
-      emergencyWindowRef.current = setTimeout(() => {
-        resetTapSequence();
-      }, EMERGENCY_SOS_TAP_WINDOW_MS);
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => undefined);
 
-      return;
+      Alert.alert(
+        "SOS Sent",
+        `Your current location was sent by SMS to ${sentLabel}.${failedLabel}`,
+      );
+    } catch (error) {
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Error,
+      ).catch(() => undefined);
+
+      Alert.alert(
+        "SOS Failed",
+        error instanceof Error
+          ? error.message
+          : "Unable to send the SOS SMS right now.",
+      );
+    } finally {
+      setIsSendingSOS(false);
+      void loadDashboardState();
     }
-
-    if (quickTimerRef.current) {
-      clearTimeout(quickTimerRef.current);
-      quickTimerRef.current = null;
-    }
-
-    if (nextTapCount >= 3) {
-      navigateToSOSFlow("emergency");
-    }
-  }, [
-    activeSession,
-    dashboardLoading,
-    isLaunching,
-    navigateToSOSFlow,
-    resetTapSequence,
-    router,
-  ]);
+  }, [dashboardLoading, isSendingSOS, loadDashboardState]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -253,8 +177,8 @@ export default function HomeSOSScreen() {
           </Text>
           <Text style={[styles.title, { color: theme.text }]}>SOS Control</Text>
           <Text style={[styles.subtitle, { color: theme.icon }]}>
-            One tap starts a Quick SOS. Three fast taps starts the emergency
-            flow and prompts a 119 call.
+            Press the SOS button to send your current location by SMS to your
+            guardians. This sends a one-time emergency message only.
           </Text>
         </View>
 
@@ -271,8 +195,7 @@ export default function HomeSOSScreen() {
             style={[
               styles.sosRing,
               {
-                borderColor:
-                  activeSession?.status === "active" ? "#FFB4B0" : "#F48C87",
+                borderColor: isSendingSOS ? "#FFB4B0" : "#F48C87",
                 transform: [{ scale: pulseValue }],
               },
             ]}
@@ -280,13 +203,13 @@ export default function HomeSOSScreen() {
             <TouchableOpacity
               accessibilityLabel="SOS Button"
               activeOpacity={0.88}
-              disabled={dashboardLoading || isLaunching}
+              disabled={dashboardLoading || isSendingSOS}
               onPress={handleSOSPress}
               style={[
                 styles.sosButton,
+                isSendingSOS && styles.sosButtonDisabled,
                 {
-                  backgroundColor:
-                    activeSession?.status === "active" ? "#C62828" : "#E53935",
+                  backgroundColor: "#E53935",
                 },
               ]}
             >
@@ -294,36 +217,18 @@ export default function HomeSOSScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.sosLabel}>
-                    {activeSession?.status === "active" ? "ACTIVE" : "SOS"}
-                  </Text>
+                  <Text style={styles.sosLabel}>SOS</Text>
                   <Text style={styles.sosSubLabel}>
-                    {launchMode === "emergency"
-                      ? "Emergency SOS..."
-                      : launchMode === "quick"
-                        ? "Quick SOS..."
-                        : activeSession?.status === "active"
-                          ? "Tap to resume"
-                          : "Tap now"}
+                    {isSendingSOS ? "Sending current location..." : "Send SMS"}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
           </Animated.View>
 
-          <View style={styles.modeRow}>
-            <View style={styles.modePill}>
-              <Text style={styles.modePillLabel}>1 tap = Quick SOS</Text>
-            </View>
-            <View style={[styles.modePill, styles.modePillDark]}>
-              <Text style={styles.modePillLabel}>3 taps = Emergency SOS</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.tapHint, { color: theme.icon }]}>
-            {activeSession?.status === "active"
-              ? "An alert is already active. Tap the button to open the Active Alert screen."
-              : getEmergencyTapHint(tapCount)}
+          <Text style={[styles.helperText, { color: theme.icon }]}>
+            The button sends one SMS alert with your current Google Maps
+            location. It does not start live tracking.
           </Text>
         </View>
 
@@ -343,7 +248,7 @@ export default function HomeSOSScreen() {
             <Text style={[styles.statusHint, { color: theme.icon }]}>
               {guardianCount === 0
                 ? "Add guardians before using SOS"
-                : "Configured for SOS alerts"}
+                : "Configured to receive SOS SMS alerts"}
             </Text>
           </View>
 
@@ -358,7 +263,7 @@ export default function HomeSOSScreen() {
               {formatGpsStatus(gpsStatus)}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
-              Location access is required for live tracking
+              Location access is required before the app can send your SMS alert.
             </Text>
           </View>
 
@@ -375,38 +280,11 @@ export default function HomeSOSScreen() {
               {formatInternetStatus(internetStatus)}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
-              Automatic WhatsApp delivery needs a connected network and backend
-              endpoint.
+              Automatic SMS delivery uses the Supabase Edge Function and Twilio,
+              so an internet connection is required.
             </Text>
           </View>
         </View>
-
-        {activeSession?.status === "active" && (
-          <View
-            style={[
-              styles.activeBanner,
-              { backgroundColor: "#FFF4E5", borderColor: "#F5B971" },
-            ]}
-          >
-            <Text style={styles.activeBannerTitle}>SOS already active</Text>
-            <Text style={styles.activeBannerText}>
-              {activeSession.mode === "emergency"
-                ? "Emergency SOS is currently running."
-                : "Quick SOS is currently running."}
-            </Text>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  params: { sessionId: activeSession.sessionId },
-                  pathname: "/sos/active",
-                })
-              }
-              style={styles.bannerButton}
-            >
-              <Text style={styles.bannerButtonText}>Open Active Alert</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         <View style={styles.actionRow}>
           <TouchableOpacity
@@ -417,7 +295,7 @@ export default function HomeSOSScreen() {
               Emergency Services
             </Text>
             <Text style={[styles.actionText, { color: theme.icon }]}>
-              Call hotlines or open nearby emergency support.
+              Open hotlines and emergency support contacts.
             </Text>
           </TouchableOpacity>
 
@@ -460,36 +338,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  activeBanner: {
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 18,
-  },
-  activeBannerText: {
-    color: "#8A4B08",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-  },
-  activeBannerTitle: {
-    color: "#8A4B08",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  bannerButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#8A4B08",
-    borderRadius: 999,
-    marginTop: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  bannerButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
   container: {
     flex: 1,
   },
@@ -497,6 +345,12 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 48,
     paddingTop: 52,
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 18,
+    textAlign: "center",
   },
   heroCard: {
     borderRadius: 28,
@@ -514,32 +368,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textTransform: "uppercase",
   },
-  modePill: {
-    backgroundColor: "#FEE2E2",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  modePillDark: {
-    backgroundColor: "#FFD6D3",
-  },
-  modePillLabel: {
-    color: "#8E1D1D",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  modeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "center",
-  },
   sosButton: {
     alignItems: "center",
     borderRadius: 120,
     height: 196,
     justifyContent: "center",
     width: 196,
+  },
+  sosButtonDisabled: {
+    opacity: 0.72,
   },
   sosLabel: {
     color: "#FFFFFF",
@@ -562,6 +399,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     marginTop: 8,
+    textAlign: "center",
   },
   statusCard: {
     borderRadius: 22,
@@ -602,12 +440,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
     maxWidth: 560,
-  },
-  tapHint: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 18,
-    textAlign: "center",
   },
   title: {
     fontSize: 38,

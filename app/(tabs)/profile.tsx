@@ -20,7 +20,7 @@ import {
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
 import BackButton from "../backButton";
-import { useTheme } from "../themeContext";
+import { useTheme } from "@/components/theme/ThemeContext";
 
 const SRI_LANKAN_DISTRICTS = [
   "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", 
