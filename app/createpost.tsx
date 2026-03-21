@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Text, View, StyleSheet, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, Modal, Pressable } from "react-native";
+import { Text, View, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, Modal, Pressable } from "react-native";
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost, type CreatePostInput } from '@/lib/newsApi';
 import { useTheme } from '@/components/theme/ThemeContext';
 import { useRouter } from "expo-router";
+import { globalStyles } from "@/app/global";
 
 interface CreatePostProps {
   visible?: boolean;
@@ -99,18 +100,18 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
       onRequestClose={closeModal}
     >
       <Pressable 
-        style={styles.overlay}
+        style={globalStyles.modalOverlay}
         onPress={closeModal}
       >
         <Pressable 
-          style={[styles.modalContent, { backgroundColor: theme.card }]}
+          style={[globalStyles.modalContent, { backgroundColor: theme.card }]}
           onPress={(e) => e.stopPropagation()}
         >
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Create Post</Text>
+          <Text style={[globalStyles.modalTitle, { color: theme.text }]}>Create Post</Text>
 
-          <View style={styles.bodyContainer}>
+          <View style={globalStyles.bodyContainer}>
             <TextInput
-              style={[styles.input, styles.subjectInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[globalStyles.inputBase, globalStyles.inputSubject, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
               placeholder="Subject or Title"
               placeholderTextColor={theme.icon}
               value={subject}
@@ -119,7 +120,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
             />
 
             <TextInput
-              style={[styles.input, styles.bodyInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[globalStyles.inputBase, globalStyles.inputBody, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
               placeholder="What's on your mind?"
               placeholderTextColor={theme.icon}
               value={body}
@@ -131,14 +132,14 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
           </View>
 
           {image && (
-            <View style={[styles.mediaContainer, { backgroundColor: theme.background }]}>
+            <View style={[globalStyles.mediaContainer, { backgroundColor: theme.background }]}>
               <Image 
                 source={{ uri: image }}
-                style={styles.mediaImage}
+                style={globalStyles.mediaImage}
                 resizeMode="cover"
               />
               <TouchableOpacity 
-                style={styles.removeImageButton}
+                style={globalStyles.removeImageButton}
                 onPress={() => setImage(null)}
               >
                 <MaterialIcons name="close" size={20} color={theme.text} />
@@ -146,25 +147,25 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
             </View>
           )}
 
-          <View style={styles.actionButtons}>
+          <View style={globalStyles.createPostActionButtons}>
             <TouchableOpacity 
-              style={styles.actionButton}
+              style={globalStyles.actionButtonInline}
               onPress={pickImage}
             >
               <MaterialIcons name="image" size={24} color={theme.text} />
-              <Text style={[styles.actionIcon, { color: theme.text }]}>Add Image</Text>
+              <Text style={[globalStyles.actionLabel, { color: theme.text }]}>Add Image</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity 
-            style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
+            style={[globalStyles.submitButton, uploading && globalStyles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={uploading}
           >
             {uploading ? (
               <ActivityIndicator color={theme.text} />
             ) : (
-              <Text style={[styles.submitButtonText]}>Post</Text>
+              <Text style={globalStyles.submitButtonText}>Post</Text>
             )}
           </TouchableOpacity>
         </Pressable>
@@ -172,130 +173,3 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    borderRadius: 15,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 15,
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  postCard: {
-    marginHorizontal: 15,
-    marginVertical: 10,
-    borderRadius: 15,
-    padding: 15,
-    borderLeftColor: "#0494CB",
-    borderLeftWidth: 1,
-    borderBottomWidth: 2,
-    borderRightWidth: 1,
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 2,
-  },
-  bodyContainer: {
-    marginBottom: 15,
-  },
-  input: {
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    borderWidth: 1,
-  },
-  subjectInput: {
-    marginBottom: 12,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  bodyInput: {
-    minHeight: 100,
-  },
-  mediaContainer: {
-    borderRadius: 15,
-    marginBottom: 15,
-    position: "relative",
-  },
-  mediaImage: {
-    width: "100%",
-    height: 150,
-    borderRadius: 10,
-  },
-  removeImageButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    borderRadius: 15,
-    padding: 5,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 20,
-    marginBottom: 15,
-  },
-  actionButton: {
-    padding: 5,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  actionIcon: {
-    fontSize: 16,
-  },
-  submitButton: {
-    backgroundColor: "#0494CB",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  submitButtonDisabled: {
-    backgroundColor: "#5E85AF",
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: '#fff',
-  },
-});
