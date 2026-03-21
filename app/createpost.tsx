@@ -3,7 +3,7 @@ import { Text, View, StyleSheet, TouchableOpacity, Image, TextInput, ActivityInd
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost } from '@/lib/newsApi';
-import { useTheme } from './themeContext';
+import { useTheme } from '@/components/theme/ThemeContext';
 
 interface CreatePostProps {
   visible: boolean;

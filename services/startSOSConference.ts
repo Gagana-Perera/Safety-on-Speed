@@ -3,7 +3,8 @@ import * as Location from "expo-location";
 
 import { supabase } from "@/lib/superbase";
 
-export type SendSOSResponse = {
+export type StartSOSConferenceResponse = {
+  conferenceName?: string;
   failedCount: number;
   historySessionId?: string;
   message: string;
@@ -21,7 +22,7 @@ function parseJsonSafely(text: string) {
   if (!text.trim()) return null;
 
   try {
-    return JSON.parse(text) as SendSOSResponse & {
+    return JSON.parse(text) as StartSOSConferenceResponse & {
       error?: string;
     };
   } catch {
@@ -43,22 +44,21 @@ async function getCurrentUserName(userId: string, fallbackName: string) {
   }
 }
 
-export async function sendSOS(): Promise<SendSOSResponse> {
+export async function startSOSConference(): Promise<StartSOSConferenceResponse> {
   const webhookUrl =
-    process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL?.trim() ||
+    process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL?.trim() ||
     String(
-      Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL ?? "",
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL ?? "",
     ).trim();
-
   if (!webhookUrl) {
     throw new Error(
-      "Set EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL in your Expo .env file.",
+      "Set EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL in your Expo .env file.",
     );
   }
 
   if (!webhookUrl.startsWith("https://")) {
     throw new Error(
-      "EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL must be a valid https URL.",
+      "EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL must be a valid https URL.",
     );
   }
 
@@ -87,28 +87,25 @@ export async function sendSOS(): Promise<SendSOSResponse> {
     );
   }
 
-  await supabase.auth.refreshSession();
-
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const user = session?.user;
 
-  if (!user || !session) {
-    throw new Error("Your session has expired. Please sign in again.");
+  if (!session?.user) {
+    throw new Error("You need to sign in before starting an SOS call.");
   }
 
   const authName = [
-    user.user_metadata?.first_name,
-    user.user_metadata?.last_name,
+    session.user.user_metadata?.first_name,
+    session.user.user_metadata?.last_name,
   ]
     .filter(Boolean)
     .join(" ")
     .trim();
 
   const userName = await getCurrentUserName(
-    user.id,
-    authName || user.email || "Safety on Speed user",
+    session.user.id,
+    authName || session.user.email || "Safety on Speed user",
   );
 
   let response: Response;
@@ -139,7 +136,7 @@ export async function sendSOS(): Promise<SendSOSResponse> {
     });
   } catch {
     throw new Error(
-      "Network error while contacting the SOS SMS service. Check your internet connection and try again.",
+      "Network error while contacting the SOS call service. Check your internet connection and try again.",
     );
   }
 
@@ -150,12 +147,12 @@ export async function sendSOS(): Promise<SendSOSResponse> {
     throw new Error(
       responseJson?.error ||
         responseJson?.message ||
-        "SOS SMS delivery failed.",
+        "SOS conference call failed to start.",
     );
   }
 
   if (!responseJson?.success) {
-    throw new Error(responseJson?.message || "SOS SMS delivery failed.");
+    throw new Error(responseJson?.message || "SOS conference call failed.");
   }
 
   return responseJson;

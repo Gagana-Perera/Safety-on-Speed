@@ -1,16 +1,27 @@
+import { useTheme } from "@/components/theme/ThemeContext";
+import { icons } from "@/constants/icons";
+import {
+  autocompletePlaces,
+  findNearestPlaceAt,
+  getPlaceDetails,
+  getPlacePhotoUrl,
+  NearbyPlace,
+  PlaceDetails,
+  PlaceSuggestion,
+  searchNearbyPlaces,
+} from "@/services/GooglePlacesService";
+import {
+  aggregateSosAlertsByTown,
+  dummySosAlerts,
+} from "@/services/sosHeatmap";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
+import Constants from "expo-constants";
 import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +44,7 @@ import {
   View,
 } from "react-native";
 import MapView, {
+  Circle,
   LatLng,
   MapPressEvent,
   Marker,
@@ -41,18 +53,6 @@ import MapView, {
   Region,
 } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { icons } from "@/constants/icons";
-import {
-  autocompletePlaces,
-  findNearestPlaceAt,
-  getPlaceDetails,
-  getPlacePhotoUrl,
-  NearbyPlace,
-  PlaceDetails,
-  PlaceSuggestion,
-  searchNearbyPlaces,
-} from "@/services/GooglePlacesService";
-import { useTheme } from "@/components/theme/ThemeContext";
 
 // Map tab:
 // - Search + autocomplete
@@ -155,6 +155,36 @@ export default function MapScreen() {
   }>();
   const router = useRouter();
   const { isDark, theme } = useTheme();
+
+  const heatmapCircles = useMemo(() => {
+    const towns = aggregateSosAlertsByTown(dummySosAlerts);
+    return towns.map((t) => {
+      const count = Math.max(1, t.count);
+      const radius = 350 + Math.min(6, count) * 220; // meters
+      // Match the UI legend: Low (blue), Medium (yellow), High (red)
+      const fillColor =
+        count >= 5
+          ? "rgba(220,38,38,0.22)"
+          : count >= 3
+            ? "rgba(234,179,8,0.18)"
+            : "rgba(59,130,246,0.16)";
+
+      const strokeColor =
+        count >= 5
+          ? "rgba(220,38,38,0.38)"
+          : count >= 3
+            ? "rgba(234,179,8,0.34)"
+            : "rgba(59,130,246,0.30)";
+
+      return {
+        key: `${t.town}-${t.latitude.toFixed(4)}-${t.longitude.toFixed(4)}`,
+        center: { latitude: t.latitude, longitude: t.longitude },
+        radius,
+        fillColor,
+        strokeColor,
+      };
+    });
+  }, []);
 
   const SRI_LANKA_CENTER = { latitude: 7.8731, longitude: 80.7718 };
 
@@ -1242,10 +1272,11 @@ export default function MapScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const permission =
-          await Location.getForegroundPermissionsAsync().catch(() => ({
+        const permission = await Location.getForegroundPermissionsAsync().catch(
+          () => ({
             status: "undetermined" as const,
-          }));
+          }),
+        );
 
         if (cancelled) return;
 
@@ -1278,7 +1309,9 @@ export default function MapScreen() {
             };
             setCoords(next);
             setCoordsAccuracyM(
-              typeof loc.coords.accuracy === "number" ? loc.coords.accuracy : null,
+              typeof loc.coords.accuracy === "number"
+                ? loc.coords.accuracy
+                : null,
             );
             setHasLocation(true);
 
@@ -1428,7 +1461,9 @@ export default function MapScreen() {
       };
       setCoords(nextCoords);
       setCoordsAccuracyM(
-        typeof location.coords.accuracy === "number" ? location.coords.accuracy : null,
+        typeof location.coords.accuracy === "number"
+          ? location.coords.accuracy
+          : null,
       );
       setHasLocation(true);
 
@@ -1579,7 +1614,9 @@ export default function MapScreen() {
   };
 
   const ensureGoogleApiKey = (): string | null => {
-    const key = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
+    const key =
+      process.env.EXPO_PUBLIC_GOOGLE_API_KEY ||
+      String(Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_API_KEY ?? "");
     if (!key) {
       Alert.alert(
         "Missing API key",
@@ -2291,6 +2328,17 @@ export default function MapScreen() {
               }
             : {})}
         >
+          {heatmapCircles.map((c) => (
+            <Circle
+              key={c.key}
+              center={c.center}
+              radius={c.radius}
+              fillColor={c.fillColor}
+              strokeColor={c.strokeColor}
+              strokeWidth={1}
+            />
+          ))}
+
           {hasLocation && (
             <Marker
               key={isDark ? "me-dark" : "me-light"}
@@ -2438,6 +2486,91 @@ export default function MapScreen() {
             />
           ) : null}
         </MapView>
+
+        {/* Heatmap legend card (top-right), matches earlier UI */}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.heatmapLegend,
+            { top: Math.max(74, topOverlayBottomY + 10) },
+            isDark
+              ? styles.heatmapLegendDark
+              : [
+                  styles.heatmapLegendLight,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                  },
+                ],
+            !isDark && styles.floatingShadowStrong,
+          ]}
+        >
+          <View style={styles.heatmapLegendHeader}>
+            <Ionicons
+              name="water"
+              size={16}
+              color={"#EF4444"}
+              style={styles.heatmapLegendDrop}
+            />
+            <Text style={[styles.heatmapLegendTitle, { color: theme.text }]}>
+              Heatmap
+            </Text>
+          </View>
+
+          <View style={styles.heatmapLegendBar}>
+            <View
+              style={[
+                styles.heatmapLegendBarSeg,
+                { backgroundColor: "#3B82F6" },
+              ]}
+            />
+            <View
+              style={[
+                styles.heatmapLegendBarSeg,
+                { backgroundColor: "#22C55E" },
+              ]}
+            />
+            <View
+              style={[
+                styles.heatmapLegendBarSeg,
+                { backgroundColor: "#EAB308" },
+              ]}
+            />
+            <View
+              style={[
+                styles.heatmapLegendBarSeg,
+                { backgroundColor: "#F97316" },
+              ]}
+            />
+            <View
+              style={[
+                styles.heatmapLegendBarSeg,
+                { backgroundColor: "#EF4444" },
+              ]}
+            />
+          </View>
+
+          <View style={styles.heatmapLegendRow}>
+            <View
+              style={[styles.heatmapLegendDot, { backgroundColor: "#3B82F6" }]}
+            />
+            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+              Low
+            </Text>
+            <View
+              style={[styles.heatmapLegendDot, { backgroundColor: "#EAB308" }]}
+            />
+            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+              Medium
+            </Text>
+            <View
+              style={[styles.heatmapLegendDot, { backgroundColor: "#EF4444" }]}
+            />
+            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+              High
+            </Text>
+          </View>
+        </View>
 
         <View
           key={isDark ? "dark" : "light"}
@@ -3952,6 +4085,62 @@ const styles = StyleSheet.create({
     top: 10,
     left: 12,
     right: 12,
+  },
+  heatmapLegend: {
+    position: "absolute",
+    right: 12,
+    width: 148,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  heatmapLegendDark: {
+    backgroundColor: "rgba(3,27,46,0.92)",
+    borderColor: "rgba(143,211,255,0.7)",
+  },
+  heatmapLegendLight: {
+    borderColor: "transparent",
+  },
+  heatmapLegendHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  heatmapLegendDrop: {
+    marginLeft: 2,
+  },
+  heatmapLegendTitle: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  heatmapLegendBar: {
+    flexDirection: "row",
+    borderRadius: 999,
+    overflow: "hidden",
+    height: 6,
+    marginBottom: 8,
+  },
+  heatmapLegendBarSeg: {
+    flex: 1,
+  },
+  heatmapLegendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    justifyContent: "space-between",
+  },
+  heatmapLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  heatmapLegendLabel: {
+    fontFamily: LEGIBLE_SANS_FONT_FAMILY,
+    fontSize: 11,
+    fontWeight: "700",
   },
   searchRow: {
     flexDirection: "row",
