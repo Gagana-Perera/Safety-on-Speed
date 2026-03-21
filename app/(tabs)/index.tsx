@@ -116,10 +116,24 @@ export default function Index() {
   }, [clearEmergencyWindow, clearQuickTimer]);
 
   const getShouldShowLocationPreprompt = useCallback(async () => {
+    // 1. If we already showed it this launch, don't show it again.
+    if (hasShownLocationPrepromptThisLaunchRef.current) {
+      return false;
+    }
+
     try {
+      // 2. If already granted, no need to show at all.
+      const fg = await Location.getForegroundPermissionsAsync();
+      if (fg.status === "granted") return false;
+
+      // 3. Check persistent storage for previous decisions.
       const previousChoice = await AsyncStorage.getItem(
         LOCATION_PREPROMPT_CHOICE_KEY,
       );
+
+      // If they explicitly denied, we respect that and don't show it again this launch.
+      // (This is handled by the launch guard above, but kept for clarity).
+      if (previousChoice === "deny") return false;
 
       // In Expo Go/dev, permissions are often already granted to Expo Go which can
       // make it hard to validate the preprompt UX. Force-show once per launch
@@ -128,14 +142,12 @@ export default function Index() {
         return true;
       }
 
-      const fg = await Location.getForegroundPermissionsAsync();
-      if (fg.status === "granted") return false;
+      // If they chose "allow_while", we check why it's not granted yet. 
+      // If it's not granted, it means they might have revoked it or it's a new session.
+      // We return true to help them get back to the right state.
+      if (previousChoice === "allow_while") return true;
 
-      if (previousChoice === "deny") {
-        return !hasShownLocationPrepromptThisLaunchRef.current;
-      }
-
-      if (previousChoice == null) return true;
+      // Default: If they haven't seen it or haven't made a permanent choice, show it.
       return true;
     } catch {
       return true;
@@ -306,7 +318,17 @@ export default function Index() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error("Please sign in to send SOS.");
 
-        // 2. Load Guardians
+        // 2. Load Profile & Location in parallel for speed
+        const [profileRes, locationRes] = await Promise.all([
+          supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
+        ]);
+
+        const userName = profileRes.data?.full_name || "A user";
+        const latitude = locationRes?.coords.latitude;
+        const longitude = locationRes?.coords.longitude;
+
+        // 3. Load Guardians
         const guardians = await loadGuardianRecipients(session.user.id);
         if (guardians.length === 0) {
           throw new Error("You haven't added any guardians yet.");
@@ -314,16 +336,21 @@ export default function Index() {
 
         const phoneNumbers = guardians.map(g => g.phone);
 
-        // 3. Call WhatsApp Service
-        await sendSOSWhatsAppAlert(phoneNumbers);
+        // 4. Call WhatsApp Service with full details
+        await sendSOSWhatsAppAlert(
+          phoneNumbers,
+          userName,
+          latitude,
+          longitude
+        );
 
-        // 4. Success Alert
+        // 5. Success Alert
         Alert.alert(
           "SOS Alert Sent ✅",
           `WhatsApp messages have been sent to ${guardians.length} guardian(s).`
         );
 
-        // 5. Continue to the tracking screen
+        // 6. Continue to the tracking screen
         router.push({
           params: { mode },
           pathname: "/sos/loading",
@@ -590,7 +617,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Allow Once
                   </Text>
@@ -607,7 +634,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Allow While Using App
                   </Text>
@@ -624,7 +651,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Don’t Allow
                   </Text>
@@ -777,10 +804,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.28)",
   },
   locationSheet: {
-    width: "78%",
-    maxWidth: 460,
-    minHeight: 340,
-    maxHeight: 420,
+    width: "82%",
+    maxWidth: 440,
     borderRadius: 22,
     overflow: "hidden",
     borderWidth: 1,
@@ -788,7 +813,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
-    elevation: 8,
+    elevation: 10,
   },
   locationSheetInner: {
     flex: 1,
@@ -798,14 +823,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   locationHeader: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 10,
   },
   locationMapWrap: {
     width: "100%",
-    paddingHorizontal: 14,
-    paddingBottom: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
   locationMapCard: {
     borderRadius: 14,
@@ -826,35 +851,35 @@ const styles = StyleSheet.create({
   preciseChipText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#2563eb",
+    color: "#007AFF",
   },
   locationTitle: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: "800",
     textAlign: "center",
   },
   locationBody: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
-    opacity: 0.9,
+    opacity: 0.85,
   },
   locationActions: {
     backgroundColor: "rgba(240,240,240,0.96)",
   },
   locationActionBtn: {
-    paddingVertical: 9,
+    paddingVertical: 14,
     alignItems: "center",
     borderTopWidth: 1,
   },
   locationActionBtnLast: {
-    paddingVertical: 9,
+    paddingVertical: 14,
     alignItems: "center",
     borderTopWidth: 1,
   },
   locationActionText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "600",
   },
 });
