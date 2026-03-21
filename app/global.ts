@@ -157,4 +157,100 @@ export const globalStyles = StyleSheet.create({
 		fontWeight: "700",
 		color: "#fff",
 	},
+
+	// home/index page shared styles
+	homeContainer: {
+		flex: 1,
+	},
+	homeContent: {
+		padding: 20,
+		paddingBottom: 48,
+		paddingTop: 52,
+	},
+	homeHeroHeader: {
+		marginBottom: 18,
+	},
+	homeKicker: {
+		fontSize: 13,
+		fontWeight: "700",
+		letterSpacing: 1.4,
+		marginBottom: 10,
+		textTransform: "uppercase",
+	},
+	homeTitle: {
+		fontSize: 38,
+		fontWeight: "900",
+		marginBottom: 8,
+	},
+	homeSubtitle: {
+		fontSize: 15,
+		lineHeight: 23,
+		maxWidth: 560,
+	},
+	homeHeroCard: {
+		borderRadius: 28,
+		borderWidth: 1,
+		marginBottom: 22,
+		padding: 22,
+	},
+	homeHelperText: {
+		fontSize: 13,
+		lineHeight: 20,
+		marginTop: 18,
+		textAlign: "center",
+	},
+	homeStatusGrid: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		gap: 12,
+		marginBottom: 22,
+	},
+	homeStatusCard: {
+		borderRadius: 22,
+		borderWidth: 1,
+		minHeight: 140,
+		padding: 18,
+		width: "48%",
+	},
+	homeStatusCardWide: {
+		borderRadius: 22,
+		borderWidth: 1,
+		padding: 18,
+		width: "100%",
+	},
+	homeStatusLabel: {
+		fontSize: 12,
+		fontWeight: "700",
+		letterSpacing: 1.1,
+		textTransform: "uppercase",
+	},
+	homeStatusValue: {
+		fontSize: 26,
+		fontWeight: "800",
+		marginTop: 10,
+	},
+	homeStatusHint: {
+		fontSize: 12,
+		lineHeight: 18,
+		marginTop: 8,
+	},
+	homeActionRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+	},
+	homeActionButton: {
+		borderRadius: 22,
+		minHeight: 132,
+		padding: 18,
+		width: "48%",
+	},
+	homeActionTitle: {
+		fontSize: 18,
+		fontWeight: "700",
+	},
+	homeActionText: {
+		fontSize: 13,
+		lineHeight: 19,
+		marginTop: 8,
+	},
 });

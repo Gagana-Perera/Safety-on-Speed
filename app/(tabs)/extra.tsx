@@ -12,6 +12,7 @@
  * - Uses lightweight caching (placeId + phone) so repeat taps feel instant.
  * - Prefetches in the background once GPS becomes available.
  */
+import { useTheme } from "@/components/theme/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -31,7 +32,6 @@ import {
   View,
 } from "react-native";
 import BackButton from "../../components/backButton";
-import { useTheme } from "@/components/theme/ThemeContext";
 
 import {
   getNearbyPlaces,
@@ -305,9 +305,9 @@ export default function EmergencyServices() {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -949,7 +949,7 @@ export default function EmergencyServices() {
               }}
             >
               {loadingStatus?.id === item.id &&
-              loadingStatus?.type === "call" ? (
+                loadingStatus?.type === "call" ? (
                 <ActivityIndicator size="small" color={EMERGENCY_ICON_COLOR} />
               ) : (
                 <>
@@ -992,7 +992,7 @@ export default function EmergencyServices() {
                 }}
               >
                 {loadingStatus?.id === item.id &&
-                loadingStatus?.type === "map" ? (
+                  loadingStatus?.type === "map" ? (
                   <ActivityIndicator
                     size="small"
                     color={EMERGENCY_ICON_COLOR}

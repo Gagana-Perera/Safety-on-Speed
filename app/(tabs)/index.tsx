@@ -1,7 +1,5 @@
-import LocationPreviewMap from "@/components/LocationPreviewMap";
 import { useTheme } from "@/components/theme/ThemeContext";
-import { countGuardianRecipients, loadGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
-import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
+import { countGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
 import {
   EMERGENCY_SOS_TAP_WINDOW_MS,
   getEmergencyTapHint,
@@ -30,11 +28,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { globalStyles } from "@/app/global";
 
 
 import "@/lib/sosTask";
 
 const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
+const LOCATION_PREPROMPT_PENDING_KEY = "location_preprompt_pending_v1";
 
 type GpsStatus = "checking" | "off" | "permission-needed" | "ready";
 type SOSLaunchMode = "emergency" | "quick";
@@ -124,7 +124,19 @@ export default function Index() {
     try {
       // 2. If already granted, no need to show at all.
       const fg = await Location.getForegroundPermissionsAsync();
-      if (fg.status === "granted") return false;
+      if (fg.status === "granted") {
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY).catch(
+          () => undefined,
+        );
+        return false;
+      }
+
+      const pendingAfterSignup = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_PENDING_KEY,
+      );
+      if (pendingAfterSignup === "true") {
+        return true;
+      }
 
       // 3. Check persistent storage for previous decisions.
       const previousChoice = await AsyncStorage.getItem(
@@ -132,25 +144,16 @@ export default function Index() {
       );
 
       // If they explicitly denied, we respect that and don't show it again this launch.
-      // (This is handled by the launch guard above, but kept for clarity).
       if (previousChoice === "deny") return false;
-
-      // In Expo Go/dev, permissions are often already granted to Expo Go which can
-      // make it hard to validate the preprompt UX. Force-show once per launch
-      // regardless of stored choice (testing convenience).
-      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
-        return true;
-      }
 
       // If they chose "allow_while", we check why it's not granted yet. 
       // If it's not granted, it means they might have revoked it or it's a new session.
-      // We return true to help them get back to the right state.
       if (previousChoice === "allow_while") return true;
 
-      // Default: If they haven't seen it or haven't made a permanent choice, show it.
-      return true;
+      // Outside the signup onboarding flow, don't force the popup on every launch.
+      return false;
     } catch {
-      return true;
+      return false;
     }
   }, []);
 
@@ -274,6 +277,7 @@ export default function Index() {
     try {
       try {
         await AsyncStorage.removeItem(LOCATION_PREPROMPT_CHOICE_KEY);
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY);
       } catch {
         // ignore
       }
@@ -303,6 +307,7 @@ export default function Index() {
     if (locationPrepromptBusy) return;
     try {
       await AsyncStorage.setItem(LOCATION_PREPROMPT_CHOICE_KEY, "deny");
+      await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY);
     } catch {
       // ignore
     }
@@ -311,57 +316,15 @@ export default function Index() {
 
   const triggerSOSFlow = useCallback(
     async (mode: "quick" | "emergency") => {
-      setLaunchMode(mode);
+      // Navigate immediately to context-rich loading screen
+      router.push({
+        params: { mode },
+        pathname: "/sos/loading",
+      });
 
-      try {
-        // 1. Get current user
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) throw new Error("Please sign in to send SOS.");
-
-        // 2. Load Profile & Location in parallel for speed
-        const [profileRes, locationRes] = await Promise.all([
-          supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
-          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
-        ]);
-
-        const userName = profileRes.data?.full_name || "A user";
-        const latitude = locationRes?.coords.latitude;
-        const longitude = locationRes?.coords.longitude;
-
-        // 3. Load Guardians
-        const guardians = await loadGuardianRecipients(session.user.id);
-        if (guardians.length === 0) {
-          throw new Error("You haven't added any guardians yet.");
-        }
-
-        const phoneNumbers = guardians.map(g => g.phone);
-
-        // 4. Call WhatsApp Service with full details
-        await sendSOSWhatsAppAlert(
-          phoneNumbers,
-          userName,
-          latitude,
-          longitude
-        );
-
-        // 5. Success Alert
-        Alert.alert(
-          "SOS Alert Sent ✅",
-          `WhatsApp messages have been sent to ${guardians.length} guardian(s).`
-        );
-
-        // 6. Continue to the tracking screen
-        router.push({
-          params: { mode },
-          pathname: "/sos/loading",
-        });
-      } catch (error: any) {
-        console.error("[Index] SOS Trigger Failed:", error);
-        Alert.alert("SOS Failed ❌", error.message || "Unable to send WhatsApp alert.");
-      } finally {
-        setLaunchMode(null);
-        resetTapSequence();
-      }
+      // Reset local tap state
+      setLaunchMode(null);
+      resetTapSequence();
     },
     [resetTapSequence, router],
   );
@@ -407,14 +370,14 @@ export default function Index() {
   ]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroHeader}>
-          <Text style={[styles.kicker, { color: theme.icon }]}>
+    <View style={[globalStyles.homeContainer, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={globalStyles.homeContent}>
+        <View style={globalStyles.homeHeroHeader}>
+          <Text style={[globalStyles.homeKicker, { color: theme.icon }]}>
             {t('personal_safety')}
           </Text>
-          <Text style={[styles.title, { color: theme.text }]}>{t('sos_control')}</Text>
-          <Text style={[styles.subtitle, { color: theme.icon }]}>
+          <Text style={[globalStyles.homeTitle, { color: theme.text }]}>{t('sos_control')}</Text>
+          <Text style={[globalStyles.homeSubtitle, { color: theme.icon }]}>
             One tap starts a Quick SOS. Three fast taps starts the emergency
             flow and prompts a 119 call.
           </Text>
@@ -422,7 +385,7 @@ export default function Index() {
 
         <View
           style={[
-            styles.heroCard,
+            globalStyles.homeHeroCard,
             {
               backgroundColor: theme.card,
 
@@ -469,28 +432,25 @@ export default function Index() {
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={[styles.helperText, { color: theme.icon }]}>
-            1 tap = Quick SOS. 3 taps = Emergency SOS.
-          </Text>
-          <Text style={[styles.helperText, { color: theme.icon }]}>
+          <Text style={[globalStyles.homeHelperText, { color: theme.icon }]}>
             {getEmergencyTapHint(tapCount)}
           </Text>
         </View>
 
-        <View style={styles.statusGrid}>
+        <View style={globalStyles.homeStatusGrid}>
           <View
             style={[
-              styles.statusCard,
+              globalStyles.homeStatusCard,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>
               {t('guardians')}
             </Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {guardianCount}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               {guardianCount === 0
                 ? t('add_guardians_before_sos')
                 : t('guardians_desc')}
@@ -499,15 +459,15 @@ export default function Index() {
 
           <View
             style={[
-              styles.statusCard,
+              globalStyles.homeStatusCard,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>{t('gps')}</Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>{t('gps')}</Text>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {formatGpsStatus(gpsStatus)}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               Location access is required before the app can send your SMS
               alert.
             </Text>
@@ -515,44 +475,44 @@ export default function Index() {
 
           <View
             style={[
-              styles.statusCardWide,
+              globalStyles.homeStatusCardWide,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>
               {t('internet')}
             </Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {formatInternetStatus(internetStatus)}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               Automatic guardian alerts need a connected network and backend
               endpoint.
             </Text>
           </View>
         </View>
 
-        <View style={styles.actionRow}>
+        <View style={globalStyles.homeActionRow}>
           <TouchableOpacity
             onPress={() => router.push("/extra")}
-            style={[styles.actionButton, { backgroundColor: theme.card }]}
+            style={[globalStyles.homeActionButton, { backgroundColor: theme.card }]}
           >
-            <Text style={[styles.actionTitle, { color: theme.text }]}>
+            <Text style={[globalStyles.homeActionTitle, { color: theme.text }]}>
               {t('emergency_services')}
             </Text>
-            <Text style={[styles.actionText, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeActionText, { color: theme.icon }]}>
               {t('open_hotlines_desc')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => router.push("/auth/addguardians" as any)}
-            style={[styles.actionButton, { backgroundColor: theme.card }]}
+            style={[globalStyles.homeActionButton, { backgroundColor: theme.card }]}
           >
-            <Text style={[styles.actionTitle, { color: theme.text }]}>
+            <Text style={[globalStyles.homeActionTitle, { color: theme.text }]}>
               {guardianCount === 0 ? t('add_guardians') : t('manage_guardians')}
             </Text>
-            <Text style={[styles.actionText, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeActionText, { color: theme.icon }]}>
               {guardianCount === 0
                 ? t('setup_contacts_emergency_desc')
                 : t('manage_guardians_desc')}
@@ -565,6 +525,7 @@ export default function Index() {
         visible={showLocationPreprompt}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={closeLocationPreprompt}
       >
         <View style={styles.locationModalWrap}>
@@ -595,12 +556,19 @@ export default function Index() {
                   </Text>
                 </View>
 
-                <View style={styles.locationMapWrap}>
-                  <View style={styles.locationMapCard}>
-                    <LocationPreviewMap />
-                    <View style={styles.preciseChip}>
-                      <Text style={styles.preciseChipText}>Precise: On</Text>
+                <View style={styles.locationPreviewWrap}>
+                  <View style={styles.locationPreviewCard}>
+                    <View style={styles.locationPulseOuter}>
+                      <View style={styles.locationPulseInner}>
+                        <View style={styles.locationPinStem} />
+                        <View style={styles.locationPinDot} />
+                      </View>
                     </View>
+                    <Text style={styles.locationPreviewTitle}>Current location</Text>
+                    <Text style={styles.locationPreviewText}>
+                      Used for SOS alerts, nearby emergency services, and live
+                      safety features while you use the app.
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -666,55 +634,6 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-    borderRadius: 22,
-    minHeight: 132,
-    padding: 18,
-    width: "48%",
-  },
-  actionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  actionText: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-  },
-  actionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 48,
-    paddingTop: 52,
-  },
-  helperText: {
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 18,
-    textAlign: "center",
-  },
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 22,
-  },
-  heroHeader: {
-    marginBottom: 18,
-  },
-  kicker: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    marginBottom: 10,
-    textTransform: "uppercase",
-  },
   sosButton: {
     alignItems: "center",
     borderRadius: 120,
@@ -747,51 +666,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 8,
     textAlign: "center",
-  },
-  statusCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    minHeight: 140,
-    padding: 18,
-    width: "48%",
-  },
-  statusCardWide: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 18,
-    width: "100%",
-  },
-  statusGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 22,
-  },
-  statusHint: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 8,
-  },
-  statusLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    textTransform: "uppercase",
-  },
-  statusValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    marginTop: 10,
-  },
-  title: {
-    fontSize: 38,
-    fontWeight: "900",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 23,
-    maxWidth: 560,
   },
   locationModalWrap: {
     flex: 1,
@@ -827,31 +701,65 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 10,
   },
-  locationMapWrap: {
+  locationPreviewWrap: {
     width: "100%",
     paddingHorizontal: 16,
     paddingBottom: 10,
   },
-  locationMapCard: {
+  locationPreviewCard: {
     borderRadius: 14,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  preciseChip: {
+  locationPulseOuter: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationPulseInner: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  locationPinStem: {
+    width: 8,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    marginTop: 6,
+  },
+  locationPinDot: {
     position: "absolute",
-    left: 12,
-    top: 12,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    top: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
   },
-  preciseChipText: {
-    fontSize: 14,
+  locationPreviewTitle: {
+    marginTop: 12,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#007AFF",
+    color: "#111827",
+    textAlign: "center",
+  },
+  locationPreviewText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#374151",
+    textAlign: "center",
   },
   locationTitle: {
     fontSize: 20,

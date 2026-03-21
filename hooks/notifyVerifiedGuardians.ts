@@ -55,7 +55,31 @@ type GuardiansRow = Pick<
 >;
 
 function normalizePhone(phone: string) {
-  return phone.replace(/[^\d+]/g, "");
+  const trimmed = phone.trim();
+  if (!trimmed) return "";
+
+  // Keep only digits and normalize to E.164 (+94...) for Sri Lanka numbers.
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (!digitsOnly) return "";
+
+  if (digitsOnly.startsWith("94") && digitsOnly.length >= 11) {
+    return `+${digitsOnly}`;
+  }
+
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
+    return `+94${digitsOnly.slice(1)}`;
+  }
+
+  if (digitsOnly.length === 9) {
+    return `+94${digitsOnly}`;
+  }
+
+  // Fallback for already-international numbers from other regions.
+  if (trimmed.startsWith("+") && digitsOnly.length >= 8) {
+    return `+${digitsOnly}`;
+  }
+
+  return "";
 }
 
 export function extractGuardianRecipients(row: GuardiansRow | null) {
