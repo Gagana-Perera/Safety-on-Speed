@@ -2,21 +2,34 @@ import React, { useState } from "react";
 import { Text, View, StyleSheet, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, Modal, Pressable } from "react-native";
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { createPost } from '@/lib/newsApi';
+import { createPost, type CreatePostInput } from '@/lib/newsApi';
 import { useTheme } from '@/components/theme/ThemeContext';
+import { useRouter } from "expo-router";
 
 interface CreatePostProps {
-  visible: boolean;
-  onClose: () => void;
+  visible?: boolean;
+  onClose?: () => void;
   onSuccess?: () => void;
 }
 
 export default function CreatePost({ visible, onClose, onSuccess }: CreatePostProps) {
   const { theme } = useTheme();
+  const router = useRouter();
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
+
+  const modalVisible = typeof visible === "boolean" ? visible : true;
+  const closeModal = () => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    }
+  };
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -47,16 +60,15 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
     try {
       setUploading(true);
       
-      const newPost = {
-        postId: `post_${Date.now()}`,
-        postTopic: subject,
+      const newPost: CreatePostInput = {
+        postTopic: subject.trim(),
         postTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         postDate: new Date().toLocaleDateString('en-US'),
-        postBody: body,
+        postBody: body.trim(),
         postImage: image || undefined,
       };
 
-      const result = await createPost(newPost as any);
+      const result = await createPost(newPost);
       
       if (result) {
         Alert.alert("Success", "Post created successfully!", [
@@ -65,7 +77,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
             setBody("");
             setImage(null);
             onSuccess?.();
-            onClose();
+            closeModal();
           }}
         ]);
       } else {
@@ -81,14 +93,14 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
 
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       transparent={true}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={closeModal}
     >
       <Pressable 
         style={styles.overlay}
-        onPress={onClose}
+        onPress={closeModal}
       >
         <Pressable 
           style={[styles.modalContent, { backgroundColor: theme.card }]}
@@ -98,7 +110,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
 
           <View style={styles.bodyContainer}>
             <TextInput
-              style={[styles.input, styles.subjectInput, { color: theme.text, borderColor: theme.border }]}
+              style={[styles.input, styles.subjectInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
               placeholder="Subject or Title"
               placeholderTextColor={theme.icon}
               value={subject}
@@ -107,7 +119,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
             />
 
             <TextInput
-              style={[styles.input, styles.bodyInput, { color: theme.text, borderColor: theme.border }]}
+              style={[styles.input, styles.bodyInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
               placeholder="What's on your mind?"
               placeholderTextColor={theme.icon}
               value={body}
@@ -152,7 +164,7 @@ export default function CreatePost({ visible, onClose, onSuccess }: CreatePostPr
             {uploading ? (
               <ActivityIndicator color={theme.text} />
             ) : (
-              <Text style={[styles.submitButtonText, { color: theme.text }]}>Post</Text>
+              <Text style={[styles.submitButtonText]}>Post</Text>
             )}
           </TouchableOpacity>
         </Pressable>
@@ -284,5 +296,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: "700",
+    color: '#fff',
   },
 });
