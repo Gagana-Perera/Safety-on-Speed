@@ -122,6 +122,13 @@ export default function Index() {
     }
 
     try {
+      // In Expo Go/dev, permissions are often already granted to Expo Go which can
+      // make it hard to validate the preprompt UX. Force-show once per launch
+      // regardless of stored choice or OS grant status (testing convenience).
+      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
+        return true;
+      }
+
       // 2. If already granted, no need to show at all.
       const fg = await Location.getForegroundPermissionsAsync();
       if (fg.status === "granted") return false;
@@ -132,19 +139,10 @@ export default function Index() {
       );
 
       // If they explicitly denied, we respect that and don't show it again this launch.
-      // (This is handled by the launch guard above, but kept for clarity).
       if (previousChoice === "deny") return false;
-
-      // In Expo Go/dev, permissions are often already granted to Expo Go which can
-      // make it hard to validate the preprompt UX. Force-show once per launch
-      // regardless of stored choice (testing convenience).
-      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
-        return true;
-      }
 
       // If they chose "allow_while", we check why it's not granted yet. 
       // If it's not granted, it means they might have revoked it or it's a new session.
-      // We return true to help them get back to the right state.
       if (previousChoice === "allow_while") return true;
 
       // Default: If they haven't seen it or haven't made a permanent choice, show it.
