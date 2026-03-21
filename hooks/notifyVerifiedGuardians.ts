@@ -2,6 +2,7 @@ import { Linking, Share, Alert } from "react-native";
 import type { Tables } from "@/database.types";
 import { loadCachedGuardians } from "@/lib/saveguardians";
 import { supabase, supabaseKey, supabaseUrl } from "@/lib/superbase";
+import * as Location from "expo-location";
 import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
 
 export type SOSMode = "quick" | "emergency";
@@ -214,7 +215,22 @@ export async function dispatchGuardianAlert({
       throw new Error("Your session has expired. Please sign in again.");
     }
 
-    const data = await sendSOSWhatsAppAlert(guardians.map((g) => g.phone));
+    // Fetch Profile & Location for background alerts
+    const [profileRes, locationRes] = await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
+    ]);
+
+    const userName = profileRes.data?.full_name || "A user";
+    const latitude = locationRes?.coords.latitude;
+    const longitude = locationRes?.coords.longitude;
+
+    const data = await sendSOSWhatsAppAlert(
+      guardians.map((g) => g.phone),
+      userName,
+      latitude,
+      longitude
+    );
     
     const method: GuardianAlertDeliveryMethod = "whatsapp-api";
 
