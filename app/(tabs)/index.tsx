@@ -617,7 +617,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Allow Once
                   </Text>
@@ -634,7 +634,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Allow While Using App
                   </Text>
@@ -651,7 +651,7 @@ export default function Index() {
                   }}
                 >
                   <Text
-                    style={[styles.locationActionText, { color: "#2563eb" }]}
+                    style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
                     Don’t Allow
                   </Text>
@@ -806,7 +806,7 @@ const styles = StyleSheet.create({
   locationSheet: {
     width: "82%",
     maxWidth: 440,
-    borderRadius: Platform.OS === "ios" ? 22 : 12, // More Android-native feel
+    borderRadius: 22,
     overflow: "hidden",
     borderWidth: 1,
     shadowColor: "#000",
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
   preciseChipText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#2563eb",
+    color: "#007AFF",
   },
   locationTitle: {
     fontSize: 20,
@@ -866,8 +866,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   locationActions: {
-    backgroundColor: Platform.OS === "ios" ? "rgba(240,240,240,0.96)" : "#F8F8F8",
-    paddingBottom: Platform.OS === "android" ? 6 : 0, 
+    backgroundColor: "rgba(240,240,240,0.96)",
   },
   locationActionBtn: {
     paddingVertical: 14,
@@ -881,6 +880,6 @@ const styles = StyleSheet.create({
   },
   locationActionText: {
     fontSize: 17,
-    fontWeight: Platform.OS === "ios" ? "600" : "700",
+    fontWeight: "600",
   },
 });
