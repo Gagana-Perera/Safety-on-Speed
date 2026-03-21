@@ -16,7 +16,11 @@
  * - Place Details: `details/json`
  * - Photo: `photo`
  */
-const GOOGLE_API_KEY: string = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || "";
+import Constants from "expo-constants";
+
+const GOOGLE_API_KEY: string =
+  process.env.EXPO_PUBLIC_GOOGLE_API_KEY ||
+  String(Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_API_KEY ?? "");
 
 // `EXPO_PUBLIC_*` variables are safe to read in the app bundle in Expo.
 // In local/dev you typically set this in `.env` or `app.config.js`.

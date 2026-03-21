@@ -76,4 +76,14 @@ module.exports = ({ config }) => ({
     typedRoutes: true,
     reactCompiler: true,
   },
+  extra: {
+    ...(config.extra ?? {}),
+    EXPO_PUBLIC_GOOGLE_API_KEY: process.env.EXPO_PUBLIC_GOOGLE_API_KEY,
+    EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL:
+      process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL,
+    EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL:
+      process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL,
+    EXPO_PUBLIC_SUPABASE_KEY: process.env.EXPO_PUBLIC_SUPABASE_KEY,
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  },
 });

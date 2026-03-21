@@ -1,38 +1,63 @@
-
-import React, { useEffect, useState } from "react";
-import { Text, View, ScrollView, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
-import { MaterialIcons } from '@expo/vector-icons';
-import { fetchPosts, type Post } from '@/lib/newsApi';
-import CreatePost from '@/app/createpost';
-import { useTheme } from '@/components/theme/ThemeContext';
+import { useTheme } from "@/components/theme/ThemeContext";
+import { fetchPosts, type Post } from "@/lib/newsApi";
+import { MaterialIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 // this part controls the post card
 
-const PostCard = ({ postTopic, postDate, postTime, postBody, media, theme }: any) => {
+const PostCard = ({
+  postTopic,
+  postDate,
+  postTime,
+  postBody,
+  media,
+  theme,
+}: any) => {
   // const [isLiked, setIsLiked] = useState(false);
 
   const formatPostTime = (value: string) => {
-    if (!value) return '';
+    if (!value) return "";
 
-    const normalized = value.trim().replace('.', ':');
-    const twelveHour = normalized.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?$/);
+    const normalized = value.trim().replace(".", ":");
+    const twelveHour = normalized.match(
+      /^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?$/,
+    );
     if (twelveHour) {
       const [, hour, minute, meridiem] = twelveHour;
-      return `${hour.padStart(2, '0')}:${minute}${meridiem ? ` ${meridiem.toUpperCase()}` : ''}`;
+      return `${hour.padStart(2, "0")}:${minute}${meridiem ? ` ${meridiem.toUpperCase()}` : ""}`;
     }
 
     return normalized;
   };
 
   return (
-    <View style={[styles.postCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.postCard,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
       <View style={styles.postHeader}>
-        <Text style={[styles.postTopic, { color: theme.text }]}>{postTopic}</Text>
+        <Text style={[styles.postTopic, { color: theme.text }]}>
+          {postTopic}
+        </Text>
         <View style={styles.postMetaRow}>
-          <Text style={[styles.postMetaText, { color: theme.text }]}>{postDate}</Text>
-          <Text style={[styles.postMetaText, { color: theme.text }]}>• {formatPostTime(postTime)}</Text>
+          <Text style={[styles.postMetaText, { color: theme.text }]}>
+            {postDate}
+          </Text>
+          <Text style={[styles.postMetaText, { color: theme.text }]}>
+            • {formatPostTime(postTime)}
+          </Text>
         </View>
       </View>
 
@@ -53,7 +78,9 @@ const PostCard = ({ postTopic, postDate, postTime, postBody, media, theme }: any
       )} */}
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity 
+        {/* this icon is to show that the post was helpful */}
+
+        {/* <TouchableOpacity 
           style={styles.actionButton}
         >
           <MaterialIcons 
@@ -61,8 +88,7 @@ const PostCard = ({ postTopic, postDate, postTime, postBody, media, theme }: any
             name="thumb-up-off-alt" 
             size={20}
           />
-          <Text style={[styles.helpfulText, { color: theme.text }]}>Was this helpful?</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     </View>
   );
@@ -78,20 +104,21 @@ export default function News() {
   useEffect(() => {
     fetchPosts()
       .then((data) => setPosts(data))
-      .catch((error) => console.error('Error fetching posts:', error));
+      .catch((error) => console.error("Error fetching posts:", error));
   }, []);
 
   const sortedPosts = [...posts].sort((a, b) => {
-    const timeA = parseFloat(a.postTime.replace('.', ''));
-    const timeB = parseFloat(b.postTime.replace('.', ''));
+    const timeA = parseFloat(a.postTime.replace(".", ""));
+    const timeB = parseFloat(b.postTime.replace(".", ""));
     return timeB - timeA;
   });
 
-// this section controls the the background
+  // this section controls the the background
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Image 
           source={require('@/assets/oc/logo.jpg')} 
@@ -100,22 +127,29 @@ export default function News() {
         />
       </View> */}
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {sortedPosts.map((post) => (
-          <PostCard key={`${post.postTopic}-${post.postDate}-${post.postTime}`} {...post} theme={theme} />
+          <PostCard
+            key={`${post.postTopic}-${post.postDate}-${post.postTime}`}
+            {...post}
+            theme={theme}
+          />
         ))}
       </ScrollView>
 
-      {/* <TouchableOpacity 
+      <TouchableOpacity
         style={styles.heatMapButton}
-        onPress={() => router.push('/(tabs)/heatmap')}
+        onPress={() => router.push("/(tabs)/heatmap")}
       >
         <MaterialIcons name="map" size={30} color={theme.text} />
-      </TouchableOpacity> */}
+      </TouchableOpacity>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.createPostButton}
-        onPress={() => setCreatePostVisible(true)}
+        onPress={() => router.push("/createpost")}
       >
         <MaterialIcons name="add-comment" size={30} color={theme.text} />
       </TouchableOpacity>
@@ -193,7 +227,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 30,
     elevation: 2,
-
   },
   postHeader: {
     marginBottom: 12,
@@ -268,33 +301,33 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#fff",
   },
-  // heatMapButton: {
-  //   position: 'absolute',
-  //   bottom: 90,
-  //   right: 20,
-  //   width: 60,
-  //   height: 60,
-  //   borderRadius: 30,
-  //   backgroundColor: '#0494CB',
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   shadowColor: '#0494CB',
-  //   shadowOffset: { width: 0, height: 4 },
-  //   shadowOpacity: 0.4,
-  //   shadowRadius: 8,
-  //   elevation: 5,
-  // },
+  heatMapButton: {
+    position: "absolute",
+    bottom: 90,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#0494CB",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0494CB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   createPostButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#0494CB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#0494CB',
+    backgroundColor: "#0494CB",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0494CB",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,

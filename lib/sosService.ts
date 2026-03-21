@@ -7,7 +7,6 @@ import { Linking, Platform } from "react-native";
 import type { Tables } from "@/database.types";
 import {
   buildSOSAlertMessage,
-  dispatchGuardianAlert,
   loadGuardianRecipients,
   openGuardianAlertComposer,
   type GuardianAlertDeliveryMethod,
@@ -18,6 +17,13 @@ import {
 import { supabase } from "@/lib/superbase";
 
 export const SOS_LOCATION_TASK_NAME = "safety-on-speed-sos-location";
+
+// Tracking cadence + smart write throttling.
+// - Poll GPS around every 3-5 seconds.
+// - Persist only when movement is meaningful OR enough time has passed.
+const SOS_TRACKING_INTERVAL_MS = 4000;
+const SOS_MIN_DISTANCE_METERS_FOR_UPDATE = 15;
+const SOS_MAX_SILENCE_MS_FOR_UPDATE = 8000;
 
 const ACTIVE_SOS_STORAGE_KEY = "active_sos_session_v1";
 
@@ -61,6 +67,55 @@ export type StartSOSResult = {
   session: StoredSOSSession;
 };
 
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceMeters(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+) {
+  const earthRadiusM = 6371000;
+  const dLat = toRadians(to.latitude - from.latitude);
+  const dLng = toRadians(to.longitude - from.longitude);
+  const lat1 = toRadians(from.latitude);
+  const lat2 = toRadians(to.latitude);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusM * c;
+}
+
+function shouldPersistSOSLocationUpdate({
+  nextLatitude,
+  nextLongitude,
+  previous,
+}: {
+  nextLatitude: number;
+  nextLongitude: number;
+  previous: StoredSOSSession | null;
+}) {
+  if (!previous) return true;
+  if (previous.lastLat == null || previous.lastLng == null) return true;
+
+  const movedMeters = distanceMeters(
+    { latitude: previous.lastLat, longitude: previous.lastLng },
+    { latitude: nextLatitude, longitude: nextLongitude },
+  );
+
+  const elapsedMs = previous.lastUpdatedAt
+    ? Date.now() - new Date(previous.lastUpdatedAt).getTime()
+    : Number.POSITIVE_INFINITY;
+
+  return (
+    movedMeters >= SOS_MIN_DISTANCE_METERS_FOR_UPDATE ||
+    elapsedMs >= SOS_MAX_SILENCE_MS_FOR_UPDATE
+  );
+}
+
 const START_PROGRESS_LABELS: Record<StartSOSProgressKey, string> = {
   alerting_guardians: "Guardians alerted",
   capturing_location: "Location captured",
@@ -73,7 +128,10 @@ function toSOSMode(value: string | null | undefined): SOSMode {
 }
 
 export function buildSOSShareUrl(shareToken: string) {
-  const baseUrl = process.env.EXPO_PUBLIC_SOS_BASE_URL?.trim().replace(/\/+$/, "");
+  const baseUrl = process.env.EXPO_PUBLIC_SOS_BASE_URL?.trim().replace(
+    /\/+$/,
+    "",
+  );
 
   if (baseUrl) {
     return `${baseUrl}/sos/${encodeURIComponent(shareToken)}`;
@@ -91,7 +149,8 @@ export function mapSOSSessionRowToStoredSession(
 ): StoredSOSSession {
   return {
     alertDeliveryMethod:
-      (session.alert_delivery_method as GuardianAlertDeliveryMethod | null) ?? null,
+      (session.alert_delivery_method as GuardianAlertDeliveryMethod | null) ??
+      null,
     alertDeliveryStatus:
       (session.alert_delivery_status as GuardianAlertDeliveryStatus | null) ??
       "pending",
@@ -339,7 +398,9 @@ async function getBestAvailableLocation() {
     return lastKnownLocation;
   }
 
-  throw new Error("Unable to get your current location. Turn on GPS and try again.");
+  throw new Error(
+    "Unable to get your current location. Turn on GPS and try again.",
+  );
 }
 
 async function ensureSOSLocationPermissions() {
@@ -381,6 +442,20 @@ export async function updateSOSSessionLocation({
   sessionId: string;
   writeFirstLocation?: boolean;
 }) {
+  const storedSession = await getStoredActiveSOSSession();
+
+  if (
+    !writeFirstLocation &&
+    storedSession?.sessionId === sessionId &&
+    !shouldPersistSOSLocationUpdate({
+      nextLatitude: latitude,
+      nextLongitude: longitude,
+      previous: storedSession,
+    })
+  ) {
+    return;
+  }
+
   const payload: Record<string, number | string | null> = {
     accuracy,
     last_lat: latitude,
@@ -409,7 +484,6 @@ export async function updateSOSSessionLocation({
 
   if (insertError) throw insertError;
 
-  const storedSession = await getStoredActiveSOSSession();
   if (storedSession?.sessionId === sessionId) {
     await saveStoredActiveSOSSession({
       ...storedSession,
@@ -452,8 +526,8 @@ export async function startLocationTracking(session: StoredSOSSession) {
     webLocationWatch = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 10,
-        timeInterval: 10000,
+        distanceInterval: 0,
+        timeInterval: SOS_TRACKING_INTERVAL_MS,
       },
       async (location) => {
         try {
@@ -481,15 +555,16 @@ export async function startLocationTracking(session: StoredSOSSession) {
 
   await Location.startLocationUpdatesAsync(SOS_LOCATION_TASK_NAME, {
     accuracy: Location.Accuracy.High,
-    deferredUpdatesInterval: 10000,
-    distanceInterval: 10,
+    deferredUpdatesInterval: SOS_TRACKING_INTERVAL_MS,
+    distanceInterval: 0,
     foregroundService: {
-      notificationBody: "Your SOS alert is active and your guardians can track you.",
+      notificationBody:
+        "Your SOS alert is active and your guardians can track you.",
       notificationColor: "#E53935",
       notificationTitle: "SOS Active",
     },
     showsBackgroundLocationIndicator: true,
-    timeInterval: 10000,
+    timeInterval: SOS_TRACKING_INTERVAL_MS,
   });
 }
 

@@ -12,23 +12,19 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as TaskManager from "expo-task-manager";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import i18n from "../../lib/i18n";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
   Animated,
   AppState,
-  Easing,
-  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -139,6 +135,13 @@ export default function Index() {
       // (This is handled by the launch guard above, but kept for clarity).
       if (previousChoice === "deny") return false;
 
+      // In Expo Go/dev, permissions are often already granted to Expo Go which can
+      // make it hard to validate the preprompt UX. Force-show once per launch
+      // regardless of stored choice (testing convenience).
+      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
+        return true;
+      }
+
       // If they chose "allow_while", we check why it's not granted yet. 
       // If it's not granted, it means they might have revoked it or it's a new session.
       // We return true to help them get back to the right state.
@@ -166,7 +169,9 @@ export default function Index() {
         return;
       }
 
-      const guardianTotal = await countGuardianRecipients(userId).catch(() => 0);
+      const guardianTotal = await countGuardianRecipients(userId).catch(
+        () => 0,
+      );
       const servicesEnabled = await Location.hasServicesEnabledAsync().catch(
         () => false,
       );
@@ -217,7 +222,7 @@ export default function Index() {
       setLaunchMode(null);
       resetTapSequence();
       void loadDashboardState();
-      
+
       let cancelled = false;
       void (async () => {
         const shouldShow = await getShouldShowLocationPreprompt();
@@ -362,32 +367,27 @@ export default function Index() {
       () => undefined,
     );
 
-    if (nextTaps.length === 1) {
-      clearQuickTimer();
-      clearEmergencyWindow();
-
-      quickTimerRef.current = setTimeout(() => {
-        triggerSOSFlow("quick");
-      }, EMERGENCY_SOS_TAP_WINDOW_MS);
-
-      emergencyWindowRef.current = setTimeout(() => {
-        resetTapSequence();
-      }, EMERGENCY_SOS_TAP_WINDOW_MS);
-
-      return;
-    }
 
     if (nextTaps.length >= 3) {
       clearQuickTimer();
       clearEmergencyWindow();
-      triggerSOSFlow("emergency");
+      void triggerSOSFlow("emergency");
+      return;
+    }
+
+    // Single tap starts a quick SOS after the emergency tap window expires.
+    if (nextTaps.length === 1) {
+      clearQuickTimer();
+      quickTimerRef.current = setTimeout(() => {
+        quickTimerRef.current = null;
+        void triggerSOSFlow("quick");
+      }, EMERGENCY_SOS_TAP_WINDOW_MS);
     }
   }, [
     clearEmergencyWindow,
     clearQuickTimer,
     dashboardLoading,
     isLaunchingSOS,
-    resetTapSequence,
     triggerSOSFlow,
   ]);
 
@@ -410,6 +410,7 @@ export default function Index() {
             styles.heroCard,
             {
               backgroundColor: theme.card,
+
               borderColor: theme.border,
             },
           ]}
@@ -492,7 +493,8 @@ export default function Index() {
               {formatGpsStatus(gpsStatus)}
             </Text>
             <Text style={[styles.statusHint, { color: theme.icon }]}>
-              Location access is required for live tracking.
+              Location access is required before the app can send your SMS
+              alert.
             </Text>
           </View>
 
@@ -529,7 +531,7 @@ export default function Index() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push("/auth/addguardians")}
+            onPress={() => router.push("/auth/addguardians" as any)}
             style={[styles.actionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[styles.actionTitle, { color: theme.text }]}>
