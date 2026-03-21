@@ -318,7 +318,17 @@ export default function Index() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error("Please sign in to send SOS.");
 
-        // 2. Load Guardians
+        // 2. Load Profile & Location in parallel for speed
+        const [profileRes, locationRes] = await Promise.all([
+          supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
+        ]);
+
+        const userName = profileRes.data?.full_name || "A user";
+        const latitude = locationRes?.coords.latitude;
+        const longitude = locationRes?.coords.longitude;
+
+        // 3. Load Guardians
         const guardians = await loadGuardianRecipients(session.user.id);
         if (guardians.length === 0) {
           throw new Error("You haven't added any guardians yet.");
@@ -326,16 +336,21 @@ export default function Index() {
 
         const phoneNumbers = guardians.map(g => g.phone);
 
-        // 3. Call WhatsApp Service
-        await sendSOSWhatsAppAlert(phoneNumbers);
+        // 4. Call WhatsApp Service with full details
+        await sendSOSWhatsAppAlert(
+          phoneNumbers,
+          userName,
+          latitude,
+          longitude
+        );
 
-        // 4. Success Alert
+        // 5. Success Alert
         Alert.alert(
           "SOS Alert Sent ✅",
           `WhatsApp messages have been sent to ${guardians.length} guardian(s).`
         );
 
-        // 5. Continue to the tracking screen
+        // 6. Continue to the tracking screen
         router.push({
           params: { mode },
           pathname: "/sos/loading",
