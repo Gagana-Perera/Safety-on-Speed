@@ -5,7 +5,6 @@ import "@/lib/sosTask";
 import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
 import { useEffect } from "react";
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { supabase } from '../lib/superbase';
 import Constants from 'expo-constants';
 
@@ -35,7 +34,6 @@ function RootLayoutNav() {
   useEffect(() => {
     const requestAllPermissions = async () => {
       await ImagePicker.requestCameraPermissionsAsync();
-      await Location.requestForegroundPermissionsAsync();
 
       if (Constants.executionEnvironment !== 'storeClient') {
         try {

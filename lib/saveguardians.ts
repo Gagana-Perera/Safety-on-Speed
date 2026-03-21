@@ -5,6 +5,25 @@ const CACHE_KEY = (userId: string) => `guardians_cache_${userId}`;
 
 export type Guardian = { name: string; phone: string };
 
+function normalizeSriLankanPhone(phone: string) {
+  const digitsOnly = phone.trim().replace(/\D/g, "");
+  if (!digitsOnly) return "";
+
+  if (digitsOnly.startsWith("94") && digitsOnly.length >= 11) {
+    return `+${digitsOnly}`;
+  }
+
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
+    return `+94${digitsOnly.slice(1)}`;
+  }
+
+  if (digitsOnly.length === 9) {
+    return `+94${digitsOnly}`;
+  }
+
+  return phone.trim();
+}
+
 /** Persist guardian contacts locally so we can display them
  *  even when the remote SELECT RLS policy is missing. */
 export async function cacheGuardians(userId: string, contacts: Guardian[]) {
@@ -44,7 +63,7 @@ export async function saveGuardians(userId: string, contacts: Guardian[]) {
     const contact = contacts[i - 1];
     if (contact) {
       row[`g${i}_name`] = contact.name.trim();
-      row[`g${i}_phone`] = contact.phone.trim();
+      row[`g${i}_phone`] = normalizeSriLankanPhone(contact.phone);
     } else {
       row[`g${i}_name`] = null;
       row[`g${i}_phone`] = null;

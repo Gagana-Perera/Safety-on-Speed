@@ -70,7 +70,15 @@ Deno.serve(async (req) => {
 
     for (const rawNumber of guardians) {
       const cleanedNumber = rawNumber.replace(/\D/g, "");
-      if (!cleanedNumber) continue;
+      if (!cleanedNumber || cleanedNumber.length < 11 || cleanedNumber.length > 15) {
+        results.push({
+          to: rawNumber,
+          ok: false,
+          error:
+            "Invalid phone number format. Use full international format like +9477XXXXXXX.",
+        });
+        continue;
+      }
 
       try {
         const metaApiUrl = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
