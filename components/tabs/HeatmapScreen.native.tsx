@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { SafeAreaView, StyleSheet, Switch, Text, View } from "react-native";
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 import { useTheme } from "@/components/theme/ThemeContext";
@@ -18,6 +18,7 @@ const SRI_LANKA_REGION: Region = {
 
 export default function Heatmap() {
   const { theme } = useTheme();
+  const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [towns, setTowns] = useState<SosTownAggregate[]>([]);
 
   useEffect(() => {
@@ -63,17 +64,34 @@ export default function Heatmap() {
         provider={PROVIDER_GOOGLE}
         initialRegion={SRI_LANKA_REGION}
       >
-        {circles.map((c) => (
-          <Circle
-            key={c.key}
-            center={c.center}
-            radius={c.radius}
-            fillColor={c.fillColor}
-            strokeColor={c.strokeColor}
-            strokeWidth={1}
-          />
-        ))}
+        {heatmapEnabled
+          ? circles.map((c) => (
+              <Circle
+                key={c.key}
+                center={c.center}
+                radius={c.radius}
+                fillColor={c.fillColor}
+                strokeColor={c.strokeColor}
+                strokeWidth={1}
+              />
+            ))
+          : null}
       </MapView>
+
+      <View
+        style={[
+          styles.toggleCard,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
+        <Text style={[styles.toggleLabel, { color: theme.text }]}>Heatmap</Text>
+        <View style={styles.toggleRightRow}>
+          <Text style={[styles.toggleValue, { color: theme.icon }]}>
+            {heatmapEnabled ? "On" : "Off"}
+          </Text>
+          <Switch value={heatmapEnabled} onValueChange={setHeatmapEnabled} />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -84,5 +102,32 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  toggleCard: {
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    left: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    position: "absolute",
+    right: 12,
+    top: 12,
+    zIndex: 2,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  toggleRightRow: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  toggleValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginRight: 8,
   },
 });

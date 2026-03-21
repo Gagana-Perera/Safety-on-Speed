@@ -20,6 +20,14 @@ export interface Post {
   created_at?: string;
 }
 
+export type CreatePostInput = {
+  postTopic: string;
+  postTime: string;
+  postDate: string;
+  postBody: string;
+  postImage?: string;
+};
+
 // Seed initial data (run once to populate database)
 export const seedPosts = async () => {
   // const dummyPosts = [
@@ -62,7 +70,7 @@ export const fetchPosts = async (): Promise<Post[]> => {
 };
 
 // Create a new post
-export const createPost = async (post: Omit<Post, 'postpostId' | 'created_at'>): Promise<Post | null> => {
+export const createPost = async (post: CreatePostInput): Promise<Post | null> => {
   const { data, error } = await supabase
     .from('posts')
     .insert([post])

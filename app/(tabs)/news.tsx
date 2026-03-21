@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -16,14 +15,8 @@ import { router } from "expo-router";
 
 // this part controls the post card
 
-const PostCard = ({
-  postTopic,
-  postDate,
-  postTime,
-  postBody,
-  media,
-  theme,
-}: any) => {
+const PostCard = ({ postTopic, postDate, postTime, postBody, media }: any) => {
+  const { theme } = useTheme();
   // const [isLiked, setIsLiked] = useState(false);
 
   const formatPostTime = (value: string) => {
@@ -44,26 +37,26 @@ const PostCard = ({
   return (
     <View
       style={[
-        styles.postCard,
+        globalStyles.card,
         { backgroundColor: theme.card, borderColor: theme.border },
       ]}
     >
-      <View style={styles.postHeader}>
-        <Text style={[styles.postTopic, { color: theme.text }]}>
+      <View style={globalStyles.cardHeader}>
+        <Text style={[globalStyles.cardTitle, { color: theme.text }]}>
           {postTopic}
         </Text>
-        <View style={styles.postMetaRow}>
-          <Text style={[styles.postMetaText, { color: theme.text }]}>
+        <View style={globalStyles.metaRow}>
+          <Text style={[globalStyles.metaText, { color: theme.text }]}>
             {postDate}
           </Text>
-          <Text style={[styles.postMetaText, { color: theme.text }]}>
+          <Text style={[globalStyles.metaText, { color: theme.text }]}>
             • {formatPostTime(postTime)}
           </Text>
         </View>
       </View>
 
-      <View style={styles.bodyContainer}>
-        <Text style={[styles.bodyText, { color: theme.text }]}>{postBody}</Text>
+      <View style={globalStyles.bodyContainer}>
+        <Text style={[globalStyles.bodyText, { color: theme.text }]}>{postBody}</Text>
       </View>
 
       {/* {media && (
@@ -78,7 +71,7 @@ const PostCard = ({
         </View>
       )} */}
 
-      <View style={styles.actionButtons}>
+      <View style={globalStyles.actionButtonsRow}>
         {/* this icon is to show that the post was helpful */}
 
         {/* <TouchableOpacity 
@@ -118,7 +111,7 @@ export default function News() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[globalStyles.screenContainer, { backgroundColor: theme.background }]}
     >
       {/* <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Image 
@@ -129,30 +122,18 @@ export default function News() {
       </View> */}
 
       <ScrollView
-        style={styles.scrollView}
+        style={globalStyles.screenScrollView}
         showsVerticalScrollIndicator={false}
       >
         {sortedPosts.map((post) => (
-          <PostCard
-            key={`${post.postTopic}-${post.postDate}-${post.postTime}`}
-            {...post}
-            theme={theme}
-          />
+          <PostCard key={`${post.postTopic}-${post.postDate}-${post.postTime}`} {...post} />
         ))}
       </ScrollView>
-
       <TouchableOpacity
-        style={styles.heatMapButton}
-        onPress={() => router.push("/(tabs)/heatmap")}
+        style={globalStyles.floatingActionButton}
+        onPress={() => setCreatePostVisible(true)}
       >
-        <MaterialIcons name="map" size={30} color={theme.text} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.createPostButton}
-        onPress={() => router.push("/createpost")}
-      >
-        <MaterialIcons name="add-comment" size={30} color={theme.text} />
+        <MaterialIcons name="add-comment" size={30} color="#fff" />
       </TouchableOpacity>
 
       <CreatePost 
@@ -169,169 +150,3 @@ export default function News() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  headerLogo: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    overflow: "hidden",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  headerIcons: {
-    flexDirection: "row",
-    gap: 15,
-  },
-  headerIcon: {
-    padding: 5,
-  },
-  iconText: {
-    fontSize: 20,
-    color: "#fff",
-  },
-  profileIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#4A9EFF",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  postCard: {
-    marginHorizontal: 15,
-    marginVertical: 10,
-    borderRadius: 15,
-    padding: 15,
-    borderLeftColor: "#0494CB",
-    borderLeftWidth: 1,
-    borderBottomWidth: 2,
-    borderRightWidth: 1,
-
-    // here i tried to add a shadow (don't mind it)
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 2,
-  },
-  postHeader: {
-    marginBottom: 12,
-  },
-  postTopic: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  postMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  postMetaText: {
-    fontSize: 12,
-  },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#4A9EFF",
-  },
-  username: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  postTime: {
-    fontSize: 12,
-  },
-  // menuDots: {
-  //   color: "#fff",
-  //   fontSize: 24,
-  //   fontWeight: "bold",
-  // },
-  bodyContainer: {
-    marginBottom: 15,
-  },
-  mediaContainer: {
-    borderRadius: 15,
-    marginBottom: 15,
-  },
-  mediaImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 10,
-  },
-  bodyText: {
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 20,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 5,
-  },
-  helpfulText: {
-    fontSize: 14,
-  },
-  actionIcon: {
-    fontSize: 20,
-    color: "#fff",
-  },
-  heatMapButton: {
-    position: "absolute",
-    bottom: 90,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#0494CB",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  createPostButton: {
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#0494CB",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-});
