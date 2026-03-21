@@ -673,10 +673,14 @@ export async function startSOS({
     storedSession = mapSOSSessionRowToStoredSession(refreshedSession);
     await saveStoredActiveSOSSession(storedSession);
 
-    // Note: Alert is now handled directly by the button in index.tsx
-    // to provide immediate feedback and debugging info.
-    /*
-    const alertResult = await dispatchGuardianAlert({
+    onProgress?.({
+      done: false,
+      key: "alerting_guardians",
+      label: "Alerting guardians...",
+    });
+
+    const { dispatchGuardianAlert } = await import("@/hooks/notifyVerifiedGuardians");
+    await dispatchGuardianAlert({
       accuracy:
         typeof location.coords.accuracy === "number"
           ? location.coords.accuracy
@@ -690,7 +694,6 @@ export async function startSOS({
       sessionId: createdSession.id,
       startedAt: createdSession.started_at,
     });
-    */
 
     onProgress?.({
       done: true,
