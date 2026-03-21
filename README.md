@@ -33,7 +33,7 @@ This project uses **Expo** for a seamless cross-platform development experience.
 ### Step 1: Clone and Install
 ```bash
 # Clone the repository
-git clone https://github.com/RIVINDUSANJULA/safety-on-speed.git
+git clone https://github.com/Gagana-Perera/Safety-on-Speed.git
 
 # Navigate to project directory
 cd safety-on-speed
