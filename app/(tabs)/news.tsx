@@ -7,11 +7,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/components/theme/ThemeContext";
 import CreatePost from "@/app/createpost";
+import { useTheme } from "@/components/theme/ThemeContext";
 import { fetchPosts, type Post } from "@/lib/newsApi";
 import { MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { globalStyles } from "../global";
 
 // this part controls the post card
 
@@ -136,8 +136,8 @@ export default function News() {
         <MaterialIcons name="add-comment" size={30} color="#fff" />
       </TouchableOpacity>
 
-      <CreatePost 
-        visible={createPostVisible} 
+      <CreatePost
+        visible={createPostVisible}
         onClose={() => setCreatePostVisible(false)}
         onSuccess={() => {
           // Refresh posts after successful creation
