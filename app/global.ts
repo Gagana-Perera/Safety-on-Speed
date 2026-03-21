@@ -536,4 +536,93 @@ export const globalStyles = StyleSheet.create({
 	loginLinkUnderline: {
 		textDecorationLine: "underline",
 	},
+
+	// edit profile page styles
+	editProfileLoadingContainer: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	editProfileContainer: {
+		paddingVertical: 12,
+		flex: 1,
+	},
+	editProfileScrollContent: {
+		paddingBottom: 40,
+	},
+	editProfileImageContainer: {
+		alignItems: "center",
+		marginTop: 20,
+		marginBottom: 30,
+	},
+	editProfileAvatar: {
+		width: 100,
+		height: 100,
+		borderRadius: 50,
+		borderWidth: 2,
+	},
+	editProfileCameraIconContainer: {
+		position: "absolute",
+		bottom: 25,
+		right: "36%",
+		backgroundColor: "#2563eb",
+		padding: 8,
+		borderRadius: 20,
+		borderWidth: 2,
+	},
+	editProfileChangePhotoText: {
+		marginTop: 10,
+		color: "#2563eb",
+		fontSize: 14,
+		fontWeight: "600",
+	},
+	editProfileForm: {
+		paddingHorizontal: 24,
+	},
+	editProfileInputGroup: {
+		marginBottom: 20,
+	},
+	editProfileLabel: {
+		fontSize: 13,
+		fontWeight: "600",
+		color: "#a7a7a7",
+		marginBottom: 8,
+		textTransform: "uppercase",
+		letterSpacing: 0.5,
+	},
+	editProfileInputContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		borderRadius: 12,
+		paddingHorizontal: 12,
+		height: 50,
+	},
+	editProfileInputIcon: {
+		marginRight: 10,
+	},
+	editProfileInput: {
+		flex: 1,
+		height: "100%",
+		fontSize: 16,
+	},
+	editProfileActionContainer: {
+		marginTop: 10,
+		paddingHorizontal: 24,
+	},
+	editProfileSaveButton: {
+		borderRadius: 12,
+		paddingVertical: 16,
+		alignItems: "center",
+		justifyContent: "center",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.2,
+		shadowRadius: 5,
+		elevation: 4,
+	},
+	editProfileSaveButtonText: {
+		fontSize: 17,
+		fontWeight: "700",
+		color: "#fff",
+	},
 });
