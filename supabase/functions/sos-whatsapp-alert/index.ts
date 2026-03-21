@@ -15,6 +15,9 @@ const corsHeaders = {
 
 interface RequestBody {
   guardians: string[];
+  userName?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 function jsonResponse(status: number, body: any) {
@@ -25,117 +28,115 @@ function jsonResponse(status: number, body: any) {
 }
 
 Deno.serve(async (req) => {
-  // 1. Handle CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // 2. Validate Environment Variables
     const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
     const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const TEMPLATE_NAME = Deno.env.get("WHATSAPP_TEMPLATE_NAME") || "sos_alert";
+    const TEMPLATE_LANG = Deno.env.get("WHATSAPP_TEMPLATE_LANG") || "en_US";
 
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
-      console.error("Missing WHATSAPP_TOKEN or WHATSAPP_PHONE_NUMBER_ID environment variables.");
       return jsonResponse(500, {
         success: false,
-        error: "Server configuration error: Meta API credentials missing.",
+        error: "Server credentials missing (WHATSAPP_TOKEN/PHONE_NUMBER_ID).",
       });
     }
 
-    // 3. Parse and Validate Request Body
-    const body: RequestBody = await req.json();
-    const { guardians } = body;
+    const { guardians, userName, latitude, longitude }: RequestBody = await req.json();
 
-    if (!guardians || !Array.isArray(guardians) || guardians.length === 0) {
-      return jsonResponse(400, {
-        success: false,
-        error: "The 'guardians' field must be a non-empty array of phone numbers.",
-      });
+    if (!guardians?.length) {
+      return jsonResponse(400, { success: false, error: "Missing guardians array." });
     }
+
+    // Prepare Template Variables
+    const nameStr = userName || "A user";
+    const locStr = (latitude && longitude) 
+      ? `https://www.google.com/maps?q=${latitude},${longitude}`
+      : "Unknown Location";
+    
+    // Sri Lanka Time (UTC+5:30)
+    const now = new Date();
+    const slTime = new Intl.DateTimeFormat("en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Colombo",
+    }).format(now);
 
     const results = [];
     let successCount = 0;
 
-    // 4. Process each guardian number
     for (const rawNumber of guardians) {
-      // Clean number to digits only (Meta expects country code, e.g., 94771234567)
       const cleanedNumber = rawNumber.replace(/\D/g, "");
-
-      if (!cleanedNumber) {
-        results.push({
-          to: rawNumber,
-          ok: false,
-          error: "Invalid phone number format.",
-        });
-        continue;
-      }
+      if (!cleanedNumber) continue;
 
       try {
         const metaApiUrl = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
         
+        // Build payload based on template name
+        const isHelloWorld = TEMPLATE_NAME === "hello_world";
+        const payload: any = {
+          messaging_product: "whatsapp",
+          to: cleanedNumber,
+          type: "template",
+          template: {
+            name: TEMPLATE_NAME,
+            language: { code: TEMPLATE_LANG },
+          },
+        };
+
+        if (!isHelloWorld) {
+          // sos_alert expects 3 variables: user_name, location_link, time
+          payload.template.components = [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: nameStr },
+                { type: "text", text: locStr },
+                { type: "text", text: slTime },
+              ],
+            },
+          ];
+        }
+
         const response = await fetch(metaApiUrl, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: cleanedNumber,
-            type: "template",
-            template: {
-              name: "hello_world", // Using hello_world for testing as requested
-              language: {
-                code: "en_US",
-              },
-            },
-          }),
+          body: JSON.stringify(payload),
         });
 
         const metaData = await response.json();
 
         if (response.ok) {
           successCount++;
-          results.push({
-            to: cleaningNumber(rawNumber), // Return the number we processed
-            ok: true,
-            status: response.status,
-            response: metaData,
-          });
+          results.push({ to: cleanedNumber, ok: true, status: response.status });
         } else {
           results.push({
-            to: rawNumber,
+            to: cleanedNumber,
             ok: false,
             status: response.status,
-            error: metaData.error?.message || "Meta API error.",
-            response: metaData,
+            error: metaData.error?.message || "Meta API Error",
+            details: metaData,
           });
         }
-      } catch (innerError) {
-        results.push({
-          to: rawNumber,
-          ok: false,
-          error: innerError instanceof Error ? innerError.message : "Failed to fetch Meta API.",
-        });
+      } catch (e: any) {
+        results.push({ to: rawNumber, ok: false, error: e.message });
       }
     }
 
-    // Helper for consistency
-    function cleaningNumber(num: string) { return num.replace(/\D/g, ""); }
-
-    // 5. Final Response
     return jsonResponse(200, {
       success: successCount > 0,
       message: `Processed ${guardians.length} guardian(s). Sent: ${successCount}.`,
+      template_used: TEMPLATE_NAME,
       results,
     });
 
-  } catch (error) {
-    console.error("Critical edge function error:", error);
-    return jsonResponse(500, {
-      success: false,
-      error: error instanceof Error ? error.message : "Internal Server Error",
-    });
+  } catch (error: any) {
+    return jsonResponse(500, { success: false, error: error.message });
   }
 });
