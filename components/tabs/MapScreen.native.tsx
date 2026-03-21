@@ -38,6 +38,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -155,6 +156,7 @@ export default function MapScreen() {
   }>();
   const router = useRouter();
   const { isDark, theme } = useTheme();
+  const [heatmapEnabled, setHeatmapEnabled] = useState(true);
 
   const heatmapCircles = useMemo(() => {
     const towns = aggregateSosAlertsByTown(dummySosAlerts);
@@ -1436,6 +1438,12 @@ export default function MapScreen() {
 
     // Common UX: tapping the locate button recenters AND resumes follow mode.
     setFollowUser(true);
+    // Reset place overlays so the live marker is the primary focus.
+    setSelectedPlace(null);
+    setNearbyPlaces([]);
+    setActivePoiKey(null);
+    setRoute(null);
+    setPlaceError(null);
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -1466,15 +1474,37 @@ export default function MapScreen() {
           : null,
       );
       setHasLocation(true);
+      setMeMarkerTracksViewChanges(true);
 
       const nextRegion: Region = {
         latitude: nextCoords.latitude,
         longitude: nextCoords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+        latitudeDelta: 0.006,
+        longitudeDelta: 0.006,
       };
       setMapRegion(nextRegion);
-      mapRef.current?.animateToRegion(nextRegion, 450);
+      if (mapRef.current?.setCamera) {
+        mapRef.current.setCamera({
+          center: {
+            latitude: nextCoords.latitude,
+            longitude: nextCoords.longitude,
+          },
+          zoom: 16,
+        });
+      } else if (mapRef.current?.animateCamera) {
+        mapRef.current.animateCamera(
+          {
+            center: {
+              latitude: nextCoords.latitude,
+              longitude: nextCoords.longitude,
+            },
+            zoom: 16,
+          },
+          { duration: 150 },
+        );
+      } else {
+        mapRef.current?.animateToRegion(nextRegion, 150);
+      }
     } catch (e) {
       console.error("[recenter] failed", e);
 
@@ -1482,8 +1512,8 @@ export default function MapScreen() {
       const nextRegion: Region = {
         latitude: displayCenter.latitude,
         longitude: displayCenter.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+        latitudeDelta: 0.006,
+        longitudeDelta: 0.006,
       };
       setMapRegion(nextRegion);
       mapRef.current?.animateToRegion(nextRegion, 450);
@@ -2328,16 +2358,18 @@ export default function MapScreen() {
               }
             : {})}
         >
-          {heatmapCircles.map((c) => (
-            <Circle
-              key={c.key}
-              center={c.center}
-              radius={c.radius}
-              fillColor={c.fillColor}
-              strokeColor={c.strokeColor}
-              strokeWidth={1}
-            />
-          ))}
+          {heatmapEnabled
+            ? heatmapCircles.map((c) => (
+                <Circle
+                  key={c.key}
+                  center={c.center}
+                  radius={c.radius}
+                  fillColor={c.fillColor}
+                  strokeColor={c.strokeColor}
+                  strokeWidth={1}
+                />
+              ))
+            : null}
 
           {hasLocation && (
             <Marker
@@ -2487,9 +2519,9 @@ export default function MapScreen() {
           ) : null}
         </MapView>
 
-        {/* Heatmap legend card (top-right), matches earlier UI */}
+        {/* Heatmap legend card (top-right), with on/off toggle */}
         <View
-          pointerEvents="none"
+          pointerEvents="box-none"
           style={[
             styles.heatmapLegend,
             { top: Math.max(74, topOverlayBottomY + 10) },
@@ -2509,66 +2541,91 @@ export default function MapScreen() {
             <Ionicons
               name="water"
               size={16}
-              color={"#EF4444"}
+              color={heatmapEnabled ? "#EF4444" : theme.icon}
               style={styles.heatmapLegendDrop}
             />
-            <Text style={[styles.heatmapLegendTitle, { color: theme.text }]}>
-              Heatmap
-            </Text>
+
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text style={[styles.heatmapLegendTitle, { color: theme.text }]}>
+                Heatmap
+              </Text>
+              <Switch
+                value={heatmapEnabled}
+                onValueChange={setHeatmapEnabled}
+              />
+            </View>
           </View>
 
-          <View style={styles.heatmapLegendBar}>
-            <View
-              style={[
-                styles.heatmapLegendBarSeg,
-                { backgroundColor: "#3B82F6" },
-              ]}
-            />
-            <View
-              style={[
-                styles.heatmapLegendBarSeg,
-                { backgroundColor: "#22C55E" },
-              ]}
-            />
-            <View
-              style={[
-                styles.heatmapLegendBarSeg,
-                { backgroundColor: "#EAB308" },
-              ]}
-            />
-            <View
-              style={[
-                styles.heatmapLegendBarSeg,
-                { backgroundColor: "#F97316" },
-              ]}
-            />
-            <View
-              style={[
-                styles.heatmapLegendBarSeg,
-                { backgroundColor: "#EF4444" },
-              ]}
-            />
-          </View>
+          <View style={{ opacity: heatmapEnabled ? 1 : 0.45 }}>
+            <View style={styles.heatmapLegendBar}>
+              <View
+                style={[
+                  styles.heatmapLegendBarSeg,
+                  { backgroundColor: "#3B82F6" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.heatmapLegendBarSeg,
+                  { backgroundColor: "#22C55E" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.heatmapLegendBarSeg,
+                  { backgroundColor: "#EAB308" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.heatmapLegendBarSeg,
+                  { backgroundColor: "#F97316" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.heatmapLegendBarSeg,
+                  { backgroundColor: "#EF4444" },
+                ]}
+              />
+            </View>
 
-          <View style={styles.heatmapLegendRow}>
-            <View
-              style={[styles.heatmapLegendDot, { backgroundColor: "#3B82F6" }]}
-            />
-            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
-              Low
-            </Text>
-            <View
-              style={[styles.heatmapLegendDot, { backgroundColor: "#EAB308" }]}
-            />
-            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
-              Medium
-            </Text>
-            <View
-              style={[styles.heatmapLegendDot, { backgroundColor: "#EF4444" }]}
-            />
-            <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
-              High
-            </Text>
+            <View style={styles.heatmapLegendRow}>
+              <View
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#3B82F6" },
+                ]}
+              />
+              <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+                Low
+              </Text>
+              <View
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#EAB308" },
+                ]}
+              />
+              <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+                Medium
+              </Text>
+              <View
+                style={[
+                  styles.heatmapLegendDot,
+                  { backgroundColor: "#EF4444" },
+                ]}
+              />
+              <Text style={[styles.heatmapLegendLabel, { color: theme.text }]}>
+                High
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -4089,7 +4146,7 @@ const styles = StyleSheet.create({
   heatmapLegend: {
     position: "absolute",
     right: 12,
-    width: 148,
+    width: 172,
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 18,
