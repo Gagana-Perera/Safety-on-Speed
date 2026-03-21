@@ -12,7 +12,6 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -21,6 +20,7 @@ import {
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
 import { useTheme } from "@/components/theme/ThemeContext";
+import { globalStyles } from "@/app/global";
 
 const SRI_LANKAN_DISTRICTS = [
   "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", 
@@ -270,13 +270,13 @@ export default function Profile() {
     type = "switch",
     subText = "",
   }: any) => (
-    <View style={[styles.row, { borderBottomColor: theme.border }]}>
-      <View style={[styles.rowLeft, { flex: 1, paddingRight: 15 }]}>
-        <View style={[styles.iconContainer, { backgroundColor: theme.card }]}>
+    <View style={[globalStyles.profileRow, { borderBottomColor: theme.border }]}>
+      <View style={[globalStyles.profileRowLeft, { flex: 1, paddingRight: 15 }]}>
+        <View style={[globalStyles.profileIconContainer, { backgroundColor: theme.card }]}>
           <Feather name={icon} size={20} color={theme.text} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: theme.text }]}>
+          <Text style={[globalStyles.profileRowLabel, { color: theme.text }]}>
             {label}
           </Text>
           {subText ? (
@@ -316,17 +316,17 @@ export default function Profile() {
         onRequestClose={() => setViewingAvatar(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={globalStyles.profileModalOverlay}
           activeOpacity={1}
           onPress={() => setViewingAvatar(false)}
         >
           <Image
             source={{ uri: avatarUrl || DEFAULT_AVATAR }}
-            style={styles.fullScreenAvatar}
+            style={globalStyles.profileFullScreenAvatar}
           />
-          <View style={styles.modalCloseHint}>
+          <View style={globalStyles.profileModalCloseHint}>
             <Feather name="x-circle" size={20} color="white" />
-            <Text style={styles.modalCloseText}>{t('tap_to_close')}</Text>
+            <Text style={globalStyles.profileModalCloseText}>{t('tap_to_close')}</Text>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -338,14 +338,14 @@ export default function Profile() {
         animationType="slide"
         onRequestClose={() => setDistrictModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.pickerContainer, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('select_district')}</Text>
+        <View style={globalStyles.profileModalOverlay}>
+          <View style={[globalStyles.profilePickerContainer, { backgroundColor: theme.card }]}>
+            <Text style={[globalStyles.profileModalTitle, { color: theme.text }]}>{t('select_district')}</Text>
             <ScrollView style={{ maxHeight: 400, width: '100%' }}>
               {SRI_LANKAN_DISTRICTS.map((item) => (
                 <TouchableOpacity
                   key={item}
-                  style={styles.districtItem}
+                  style={globalStyles.profileDistrictItem}
                   onPress={() => {
                     updateLocationInDB(item);
                     setDistrictModalVisible(false);
@@ -356,7 +356,7 @@ export default function Profile() {
               ))}
             </ScrollView>
             <TouchableOpacity
-              style={styles.closeButton}
+              style={globalStyles.profileCloseButton}
               onPress={() => setDistrictModalVisible(false)}
             >
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('close')}</Text>
@@ -365,19 +365,19 @@ export default function Profile() {
         </View>
       </Modal>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={globalStyles.profileContent}>
 
         {/* --- HEADER --- */}
-        <View style={styles.header}>
-          <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
+        <View style={globalStyles.profileHeader}>
+          <View style={[globalStyles.profileAvatarContainer, { borderColor: theme.border }]}>
             <TouchableOpacity onPress={() => setViewingAvatar(true)}>
               <Image
                 source={{ uri: avatarUrl || DEFAULT_AVATAR }}
-                style={styles.avatar}
+                style={globalStyles.profileAvatar}
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.editBadge}
+              style={globalStyles.profileEditBadge}
               onPress={() => router.push("/editProfile")}
             >
               <Feather name="edit-2" size={14} color="white" />
@@ -388,14 +388,14 @@ export default function Profile() {
             <ActivityIndicator size="small" color={theme.text} style={{ marginTop: 10 }} />
           ) : (
             <>
-              <Text style={[styles.name, { color: theme.text }]}>
+              <Text style={[globalStyles.profileName, { color: theme.text }]}>
                 {fullName || t('user_name')}
               </Text>
-              <Text style={[styles.email, { color: theme.text }]}>
+              <Text style={[globalStyles.profileEmail, { color: theme.text }]}>
                 {email || t('no_email')}
               </Text>
               {phoneNumber ? (
-                <Text style={[styles.email, { color: theme.text, marginTop: 2 }]}>
+                <Text style={[globalStyles.profileEmail, { color: theme.text, marginTop: 2 }]}>
                   {phoneNumber}
                 </Text>
               ) : null}
@@ -404,8 +404,8 @@ export default function Profile() {
         </View>
 
         {/* --- APPEARANCE --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+        <View style={[globalStyles.profileSectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[globalStyles.profileSectionTitle, { color: theme.icon }]}>
             {t('appearance')}
           </Text>
           <SettingRow
@@ -417,8 +417,8 @@ export default function Profile() {
         </View>
 
         {/* --- GENERAL --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+        <View style={[globalStyles.profileSectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[globalStyles.profileSectionTitle, { color: theme.icon }]}>
             {t('general')}
           </Text>
           <TouchableOpacity onPress={showLanguagePicker}>
@@ -448,8 +448,8 @@ export default function Profile() {
         </View>
 
         {/* --- NOTIFICATIONS --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+        <View style={[globalStyles.profileSectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[globalStyles.profileSectionTitle, { color: theme.icon }]}>
             {t('notifications')}
           </Text>
           <SettingRow
@@ -469,8 +469,8 @@ export default function Profile() {
         </View>
 
         {/* --- PRIVACY --- */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.icon }]}>
+        <View style={[globalStyles.profileSectionContainer, { backgroundColor: theme.card }]}>
+          <Text style={[globalStyles.profileSectionTitle, { color: theme.icon }]}>
             {t('privacy')}
           </Text>
           <SettingRow
@@ -497,150 +497,15 @@ export default function Profile() {
         </View>
 
         {/* --- LOGOUT --- */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity style={globalStyles.profileLogoutButton} onPress={handleLogout}>
           <Feather name="log-out" size={20} color="#fff" />
-          <Text style={styles.logoutText}>{t('sign_out')}</Text>
+          <Text style={globalStyles.profileLogoutText}>{t('sign_out')}</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.versionText, { color: theme.icon }]}>
+        <Text style={[globalStyles.profileVersionText, { color: theme.icon }]}>
           {t('app_version')}
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 50 },
-  header: { alignItems: "center", marginBottom: 25, marginTop: 10 },
-  avatarContainer: {
-    position: "relative",
-    borderWidth: 2,
-    borderRadius: 60,
-    padding: 2,
-    marginBottom: 12,
-  },
-  avatar: { width: 100, height: 100, borderRadius: 50 },
-  editBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: "#2563eb",
-    padding: 8,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "white",
-  },
-  name: { fontSize: 22, fontWeight: "bold", marginBottom: 4 },
-  email: { fontSize: 14, opacity: 0.6 },
-  sectionContainer: {
-    borderRadius: 16,
-    marginBottom: 20,
-    overflow: "hidden",
-    paddingVertical: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    marginLeft: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    opacity: 0.5,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  rowLeft: { flexDirection: "row", alignItems: "center" },
-  iconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  rowLabel: { fontSize: 16, fontWeight: "600" },
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#2563eb",
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  logoutText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  versionText: {
-    textAlign: "center",
-    fontSize: 12,
-    opacity: 0.5,
-    marginBottom: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fullScreenAvatar: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  modalCloseHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 24,
-    gap: 8,
-  },
-  modalCloseText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14
-  },
-  pickerContainer: {
-    width: '80%',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15
-  },
-  districtItem: {
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
-    width: '100%',
-    alignItems: 'center',
-  },
-  closeButton: {
-    marginTop: 20,
-    backgroundColor: '#2563eb',
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-  },
-});

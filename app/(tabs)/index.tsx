@@ -28,6 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { globalStyles } from "@/app/global";
 
 
 import "@/lib/sosTask";
@@ -369,14 +370,14 @@ export default function Index() {
   ]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroHeader}>
-          <Text style={[styles.kicker, { color: theme.icon }]}>
+    <View style={[globalStyles.homeContainer, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={globalStyles.homeContent}>
+        <View style={globalStyles.homeHeroHeader}>
+          <Text style={[globalStyles.homeKicker, { color: theme.icon }]}>
             {t('personal_safety')}
           </Text>
-          <Text style={[styles.title, { color: theme.text }]}>{t('sos_control')}</Text>
-          <Text style={[styles.subtitle, { color: theme.icon }]}>
+          <Text style={[globalStyles.homeTitle, { color: theme.text }]}>{t('sos_control')}</Text>
+          <Text style={[globalStyles.homeSubtitle, { color: theme.icon }]}>
             One tap starts a Quick SOS. Three fast taps starts the emergency
             flow and prompts a 119 call.
           </Text>
@@ -384,7 +385,7 @@ export default function Index() {
 
         <View
           style={[
-            styles.heroCard,
+            globalStyles.homeHeroCard,
             {
               backgroundColor: theme.card,
 
@@ -431,25 +432,25 @@ export default function Index() {
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={[styles.helperText, { color: theme.icon }]}>
+          <Text style={[globalStyles.homeHelperText, { color: theme.icon }]}>
             {getEmergencyTapHint(tapCount)}
           </Text>
         </View>
 
-        <View style={styles.statusGrid}>
+        <View style={globalStyles.homeStatusGrid}>
           <View
             style={[
-              styles.statusCard,
+              globalStyles.homeStatusCard,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>
               {t('guardians')}
             </Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {guardianCount}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               {guardianCount === 0
                 ? t('add_guardians_before_sos')
                 : t('guardians_desc')}
@@ -458,15 +459,15 @@ export default function Index() {
 
           <View
             style={[
-              styles.statusCard,
+              globalStyles.homeStatusCard,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>{t('gps')}</Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>{t('gps')}</Text>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {formatGpsStatus(gpsStatus)}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               Location access is required before the app can send your SMS
               alert.
             </Text>
@@ -474,44 +475,44 @@ export default function Index() {
 
           <View
             style={[
-              styles.statusCardWide,
+              globalStyles.homeStatusCardWide,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.statusLabel, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusLabel, { color: theme.icon }]}>
               {t('internet')}
             </Text>
-            <Text style={[styles.statusValue, { color: theme.text }]}>
+            <Text style={[globalStyles.homeStatusValue, { color: theme.text }]}>
               {formatInternetStatus(internetStatus)}
             </Text>
-            <Text style={[styles.statusHint, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
               Automatic guardian alerts need a connected network and backend
               endpoint.
             </Text>
           </View>
         </View>
 
-        <View style={styles.actionRow}>
+        <View style={globalStyles.homeActionRow}>
           <TouchableOpacity
             onPress={() => router.push("/extra")}
-            style={[styles.actionButton, { backgroundColor: theme.card }]}
+            style={[globalStyles.homeActionButton, { backgroundColor: theme.card }]}
           >
-            <Text style={[styles.actionTitle, { color: theme.text }]}>
+            <Text style={[globalStyles.homeActionTitle, { color: theme.text }]}>
               {t('emergency_services')}
             </Text>
-            <Text style={[styles.actionText, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeActionText, { color: theme.icon }]}>
               {t('open_hotlines_desc')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => router.push("/auth/addguardians" as any)}
-            style={[styles.actionButton, { backgroundColor: theme.card }]}
+            style={[globalStyles.homeActionButton, { backgroundColor: theme.card }]}
           >
-            <Text style={[styles.actionTitle, { color: theme.text }]}>
+            <Text style={[globalStyles.homeActionTitle, { color: theme.text }]}>
               {guardianCount === 0 ? t('add_guardians') : t('manage_guardians')}
             </Text>
-            <Text style={[styles.actionText, { color: theme.icon }]}>
+            <Text style={[globalStyles.homeActionText, { color: theme.icon }]}>
               {guardianCount === 0
                 ? t('setup_contacts_emergency_desc')
                 : t('manage_guardians_desc')}
@@ -633,55 +634,6 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-    borderRadius: 22,
-    minHeight: 132,
-    padding: 18,
-    width: "48%",
-  },
-  actionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  actionText: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-  },
-  actionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 48,
-    paddingTop: 52,
-  },
-  helperText: {
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 18,
-    textAlign: "center",
-  },
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 22,
-  },
-  heroHeader: {
-    marginBottom: 18,
-  },
-  kicker: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    marginBottom: 10,
-    textTransform: "uppercase",
-  },
   sosButton: {
     alignItems: "center",
     borderRadius: 120,
@@ -714,51 +666,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 8,
     textAlign: "center",
-  },
-  statusCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    minHeight: 140,
-    padding: 18,
-    width: "48%",
-  },
-  statusCardWide: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 18,
-    width: "100%",
-  },
-  statusGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 22,
-  },
-  statusHint: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 8,
-  },
-  statusLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    textTransform: "uppercase",
-  },
-  statusValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    marginTop: 10,
-  },
-  title: {
-    fontSize: 38,
-    fontWeight: "900",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 23,
-    maxWidth: 560,
   },
   locationModalWrap: {
     flex: 1,
