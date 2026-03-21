@@ -86,7 +86,3 @@ npx expo start
 * **Email**: grsacn2025@gmail.com
 * **Phone**: +94 74 341 7006
 * **Location**: IIT (Informatics Institute of Technology), Sri Lanka.
-
----
-
-Would you like me to add a **"Screenshots"** section to this README where you can link these images directly?
