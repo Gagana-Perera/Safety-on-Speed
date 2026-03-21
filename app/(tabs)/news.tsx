@@ -8,21 +8,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/components/theme/ThemeContext";
-import { fetchPosts, type Post } from "@/lib/newsApi";
-import { MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { MaterialIcons } from '@expo/vector-icons';
+import { fetchPosts, type Post } from '@/lib/newsApi';
+import CreatePost from '@/app/createpost';
+import { useTheme } from '@/components/theme/ThemeContext';
 
 // this part controls the post card
 
-const PostCard = ({
-  postTopic,
-  postDate,
-  postTime,
-  postBody,
-  media,
-  theme,
-}: any) => {
+const PostCard = ({ postTopic, postDate, postTime, postBody, media }: any) => {
+  const { theme } = useTheme();
   // const [isLiked, setIsLiked] = useState(false);
 
   const formatPostTime = (value: string) => {
@@ -132,26 +126,14 @@ export default function News() {
         showsVerticalScrollIndicator={false}
       >
         {sortedPosts.map((post) => (
-          <PostCard
-            key={`${post.postTopic}-${post.postDate}-${post.postTime}`}
-            {...post}
-            theme={theme}
-          />
+          <PostCard key={`${post.postTopic}-${post.postDate}-${post.postTime}`} {...post} />
         ))}
       </ScrollView>
-
-      <TouchableOpacity
-        style={styles.heatMapButton}
-        onPress={() => router.push("/(tabs)/heatmap")}
-      >
-        <MaterialIcons name="map" size={30} color={theme.text} />
-      </TouchableOpacity>
-
       <TouchableOpacity
         style={styles.createPostButton}
-        onPress={() => router.push("/createpost")}
+        onPress={() => setCreatePostVisible(true)}
       >
-        <MaterialIcons name="add-comment" size={30} color={theme.text} />
+        <MaterialIcons name="add-comment" size={30} color="#fff" />
       </TouchableOpacity>
 
       <CreatePost 
@@ -220,8 +202,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderBottomWidth: 2,
     borderRightWidth: 1,
-
-    // here i tried to add a shadow (don't mind it)
     shadowColor: "#0494CB",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -263,11 +243,6 @@ const styles = StyleSheet.create({
   postTime: {
     fontSize: 12,
   },
-  // menuDots: {
-  //   color: "#fff",
-  //   fontSize: 24,
-  //   fontWeight: "bold",
-  // },
   bodyContainer: {
     marginBottom: 15,
   },
@@ -300,22 +275,6 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontSize: 20,
     color: "#fff",
-  },
-  heatMapButton: {
-    position: "absolute",
-    bottom: 90,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#0494CB",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0494CB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
   },
   createPostButton: {
     position: "absolute",
