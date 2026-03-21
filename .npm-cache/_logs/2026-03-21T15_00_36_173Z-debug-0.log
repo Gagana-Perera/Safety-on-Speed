@@ -7,8 +7,8 @@
 6 silly config load:file:/usr/local/etc/npmrc
 7 verbose title npm explain expo-cli
 8 verbose argv "explain" "expo-cli" "--json"
-9 verbose logfile logs-max:10 dir:/Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-20T09_49_16_295Z-
-10 verbose logfile /Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-20T09_49_16_295Z-debug-0.log
+9 verbose logfile logs-max:10 dir:/Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-21T15_00_36_173Z-
+10 verbose logfile /Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-21T15_00_36_173Z-debug-0.log
 11 silly logfile done cleaning log files
 12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
 13 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules/react-native-css-interop
@@ -23,4 +23,4 @@
 19 verbose npm  v11.6.2
 20 verbose exit 1
 21 verbose code 1
-22 error A complete log of this run can be found in: /Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-20T09_49_16_295Z-debug-0.log
+22 error A complete log of this run can be found in: /Users/mhgagana/Documents/Safety-on-Speed/.npm-cache/_logs/2026-03-21T15_00_36_173Z-debug-0.log

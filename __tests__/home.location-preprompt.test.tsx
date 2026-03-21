@@ -17,6 +17,11 @@ jest.mock("@/components/LocationPreviewMap", () => {
 jest.mock("@/lib/superbase", () => {
   return {
     supabase: {
+      auth: {
+        getSession: jest.fn().mockResolvedValue({
+          data: { session: null },
+        }),
+      },
       from: () => ({
         upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
         update: jest.fn().mockReturnValue({
@@ -56,6 +61,7 @@ describe("Home location preprompt buttons", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     await AsyncStorage.clear();
+    await AsyncStorage.setItem("location_preprompt_pending_v1", "true");
 
     // Ensure modal will show.
     (

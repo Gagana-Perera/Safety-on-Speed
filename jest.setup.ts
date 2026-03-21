@@ -69,6 +69,18 @@ jest.mock("expo-router", () => {
   };
 });
 
+jest.mock("@react-navigation/native", () => {
+  const actual = jest.requireActual("@react-navigation/native");
+  const React = require("react");
+  return {
+    ...actual,
+    useFocusEffect: (effect: () => void | (() => void)) => {
+      const { useEffect } = React;
+      useEffect(effect, [effect]);
+    },
+  };
+});
+
 jest.mock("expo-task-manager", () => {
   return {
     isTaskDefined: jest.fn().mockReturnValue(false),
