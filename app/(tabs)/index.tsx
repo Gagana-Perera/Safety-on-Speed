@@ -1,7 +1,5 @@
-import LocationPreviewMap from "@/components/LocationPreviewMap";
 import { useTheme } from "@/components/theme/ThemeContext";
-import { countGuardianRecipients, loadGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
-import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
+import { countGuardianRecipients } from "@/hooks/notifyVerifiedGuardians";
 import {
   EMERGENCY_SOS_TAP_WINDOW_MS,
   getEmergencyTapHint,
@@ -35,6 +33,7 @@ import {
 import "@/lib/sosTask";
 
 const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
+const LOCATION_PREPROMPT_PENDING_KEY = "location_preprompt_pending_v1";
 
 type GpsStatus = "checking" | "off" | "permission-needed" | "ready";
 type SOSLaunchMode = "emergency" | "quick";
@@ -124,7 +123,19 @@ export default function Index() {
     try {
       // 2. If already granted, no need to show at all.
       const fg = await Location.getForegroundPermissionsAsync();
-      if (fg.status === "granted") return false;
+      if (fg.status === "granted") {
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY).catch(
+          () => undefined,
+        );
+        return false;
+      }
+
+      const pendingAfterSignup = await AsyncStorage.getItem(
+        LOCATION_PREPROMPT_PENDING_KEY,
+      );
+      if (pendingAfterSignup === "true") {
+        return true;
+      }
 
       // 3. Check persistent storage for previous decisions.
       const previousChoice = await AsyncStorage.getItem(
@@ -132,25 +143,16 @@ export default function Index() {
       );
 
       // If they explicitly denied, we respect that and don't show it again this launch.
-      // (This is handled by the launch guard above, but kept for clarity).
       if (previousChoice === "deny") return false;
-
-      // In Expo Go/dev, permissions are often already granted to Expo Go which can
-      // make it hard to validate the preprompt UX. Force-show once per launch
-      // regardless of stored choice (testing convenience).
-      if (__DEV__ && !hasShownLocationPrepromptThisLaunchRef.current) {
-        return true;
-      }
 
       // If they chose "allow_while", we check why it's not granted yet. 
       // If it's not granted, it means they might have revoked it or it's a new session.
-      // We return true to help them get back to the right state.
       if (previousChoice === "allow_while") return true;
 
-      // Default: If they haven't seen it or haven't made a permanent choice, show it.
-      return true;
+      // Outside the signup onboarding flow, don't force the popup on every launch.
+      return false;
     } catch {
-      return true;
+      return false;
     }
   }, []);
 
@@ -274,6 +276,7 @@ export default function Index() {
     try {
       try {
         await AsyncStorage.removeItem(LOCATION_PREPROMPT_CHOICE_KEY);
+        await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY);
       } catch {
         // ignore
       }
@@ -303,6 +306,7 @@ export default function Index() {
     if (locationPrepromptBusy) return;
     try {
       await AsyncStorage.setItem(LOCATION_PREPROMPT_CHOICE_KEY, "deny");
+      await AsyncStorage.removeItem(LOCATION_PREPROMPT_PENDING_KEY);
     } catch {
       // ignore
     }
@@ -311,57 +315,15 @@ export default function Index() {
 
   const triggerSOSFlow = useCallback(
     async (mode: "quick" | "emergency") => {
-      setLaunchMode(mode);
+      // Navigate immediately to context-rich loading screen
+      router.push({
+        params: { mode },
+        pathname: "/sos/loading",
+      });
 
-      try {
-        // 1. Get current user
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) throw new Error("Please sign in to send SOS.");
-
-        // 2. Load Profile & Location in parallel for speed
-        const [profileRes, locationRes] = await Promise.all([
-          supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
-          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
-        ]);
-
-        const userName = profileRes.data?.full_name || "A user";
-        const latitude = locationRes?.coords.latitude;
-        const longitude = locationRes?.coords.longitude;
-
-        // 3. Load Guardians
-        const guardians = await loadGuardianRecipients(session.user.id);
-        if (guardians.length === 0) {
-          throw new Error("You haven't added any guardians yet.");
-        }
-
-        const phoneNumbers = guardians.map(g => g.phone);
-
-        // 4. Call WhatsApp Service with full details
-        await sendSOSWhatsAppAlert(
-          phoneNumbers,
-          userName,
-          latitude,
-          longitude
-        );
-
-        // 5. Success Alert
-        Alert.alert(
-          "SOS Alert Sent ✅",
-          `WhatsApp messages have been sent to ${guardians.length} guardian(s).`
-        );
-
-        // 6. Continue to the tracking screen
-        router.push({
-          params: { mode },
-          pathname: "/sos/loading",
-        });
-      } catch (error: any) {
-        console.error("[Index] SOS Trigger Failed:", error);
-        Alert.alert("SOS Failed ❌", error.message || "Unable to send WhatsApp alert.");
-      } finally {
-        setLaunchMode(null);
-        resetTapSequence();
-      }
+      // Reset local tap state
+      setLaunchMode(null);
+      resetTapSequence();
     },
     [resetTapSequence, router],
   );
@@ -470,9 +432,6 @@ export default function Index() {
           </Animated.View>
 
           <Text style={[styles.helperText, { color: theme.icon }]}>
-            1 tap = Quick SOS. 3 taps = Emergency SOS.
-          </Text>
-          <Text style={[styles.helperText, { color: theme.icon }]}>
             {getEmergencyTapHint(tapCount)}
           </Text>
         </View>
@@ -565,6 +524,7 @@ export default function Index() {
         visible={showLocationPreprompt}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={closeLocationPreprompt}
       >
         <View style={styles.locationModalWrap}>
@@ -595,12 +555,19 @@ export default function Index() {
                   </Text>
                 </View>
 
-                <View style={styles.locationMapWrap}>
-                  <View style={styles.locationMapCard}>
-                    <LocationPreviewMap />
-                    <View style={styles.preciseChip}>
-                      <Text style={styles.preciseChipText}>Precise: On</Text>
+                <View style={styles.locationPreviewWrap}>
+                  <View style={styles.locationPreviewCard}>
+                    <View style={styles.locationPulseOuter}>
+                      <View style={styles.locationPulseInner}>
+                        <View style={styles.locationPinStem} />
+                        <View style={styles.locationPinDot} />
+                      </View>
                     </View>
+                    <Text style={styles.locationPreviewTitle}>Current location</Text>
+                    <Text style={styles.locationPreviewText}>
+                      Used for SOS alerts, nearby emergency services, and live
+                      safety features while you use the app.
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -827,31 +794,65 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 10,
   },
-  locationMapWrap: {
+  locationPreviewWrap: {
     width: "100%",
     paddingHorizontal: 16,
     paddingBottom: 10,
   },
-  locationMapCard: {
+  locationPreviewCard: {
     borderRadius: 14,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.12)",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  preciseChip: {
+  locationPulseOuter: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationPulseInner: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  locationPinStem: {
+    width: 8,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    marginTop: 6,
+  },
+  locationPinDot: {
     position: "absolute",
-    left: 12,
-    top: 12,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    top: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
   },
-  preciseChipText: {
-    fontSize: 14,
+  locationPreviewTitle: {
+    marginTop: 12,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#007AFF",
+    color: "#111827",
+    textAlign: "center",
+  },
+  locationPreviewText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#374151",
+    textAlign: "center",
   },
   locationTitle: {
     fontSize: 20,

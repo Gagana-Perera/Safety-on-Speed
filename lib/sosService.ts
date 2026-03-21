@@ -673,9 +673,15 @@ export async function startSOS({
     storedSession = mapSOSSessionRowToStoredSession(refreshedSession);
     await saveStoredActiveSOSSession(storedSession);
 
-    // Note: Alert is now handled directly by the button in index.tsx
-    // to provide immediate feedback and debugging info.
-    /*
+    onProgress?.({
+      done: false,
+      key: "alerting_guardians",
+      label: "Alerting guardians...",
+    });
+
+    const { dispatchGuardianAlert } = await import(
+      "@/hooks/notifyVerifiedGuardians"
+    );
     const alertResult = await dispatchGuardianAlert({
       accuracy:
         typeof location.coords.accuracy === "number"
@@ -690,19 +696,34 @@ export async function startSOS({
       sessionId: createdSession.id,
       startedAt: createdSession.started_at,
     });
-    */
+
+    await updateSOSSessionAlertState({
+      alertDeliveryMethod:
+        alertResult.method === "none" ? null : alertResult.method,
+      alertDeliveryStatus: alertResult.status,
+      guardianCount: alertResult.guardianCount,
+      sessionId: createdSession.id,
+    });
+
+    const alertStateSession =
+      (await getSOSSessionById(createdSession.id)) ?? refreshedSession;
+    storedSession = mapSOSSessionRowToStoredSession(alertStateSession);
+    await saveStoredActiveSOSSession(storedSession);
 
     onProgress?.({
       done: true,
       key: "alerting_guardians",
-      label: "Guardian alert sent",
+      label:
+        alertResult.status === "sent"
+          ? "Guardian alert sent"
+          : "Guardian alert prepared",
     });
 
     await startLocationTracking(storedSession);
     emitStartProgress(onProgress, "starting_tracking");
 
     return {
-      alertMessage: "WhatsApp SOS Alert Sent",
+      alertMessage: alertResult.message,
       guardians: context.guardians,
       session: storedSession,
     };

@@ -7,11 +7,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
-import { MaterialIcons } from '@expo/vector-icons';
-import { fetchPosts, type Post } from '@/lib/newsApi';
-import CreatePost from '@/app/createpost';
-import { useTheme } from '@/components/theme/ThemeContext';
-import { globalStyles } from '@/app/global';
+import { useTheme } from "@/components/theme/ThemeContext";
+import CreatePost from "@/app/createpost";
+import { fetchPosts, type Post } from "@/lib/newsApi";
+import { MaterialIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 // this part controls the post card
 

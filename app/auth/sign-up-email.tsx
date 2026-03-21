@@ -33,7 +33,7 @@ export default function SignUpEmail() {
       params: {
         // After OTP verification during signup, take the user to guardian setup.
         // (Other OTP entry points can omit this and will default to /(tabs).)
-        next: "/auth/setup",
+        next: "/auth/setup?flow=signup",
       },
     });
   }
