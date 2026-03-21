@@ -1,9 +1,10 @@
 import { loginUser } from "@/lib/auth";
+import { globalStyles } from "../global";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Alert,
-  Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,10 +17,10 @@ import {
 export default function Login() {
   const router = useRouter();
   const passwordInputRef = useRef<TextInput>(null);
+  const keyboardEnabled = Platform.OS === "ios";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 👁️ show/hide
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
@@ -49,128 +50,114 @@ export default function Login() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-primary"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={{ flexGrow: 1 }}
+    <View style={globalStyles.loginScreenRoot}>
+      <ImageBackground
+        source={require("../../assets/oc/bgImage.png")}
+        style={globalStyles.loginBackdrop}
+        imageStyle={globalStyles.loginBackdropImage}
+        resizeMode="cover"
       >
-        <View className="flex-1 px-6 pt-12">
-          {/* Brand */}
-          <View className="items-center">
-            <Image
-              source={require("../../assets/oc/logo.jpg")}
-              resizeMode="contain"
-              className="h-24 w-24 mb-4 opacity-80"
-            />
-            <Text className="text-white/70 text-xl tracking-[4px]">
-              Safety On Speed
-            </Text>
-          </View>
+        <View style={globalStyles.loginBackdropTint} />
+      </ImageBackground>
 
-          {/* Title */}
-          <View className="mt-14 items-center">
-            <Text className="text-white text-6xl font-light">Sign in</Text>
-            <Text className="text-white/80 text-2xl mt-4 font-light">
-              Welcome, user.
-            </Text>
-          </View>
-
-          {/* Inputs */}
-          <View className="mt-16">
-            <Text className="text-white/90 text-4xl font-light mb-4">
-              Email
-            </Text>
-
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor="rgba(255,255,255,0.55)"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                className="text-white text-xl"
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => passwordInputRef.current?.focus()}
-              />
-              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
+      <KeyboardAvoidingView
+        style={globalStyles.loginForegroundLayer}
+        behavior="padding"
+        enabled={keyboardEnabled}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+      >
+        <ScrollView
+          style={globalStyles.loginForegroundLayer}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={globalStyles.loginScrollContent}
+        >
+          <View style={globalStyles.loginContent}>
+            <View style={globalStyles.loginHeader}>
+              <Text style={globalStyles.loginTitle}>Sign in</Text>
+              <Text style={globalStyles.loginSubtitle}>Welcome, user.</Text>
             </View>
 
-            <Text className="text-white/90 text-4xl font-light mb-4 mt-12">
-              Password
-            </Text>
+            <View style={globalStyles.loginForm}>
+              <View style={globalStyles.loginFieldGroup}>
+                <Text style={globalStyles.loginFieldLabel}>User Name</Text>
+                <View style={globalStyles.loginInputFrame}>
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder=""
+                    placeholderTextColor="rgba(234, 246, 255, 0.45)"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoCorrect={false}
+                    style={globalStyles.loginInput}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  />
+                  <View style={globalStyles.loginInputUnderline} />
+                </View>
+              </View>
 
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <View className="flex-row items-center">
-                <TextInput
-                  ref={passwordInputRef}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.55)"
-                  secureTextEntry={!showPassword}
-                  className="flex-1 text-white text-xl"
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                />
+              <View style={globalStyles.loginFieldGroup}>
+                <Text style={globalStyles.loginFieldLabel}>Password</Text>
+                <View style={globalStyles.loginInputFrame}>
+                  <TextInput
+                    ref={passwordInputRef}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder=""
+                    placeholderTextColor="rgba(234, 246, 255, 0.45)"
+                    secureTextEntry
+                    style={globalStyles.loginInput}
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                  />
+                  <View style={globalStyles.loginInputUnderline} />
+                </View>
+              </View>
+            </View>
+
+            <View style={globalStyles.loginBottomArea}>
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                style={({ pressed }) => [
+                  globalStyles.loginSubmitButton,
+                  loading && globalStyles.loginSubmitButtonDisabled,
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Text style={globalStyles.loginSubmitButtonText}>
+                  {loading ? "Signing in..." : "Sign in"}
+                </Text>
+              </Pressable>
+
+              <View style={globalStyles.loginLinks}>
+                <Pressable
+                  onPress={() => router.push("/auth/sign-up")}
+                  accessibilityRole="button"
+                >
+                  <Text style={globalStyles.loginLinkText}>
+                    Don't have an account?{" "}
+                    <Text style={globalStyles.loginLinkUnderline}>Sign up.</Text>
+                  </Text>
+                </Pressable>
 
                 <Pressable
-                  onPress={() => setShowPassword((prev) => !prev)}
-                  className="px-2 py-2"
+                  onPress={() => router.push("/auth/forgot-password")}
+                  accessibilityRole="button"
                 >
-                  <Text className="text-secondary text-lg">
-                    {showPassword ? "Hide" : "Show"}
+                  <Text style={globalStyles.loginLinkText}>
+                    Forgot Password ?{" "}
+                    <Text style={globalStyles.loginLinkUnderline}>Try another way</Text>
                   </Text>
                 </Pressable>
               </View>
-              <View className="h-[2px] bg-white/35 rounded-full mt-3" />
             </View>
           </View>
-
-          {/* Bottom area */}
-          <View className="flex-1 justify-end pb-24 mt-8">
-            <Pressable
-              onPress={handleLogin}
-              disabled={loading}
-              className="self-center bg-black/25 border border-white/10 rounded-2xl px-10 py-4"
-            >
-              <Text className="text-white text-3xl font-light text-center">
-                {loading ? "Signing in..." : "Sign in"}
-              </Text>
-            </Pressable>
-
-            <View className="items-center mt-10">
-              <Pressable
-                onPress={() => router.push("/auth/sign-up")}
-                accessibilityRole="button"
-              >
-                <Text className="text-secondary text-xl">
-                  Don’t have an account?{" "}
-                  <Text className="underline text-accent">Sign up.</Text>
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => router.push("/auth/forgot-password")}
-                accessibilityRole="button"
-              >
-                <Text className="text-secondary text-xl mt-5">
-                  Forgot Password ?{" "}
-                  <Text className="underline text-accent">Try another way</Text>
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }

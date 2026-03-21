@@ -411,4 +411,129 @@ export const globalStyles = StyleSheet.create({
 		paddingHorizontal: 30,
 		borderRadius: 10,
 	},
+
+	// login page styles
+	loginScreenRoot: {
+		flex: 1,
+		backgroundColor: "#012A4A",
+	},
+	loginForegroundLayer: {
+		flex: 1,
+		backgroundColor: "transparent",
+	},
+	loginScrollContent: {
+		flexGrow: 1,
+	},
+	loginBackdrop: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+	},
+	loginBackdropImage: {
+		opacity: 0.3,
+	},
+	loginBackdropTint: {
+		...StyleSheet.absoluteFillObject,
+		backgroundColor: "rgba(1, 42, 74, 0.36)",
+	},
+	loginContent: {
+		flex: 1,
+		paddingHorizontal: 34,
+		paddingTop: 72,
+		paddingBottom: 30,
+	},
+	loginHeader: {
+		alignItems: "center",
+		marginBottom: 56,
+	},
+	loginTitle: {
+		fontSize: 58,
+		fontWeight: "300",
+		lineHeight: 64,
+		color: "#EAF6FF",
+	},
+	loginSubtitle: {
+		marginTop: 10,
+		fontSize: 18,
+		fontWeight: "300",
+		color: "rgba(234, 246, 255, 0.88)",
+	},
+	loginForm: {
+		gap: 26,
+	},
+	loginFieldGroup: {
+		gap: 12,
+	},
+	loginFieldLabel: {
+		fontSize: 22,
+		fontWeight: "300",
+		lineHeight: 28,
+		color: "#EAF6FF",
+	},
+	loginInputFrame: {
+		backgroundColor: "rgba(255, 255, 255, 0.06)",
+		borderRadius: 17,
+		borderWidth: 1,
+		borderColor: "rgba(255, 255, 255, 0.08)",
+		paddingHorizontal: 16,
+		paddingTop: 15,
+		paddingBottom: 13,
+	},
+	loginInput: {
+		fontSize: 22,
+		fontWeight: "300",
+		lineHeight: 28,
+		color: "#EAF6FF",
+		paddingVertical: 0,
+	},
+	loginInputUnderline: {
+		height: 4,
+		borderRadius: 999,
+		backgroundColor: "rgba(206, 226, 241, 0.78)",
+		marginTop: 10,
+	},
+	loginBottomArea: {
+		marginTop: 20,
+		alignItems: "center",
+	},
+	loginSubmitButton: {
+		minWidth: 172,
+		borderRadius: 10,
+		backgroundColor: "#1b7ed5",
+		borderWidth: 1,
+		borderColor: "rgba(255, 255, 255, 0.08)",
+		paddingHorizontal: 30,
+		paddingVertical: 11,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.26,
+		shadowRadius: 8,
+		elevation: 4,
+	},
+	loginSubmitButtonDisabled: {
+		opacity: 0.6,
+	},
+	loginSubmitButtonText: {
+		fontSize: 19,
+		fontWeight: "300",
+		lineHeight: 24,
+		color: "#EAF6FF",
+		textAlign: "center",
+	},
+	loginLinks: {
+		marginTop: 46,
+		alignItems: "center",
+		gap: 10,
+	},
+	loginLinkText: {
+		fontSize: 19,
+		fontWeight: "400",
+		color: "#00B8F0",
+		textAlign: "center",
+	},
+	loginLinkUnderline: {
+		textDecorationLine: "underline",
+	},
 });
