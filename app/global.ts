@@ -625,4 +625,94 @@ export const globalStyles = StyleSheet.create({
 		fontWeight: "700",
 		color: "#fff",
 	},
+
+	// extra page styles
+	extraScreen: {
+		flex: 1,
+	},
+	extraScrollContent: {
+		paddingHorizontal: 20,
+		paddingTop: 16,
+		paddingBottom: 20,
+	},
+	extraBackRow: {
+		marginBottom: 24,
+	},
+	extraTitleBlock: {
+		marginBottom: 32,
+	},
+	extraTitleText: {
+		fontSize: 52,
+		lineHeight: 58,
+		fontWeight: "700",
+	},
+	extraGpsHint: {
+		fontSize: 12,
+		marginTop: 8,
+		fontStyle: "italic",
+	},
+	extraSection: {
+		marginBottom: 28,
+	},
+	extraSectionTitle: {
+		fontSize: 13,
+		fontWeight: "600",
+		textTransform: "uppercase",
+		letterSpacing: 1.8,
+		marginBottom: 8,
+	},
+	extraSectionDivider: {
+		height: 1,
+		marginBottom: 16,
+	},
+	extraGrid: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		justifyContent: "space-between",
+	},
+	extraCard: {
+		width: "49%",
+		borderRadius: 24,
+		padding: 12,
+		marginBottom: 16,
+	},
+	extraCardRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		minHeight: 90,
+	},
+	extraCardInfo: {
+		flex: 1,
+		alignItems: "center",
+		justifyContent: "center",
+		paddingRight: 8,
+	},
+	extraCardName: {
+		fontSize: 12,
+		marginTop: 8,
+		textAlign: "center",
+		fontWeight: "600",
+	},
+	extraCardActions: {
+		flex: 1,
+		paddingLeft: 8,
+		justifyContent: "center",
+	},
+	extraActionButton: {
+		paddingVertical: 8,
+		borderRadius: 12,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	extraActionButtonMap: {
+		marginTop: 12,
+	},
+	extraActionText: {
+		fontSize: 10,
+		marginLeft: 4,
+		fontWeight: "700",
+		textTransform: "uppercase",
+	},
 });

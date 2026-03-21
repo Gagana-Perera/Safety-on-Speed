@@ -12,6 +12,7 @@
  * - Uses lightweight caching (placeId + phone) so repeat taps feel instant.
  * - Prefetches in the background once GPS becomes available.
  */
+import { globalStyles } from "@/app/global";
 import { useTheme } from "@/components/theme/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -903,28 +904,28 @@ export default function EmergencyServices() {
     return (
       <View
         key={item.id}
-        className="rounded-3xl p-3"
-        style={{
-          width: "49%",
-          backgroundColor: theme.card,
-          borderColor: EMERGENCY_BORDER_COLOR,
-          borderWidth: EMERGENCY_BORDER_WIDTH,
-          marginBottom: opts?.marginBottom ?? 16,
-        }}
+        style={[
+          globalStyles.extraCard,
+          {
+            backgroundColor: theme.card,
+            borderColor: EMERGENCY_BORDER_COLOR,
+            borderWidth: EMERGENCY_BORDER_WIDTH,
+            marginBottom: opts?.marginBottom ?? 16,
+          },
+        ]}
       >
-        <View className="flex-row justify-between items-center min-h-[90px]">
-          <View className="flex-1 items-center justify-center pr-2">
+        <View style={globalStyles.extraCardRow}>
+          <View style={globalStyles.extraCardInfo}>
             <Ionicons name={item.icon} size={32} color={EMERGENCY_ICON_COLOR} />
             <Text
-              className="text-[12px] mt-2 text-center"
-              style={{ color: theme.text, fontWeight: "600" }}
+              style={[globalStyles.extraCardName, { color: theme.text }]}
               numberOfLines={3}
             >
               {item.name}
             </Text>
           </View>
 
-          <View className="flex-1 pl-2 space-y-2 justify-center">
+          <View style={globalStyles.extraCardActions}>
             {/* Call Button */}
             <PopTouchableOpacity
               onPress={() => handleCallAction(item)}
@@ -940,13 +941,15 @@ export default function EmergencyServices() {
               accessibilityRole="button"
               accessibilityLabel={`${item.name} Call`}
               disabled={isCallDisabled}
-              className="py-2 rounded-xl flex-row items-center justify-center"
-              style={{
-                backgroundColor: theme.background,
-                borderColor: visibleBorderColor,
-                borderWidth: visibleBorderWidth,
-                opacity: isCallDisabled ? 0.6 : 1,
-              }}
+              style={[
+                globalStyles.extraActionButton,
+                {
+                  backgroundColor: theme.background,
+                  borderColor: visibleBorderColor,
+                  borderWidth: visibleBorderWidth,
+                  opacity: isCallDisabled ? 0.6 : 1,
+                },
+              ]}
             >
               {loadingStatus?.id === item.id &&
                 loadingStatus?.type === "call" ? (
@@ -959,8 +962,7 @@ export default function EmergencyServices() {
                     color={EMERGENCY_ICON_COLOR}
                   />
                   <Text
-                    className="text-[10px] ml-1 font-bold uppercase"
-                    style={{ color: theme.text }}
+                    style={[globalStyles.extraActionText, { color: theme.text }]}
                   >
                     Call
                   </Text>
@@ -983,13 +985,16 @@ export default function EmergencyServices() {
                 accessibilityRole="button"
                 accessibilityLabel={`${item.name} Map`}
                 disabled={isMapDisabled}
-                className="py-2 rounded-xl flex-row items-center justify-center mt-3"
-                style={{
-                  backgroundColor: theme.card,
-                  borderColor: visibleBorderColor,
-                  borderWidth: visibleBorderWidth,
-                  opacity: isMapDisabled ? 0.6 : 1,
-                }}
+                style={[
+                  globalStyles.extraActionButton,
+                  globalStyles.extraActionButtonMap,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: visibleBorderColor,
+                    borderWidth: visibleBorderWidth,
+                    opacity: isMapDisabled ? 0.6 : 1,
+                  },
+                ]}
               >
                 {loadingStatus?.id === item.id &&
                   loadingStatus?.type === "map" ? (
@@ -1005,8 +1010,7 @@ export default function EmergencyServices() {
                       color={EMERGENCY_ICON_COLOR}
                     />
                     <Text
-                      className="text-[10px] ml-1 font-bold uppercase"
-                      style={{ color: theme.icon }}
+                      style={[globalStyles.extraActionText, { color: theme.icon }]}
                     >
                       Map
                     </Text>
@@ -1021,50 +1025,49 @@ export default function EmergencyServices() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-      <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
+    <SafeAreaView
+      style={[globalStyles.extraScreen, { backgroundColor: theme.background }]}
+    >
+      <ScrollView
+        contentContainerStyle={globalStyles.extraScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header: back + title */}
-        <View className="mb-6">
+        <View style={globalStyles.extraBackRow}>
           <BackButton color={theme.text} accessibilityLabel="Back Button" />
         </View>
 
-        <View className="mb-8">
-          <Text
-            className="text-[36px] leading-[42px]"
-            style={{ color: theme.text, fontWeight: "700" }}
-          >
+        <View style={globalStyles.extraTitleBlock}>
+          <Text style={[globalStyles.extraTitleText, { color: theme.text }]}>
             Emergency
           </Text>
-          <Text
-            className="text-[36px] leading-[42px]"
-            style={{ color: theme.text, fontWeight: "700" }}
-          >
+          <Text style={[globalStyles.extraTitleText, { color: theme.text }]}>
             Services
           </Text>
           {!userLocation && (
-            <Text className="text-xs mt-2 italic" style={{ color: theme.icon }}>
+            <Text style={[globalStyles.extraGpsHint, { color: theme.icon }]}>
               {gpsError ? `GPS issue: ${gpsError}` : "Waiting for GPS..."}
             </Text>
           )}
         </View>
 
         {/* Section 1: static hotlines */}
-        <View className="mb-8">
+        <View style={globalStyles.extraSection}>
           <Text
-            className="text-[13px] uppercase mb-2"
-            style={{
-              color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)",
-              fontWeight: "600",
-              letterSpacing: 1.8,
-            }}
+            style={[
+              globalStyles.extraSectionTitle,
+              { color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)" },
+            ]}
           >
             Emergency Hotlines
           </Text>
           <View
-            className="h-[1px] mb-4"
-            style={{ backgroundColor: theme.border }}
+            style={[
+              globalStyles.extraSectionDivider,
+              { backgroundColor: theme.border },
+            ]}
           />
-          <View className="flex-row flex-wrap justify-between">
+          <View style={globalStyles.extraGrid}>
             {SERVICES.filter((s) => s.category === "hotline").map(
               (item, index) =>
                 renderCard(item, { marginBottom: index < 2 ? 24 : 16 }),
@@ -1073,22 +1076,22 @@ export default function EmergencyServices() {
         </View>
 
         {/* Section 2: dynamic nearby places (requires GPS + Places API key) */}
-        <View className="mb-6">
+        <View style={globalStyles.extraSection}>
           <Text
-            className="text-[13px] uppercase mb-2"
-            style={{
-              color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)",
-              fontWeight: "600",
-              letterSpacing: 1.8,
-            }}
+            style={[
+              globalStyles.extraSectionTitle,
+              { color: theme.mode === "light" ? "#555" : "rgba(255,255,255,0.75)" },
+            ]}
           >
             Nearby safe places
           </Text>
           <View
-            className="h-[1px] mb-4"
-            style={{ backgroundColor: theme.border }}
+            style={[
+              globalStyles.extraSectionDivider,
+              { backgroundColor: theme.border },
+            ]}
           />
-          <View className="flex-row flex-wrap justify-between">
+          <View style={globalStyles.extraGrid}>
             {SERVICES.filter((s) => s.category === "place").map((item) =>
               renderCard(item),
             )}
