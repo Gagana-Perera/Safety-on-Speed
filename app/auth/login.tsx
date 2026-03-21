@@ -84,7 +84,7 @@ export default function Login() {
           {/* Inputs */}
           <View className="mt-16">
             <Text className="text-white/90 text-4xl font-light mb-4">
-              User Name
+              Email
             </Text>
 
             <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
@@ -136,7 +136,7 @@ export default function Login() {
           </View>
 
           {/* Bottom area */}
-          <View className="flex-1 justify-end pb-24">
+          <View className="flex-1 justify-end pb-24 mt-8">
             <Pressable
               onPress={handleLogin}
               disabled={loading}
