@@ -1,50 +1,92 @@
-# Welcome to your Expo app
+# Safety On Speed (SOS)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Safety On Speed** is a comprehensive personal safety platform developed in React Native. It is designed to provide immediate assistance during emergencies by connecting users to emergency services and personal guardians with a single tap.
 
-## Get started
+🔗 **Official Website:** [https://safetyonspeed.lk/](https://safetyonspeed.lk/)
 
-1. Install dependencies
+## 📱 App Overview
 
-   ```bash
-   npm install
-   ```
+The SOS app provides a streamlined "Emergency Flow" that automates location tracking and alert delivery.
 
-2. Start the app
+### Core Features
+* **One-Tap Quick SOS**: Instantly triggers a silent alert.
+* **Emergency Flow (Triple Tap)**: Starts a high-priority emergency sequence, including a direct prompt to call **119**.
+* **Live Tracking & Heatmaps**: Interactive map of Sri Lanka with safety heatmaps and quick-access filters for Police Stations, Hospitals, and Pharmacies.
+* **Guardian System**: Configure up to 5 trusted contacts to receive automated SMS and WhatsApp alerts.
+* **Safe Spaces Directory**: Quick-dial hotlines for:
+    * Ambulance Service
+    * Fire & Rescue
+    * Women & Child Bureau
+* **Community Forum**: A dedicated space for users to post safety topics and share experiences.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🛠 Installation & Setup (Expo)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+This project uses **Expo** for a seamless cross-platform development experience.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Prerequisites
+* **Node.js** (LTS version)
+* **Expo Go** app installed on your [Android](https://play.google.com/store/apps/details?id=host.exp.exponent) or [iOS](https://apps.apple.com/us/app/expo-go/id982107779) device.
+* **Supabase Account** (if using the multi-tenant backend features).
 
-## Get a fresh project
-
-When you're ready, run:
-
+### Step 1: Clone and Install
 ```bash
-npm run reset-project
+# Clone the repository
+git clone https://github.com/RIVINDUSANJULA/safety-on-speed.git
+
+# Navigate to project directory
+cd safety-on-speed
+
+# Install dependencies
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Step 2: Configure Environment
+Create a `.env` file in the root directory and add your API keys:
+```env
+Contact Team
+```
 
-## Learn more
+### Step 3: Run with Expo Go
+Launch the development server:
+```bash
+npm run start
+OR
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+1.  Open the **Expo Go** app on your phone.
+2.  Scan the **QR Code** displayed in your terminal.
+3.  Ensure your phone and computer are on the **same Wi-Fi network**.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## 🏗 System Architecture (Technical Specs)
 
-Join our community of developers creating universal apps.
+* **Frontend**: React Native / Expo (Managed Workflow)
+* **Styling**: NativeWind / Tailwind CSS
+* **Navigation**: React Navigation (Bottom Tabs & Stack)
+* **Maps**: Google Maps API with custom Heatmap integration
+* **Backend**: Supabase (Auth, Database, and Real-time Tracking)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+## 👥 The Development Team
+* **Gagana Perera** (Team Leader)
+* **Chamethya Yasodie**
+* **Nimsara Karunaratne**
+* **Shenal Arosha**
+* **Amaya Pitawela**
+* **Rivindu Sanjula**
+
+---
+
+## 📞 Support & Contact
+* **Email**: grsacn2025@gmail.com
+* **Phone**: +94 74 341 7006
+* **Location**: IIT (Informatics Institute of Technology), Sri Lanka.
+
+---
+
+Would you like me to add a **"Screenshots"** section to this README where you can link these images directly?
