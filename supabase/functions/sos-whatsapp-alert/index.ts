@@ -2,149 +2,278 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 /**
  * WhatsApp SOS Alert Edge Function
- * 
- * This function handles sending WhatsApp template messages (default: hello_world)
- * to a list of guardian phone numbers using the Meta WhatsApp Cloud API.
+ *
+ * This function sends the approved WhatsApp Cloud API template `sos_alert`
+ * to one or more guardians using the permanent Meta system-user token
+ * stored in Supabase secrets.
  */
 
 const corsHeaders = {
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Origin": "*",
 };
 
-interface RequestBody {
-  guardians: string[];
-  userName?: string;
+const WHATSAPP_API_VERSION = "v23.0";
+const TEMPLATE_NAME = "sos_alert";
+const TEMPLATE_LANGUAGE = "en";
+
+type RequestBody = {
+  guardians?: string[];
   latitude?: number;
   longitude?: number;
-}
+  userName?: string;
+};
 
-function jsonResponse(status: number, body: any) {
+type MetaSuccessResponse = {
+  messages?: Array<{
+    id?: string;
+  }>;
+  messaging_product?: string;
+};
+
+type MetaErrorResponse = {
+  error?: {
+    code?: number;
+    error_data?: unknown;
+    fbtrace_id?: string;
+    message?: string;
+    type?: string;
+  };
+};
+
+type GuardianSendResult = {
+  error?: string;
+  messageId?: string;
+  ok: boolean;
+  response?: MetaSuccessResponse | MetaErrorResponse | unknown;
+  status?: number;
+  to: string;
+};
+
+function jsonResponse(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
     status,
   });
 }
 
-Deno.serve(async (req) => {
+function normalizePhoneNumber(phone: string) {
+  const digitsOnly = phone.trim().replace(/\D/g, "");
+  if (!digitsOnly) return "";
+  return digitsOnly;
+}
+
+function isValidLatitude(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isValidLongitude(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function buildGoogleMapsLink(latitude: number, longitude: number) {
+  return `https://maps.google.com/?q=${latitude},${longitude}`;
+}
+
+function formatSriLankaTime(date: Date) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Colombo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  // sv-SE gives `YYYY-MM-DD HH:mm`, which matches the requested format.
+  return formatter.format(date);
+}
+
+function buildTemplatePayload(
+  guardianNumber: string,
+  userName: string,
+  locationLink: string,
+  recordedTime: string,
+) {
+  return {
+    messaging_product: "whatsapp",
+    to: guardianNumber,
+    type: "template",
+    template: {
+      name: TEMPLATE_NAME,
+      language: { code: TEMPLATE_LANGUAGE },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            {
+              type: "text",
+              parameter_name: "user_name",
+              text: userName,
+            },
+            {
+              type: "text",
+              parameter_name: "location_link",
+              text: locationLink,
+            },
+            {
+              type: "text",
+              parameter_name: "time",
+              text: recordedTime,
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-    const TEMPLATE_NAME = Deno.env.get("WHATSAPP_TEMPLATE_NAME") || "sos_alert";
-    const TEMPLATE_LANG = Deno.env.get("WHATSAPP_TEMPLATE_LANG") || "en_US";
+  if (req.method !== "POST") {
+    return jsonResponse(405, {
+      error: "Method not allowed. Use POST.",
+      success: false,
+    });
+  }
 
-    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+  try {
+    const whatsappToken = Deno.env.get("WHATSAPP_TOKEN")?.trim();
+    const phoneNumberId = Deno.env.get("PHONE_NUMBER_ID")?.trim();
+
+    if (!whatsappToken || !phoneNumberId) {
       return jsonResponse(500, {
+        error:
+          "Missing required environment variables: WHATSAPP_TOKEN and/or PHONE_NUMBER_ID.",
         success: false,
-        error: "Server credentials missing (WHATSAPP_TOKEN/PHONE_NUMBER_ID).",
       });
     }
 
-    const { guardians, userName, latitude, longitude }: RequestBody = await req.json();
+    const body = (await req.json().catch(() => null)) as RequestBody | null;
+    const guardians = Array.isArray(body?.guardians) ? body.guardians : [];
+    const latitude = body?.latitude;
+    const longitude = body?.longitude;
+    const userName =
+      typeof body?.userName === "string" && body.userName.trim().length > 0
+        ? body.userName.trim()
+        : "Safety on Speed user";
 
-    if (!guardians?.length) {
-      return jsonResponse(400, { success: false, error: "Missing guardians array." });
+    if (guardians.length === 0) {
+      return jsonResponse(400, {
+        error: "The guardians field is required and must be a non-empty array.",
+        success: false,
+      });
     }
 
-    // Prepare Template Variables
-    const nameStr = userName || "A user";
-    const locStr = (latitude && longitude) 
-      ? `https://www.google.com/maps?q=${latitude},${longitude}`
-      : "Unknown Location";
-    
-    // Sri Lanka Time (UTC+5:30)
-    const now = new Date();
-    const slTime = new Intl.DateTimeFormat("en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: "Asia/Colombo",
-    }).format(now);
+    if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+      return jsonResponse(400, {
+        error: "Both latitude and longitude are required.",
+        success: false,
+      });
+    }
 
-    const results = [];
-    let successCount = 0;
+    const locationLink = buildGoogleMapsLink(latitude, longitude);
+    const recordedTime = formatSriLankaTime(new Date());
+    const metaApiUrl = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}/messages`;
 
-    for (const rawNumber of guardians) {
-      const cleanedNumber = rawNumber.replace(/\D/g, "");
-      if (!cleanedNumber || cleanedNumber.length < 11 || cleanedNumber.length > 15) {
+    const results: GuardianSendResult[] = [];
+    let sentCount = 0;
+
+    for (const guardian of guardians) {
+      const normalizedNumber = normalizePhoneNumber(guardian);
+
+      if (!normalizedNumber) {
         results.push({
-          to: rawNumber,
-          ok: false,
           error:
-            "Invalid phone number format. Use full international format like +9477XXXXXXX.",
+            "Invalid guardian phone number. Use full WhatsApp international format.",
+          ok: false,
+          to: guardian,
         });
         continue;
       }
 
       try {
-        const metaApiUrl = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
-        
-        // Build payload based on template name
-        const isHelloWorld = TEMPLATE_NAME === "hello_world";
-        const payload: any = {
-          messaging_product: "whatsapp",
-          to: cleanedNumber,
-          type: "template",
-          template: {
-            name: TEMPLATE_NAME,
-            language: { code: TEMPLATE_LANG },
-          },
-        };
-
-        if (!isHelloWorld) {
-          // sos_alert expects 3 variables: user_name, location_link, time
-          payload.template.components = [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: nameStr },
-                { type: "text", text: locStr },
-                { type: "text", text: slTime },
-              ],
-            },
-          ];
-        }
+        const payload = buildTemplatePayload(
+          normalizedNumber,
+          userName,
+          locationLink,
+          recordedTime,
+        );
 
         const response = await fetch(metaApiUrl, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${WHATSAPP_TOKEN}`,
+            Authorization: `Bearer ${whatsappToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
         });
 
-        const metaData = await response.json();
+        const responseData = (await response.json().catch(() => ({}))) as
+          | MetaSuccessResponse
+          | MetaErrorResponse;
 
         if (response.ok) {
-          successCount++;
-          results.push({ to: cleanedNumber, ok: true, status: response.status });
-        } else {
+          sentCount += 1;
           results.push({
-            to: cleanedNumber,
-            ok: false,
+            messageId:
+              "messages" in responseData
+                ? responseData.messages?.[0]?.id
+                : undefined,
+            ok: true,
+            response: responseData,
             status: response.status,
-            error: metaData.error?.message || "Meta API Error",
-            details: metaData,
+            to: normalizedNumber,
           });
+          continue;
         }
-      } catch (e: any) {
-        results.push({ to: rawNumber, ok: false, error: e.message });
+
+        results.push({
+          error:
+            "error" in responseData
+              ? responseData.error?.message || "Meta WhatsApp API error."
+              : "Meta WhatsApp API error.",
+          ok: false,
+          response: responseData,
+          status: response.status,
+          to: normalizedNumber,
+        });
+      } catch (error) {
+        results.push({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unexpected error while sending WhatsApp message.",
+          ok: false,
+          to: normalizedNumber,
+        });
       }
     }
 
-    return jsonResponse(200, {
-      success: successCount > 0,
-      message: `Processed ${guardians.length} guardian(s). Sent: ${successCount}.`,
-      template_used: TEMPLATE_NAME,
-      results,
-    });
+    const failedCount = results.length - sentCount;
 
-  } catch (error: any) {
-    return jsonResponse(500, { success: false, error: error.message });
+    return jsonResponse(200, {
+      failedCount,
+      language: TEMPLATE_LANGUAGE,
+      locationLink,
+      recordedTime,
+      results,
+      sentCount,
+      success: sentCount > 0,
+      templateName: TEMPLATE_NAME,
+    });
+  } catch (error) {
+    return jsonResponse(500, {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unexpected server error while sending WhatsApp alerts.",
+      success: false,
+    });
   }
 });
