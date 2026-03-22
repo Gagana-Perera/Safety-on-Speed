@@ -16,7 +16,7 @@ const resources = {
       push_notif_label: "Push Notification",
       push_notif_sub: "Security & Update alerts",
       alert_notif_label: "Alert Notification",
-      alert_notif_sub: "SOS & Emergency alerts",
+      alert_notif_sub: "Receive nearby safety & incident alerts",
       
       privacy: "PRIVACY & PERMISSIONS",
       personal_data_label: "Personal Data Access",
@@ -66,7 +66,7 @@ const resources = {
 
       personal_safety: "PERSONAL SAFETY",
       sos_control: "SOS Control",
-      sos_control_desc: "Press the SOS button to send your current location by SMS to your guardians. This sends a one-time emergency message only.",
+      sos_control_desc: "One tap starts a Quick SOS. Three fast taps starts the emergency flow and prompts a 119 call.",
       send_sms: "Send SMS",
       sos_button_desc: "The button sends one SMS alert with your current Google Maps location. It does not start live tracking.",
       guardians: "GUARDIANS",
@@ -76,7 +76,7 @@ const resources = {
       gps_ready_desc: "Location access is required before the app can send your SMS alert.",
       internet: "INTERNET",
       offline: "Offline",
-      offline_desc: "Automatic SMS delivery uses the Supabase Edge Function and Twilio, so an internet connection is required.",
+      offline_desc: "Automatic guardian alerts need a connected network and backend endpoint.",
       open_hotlines_desc: "Open hotlines and emergency support contacts.",
       manage_guardians_desc: "Review the contacts that receive SOS alerts.",
 
@@ -128,7 +128,7 @@ const resources = {
       push_notif_label: "තල්ලු දැනුම්දීම්",
       push_notif_sub: "ආරක්ෂක සහ යාවත්කාලීන ඇඟවීම්",
       alert_notif_label: "ඇඟවීම් දැනුම්දීම්",
-      alert_notif_sub: "SOS සහ හදිසි ඇඟවීම්",
+      alert_notif_sub: "ආසන්න ආරක්ෂක සහ සිදුවීම් ඇඟවීම් ලබා ගන්න",
       
       privacy: "පෞද්ගලිකත්වය සහ අවසර",
       personal_data_label: "පුද්ගලික දත්ත ප්‍රවේශය",
@@ -178,7 +178,7 @@ const resources = {
 
       personal_safety: "පෞද්ගලික ආරක්ෂාව",
       sos_control: "SOS පාලනය",
-      sos_control_desc: "ඔබගේ වත්මන් ස්ථානය SMS මගින් භාරකරුවන් වෙත යැවීමට SOS බොත්තම ඔබන්න. මෙයින් එක් වරක් පමණක් හදිසි පණිවිඩයක් යවනු ලැබේ.",
+      sos_control_desc: "එක් තට්ටුවකින් ඉක්මන් SOS ආරම්භ වේ. වේගවත් තට්ටු තුනකින් හදිසි ප්‍රවාහය ආරම්භ වී 119 ඇමතුමක් ලබා ගැනීමට දිරිමත් කරයි.",
       send_sms: "SMS යවන්න",
       sos_button_desc: "මෙම බොත්තම ඔබගේ වත්මන් Google Maps ස්ථානය සමඟ එක් SMS ඇඟවීමක් යවයි. එය සජීවී ලුහුබැඳීමක් ආරම්භ නොකරයි",
       guardians: "භාරකරුවන්",
@@ -188,7 +188,7 @@ const resources = {
       gps_ready_desc: "යෙදුමට ඔබේ SMS ඇඟවීම යැවීමට පෙර ස්ථාන ප්‍රවේශය අවශ්‍ය වේ.",
       internet: "අන්තර්ජාලය",
       offline: "නොබැඳි",
-      offline_desc: "ස්වක්‍රීය SMS බෙදාහැරීම Supabase Edge Function සහ Twilio භාවිතා කරයි, එබැවින් අන්තර්ජාල සම්බන්ධතාවයක් අවශ්‍ය වේ.",
+      offline_desc: "ස්වක්‍රීය භාරකරු ඇඟවීම් සඳහා සම්බන්ධිත ජාලයක් සහ backend endpoint එකක් අවශ්‍ය වේ.",
       open_hotlines_desc: "හදිසි ඇමතුම් සහ හදිසි සහාය සම්බන්ධතා විවෘත කරන්න.",
       manage_guardians_desc: "SOS ඇඟවීම් ලබන සම්බන්ධතා සමාලෝචනය කරන්න.",
 
@@ -240,7 +240,7 @@ const resources = {
       push_notif_label: "புஷ் அறிவிப்பு",
       push_notif_sub: "பாதுகாப்பு மற்றும் புதுப்பிப்பு எச்சரிக்கைகள்",
       alert_notif_label: "எச்சரிக்கை அறிவிப்பு",
-      alert_notif_sub: "SOS மற்றும் அவசர எச்சரிக்கைகள்",
+      alert_notif_sub: "அருகிலுள்ள பாதுகாப்பு மற்றும் சம்பவ எச்சரிக்கைகளை பெறுங்கள்",
       
       privacy: "தனியுரிமை மற்றும் அனுமதிகள்",
       personal_data_label: "தனிப்பட்ட தரவு அணுகல்",
@@ -290,7 +290,7 @@ const resources = {
 
       personal_safety: "தனிப்பட்ட பாதுகாப்பு",
       sos_control: "SOS கட்டுப்பாடு",
-      sos_control_desc: "உங்கள் தற்போதைய இருப்பிடத்தை SMS மூலம் உங்கள் பாதுகாவலர்களுக்கு அனுப்ப SOS பொத்தானை அழுத்தவும். இது ஒரு முறை மட்டுமே அவசர செய்தி அனுப்புகிறது.",
+      sos_control_desc: "ஒரு தட்டல் விரைவான SOS ஐ தொடங்குகிறது. மூன்று வேகமான தட்டல்கள் அவசர ஓட்டத்தை தொடங்கி 119 அழைப்பை தூண்டுகிறது.",
       send_sms: "SMS அனுப்பு",
       sos_button_desc: "பொத்தான் உங்கள் தற்போதைய Google Maps இருப்பிடத்துடன் ஒரு SMS எச்சரிக்கையை அனுப்புகிறது. இது நேரலை கண்காணிப்பை தொடங்காது.",
       guardians: "பாதுகாவலர்கள்",
@@ -300,7 +300,7 @@ const resources = {
       gps_ready_desc: "பயன்பாடு உங்கள் SMS எச்சரிக்கையை அனுப்புவதற்கு முன் இருப்பிட அணுகல் தேவை.",
       internet: "இணையம்",
       offline: "ஆஃப்லைன்",
-      offline_desc: "தானியங்கி SMS விநியோகம் Supabase Edge Function மற்றும் Twilio ஐ பயன்படுத்துகிறது, எனவே இணைய இணைப்பு தேவை.",
+      offline_desc: "தானியங்கி பாதுகாவலர் எச்சரிக்கைகளுக்கு இணைக்கப்பட்ட நெட்வொர்க் மற்றும் backend endpoint தேவை.",
       open_hotlines_desc: "ஹாட்லைன்கள் மற்றும் அவசர ஆதரவு தொடர்புகளை திறக்கவும்.",
       manage_guardians_desc: "SOS எச்சரிக்கைகளை பெறும் தொடர்புகளை மதிப்பாய்வு செய்யவும்",
 

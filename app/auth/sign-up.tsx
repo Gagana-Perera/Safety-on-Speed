@@ -1,12 +1,13 @@
-import { setSignupDraft } from "@/lib/signup-draft";
+import AuthLayout, {
+  AuthField,
+  authStyles,
+} from "@/components/auth/AuthLayout";
+import { getSignupDraft, setSignupDraft } from "@/lib/signup-draft";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
     Alert,
-    KeyboardAvoidingView,
-    Platform,
     Pressable,
-    ScrollView,
     Text,
     TextInput,
     View,
@@ -14,14 +15,15 @@ import {
 
 export default function SignUp() {
   const router = useRouter();
+  const draft = getSignupDraft();
   const surnameInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const nicInputRef = useRef<TextInput>(null);
 
-  const [firstName, setFirstName] = useState("");
-  const [surname, setSurname] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [nicNumber, setNicNumber] = useState("");
+  const [firstName, setFirstName] = useState(draft.firstName ?? "");
+  const [surname, setSurname] = useState(draft.surname ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(draft.phoneNumber ?? "");
+  const [nicNumber, setNicNumber] = useState(draft.nicNumber ?? "");
 
   function handleNext() {
     const trimmedFirstName = firstName.trim();
@@ -50,139 +52,84 @@ export default function SignUp() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-primary"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View className="flex-1 px-6 pt-12">
-          {/* Header */}
-          <View className="flex-row items-center mb-8">
-            <Pressable
-              onPress={() => router.back()}
-              className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-4 py-2"
+    <AuthLayout
+      eyebrow="Step 1 of 4"
+      title="Create your account"
+      subtitle="Start with the essentials we need to build your safety profile."
+      showBack
+      footer={
+        <View style={authStyles.footerBlock}>
+          <Text style={authStyles.secondaryText}>
+            Already registered?{" "}
+            <Text
+              style={authStyles.footerLink}
+              onPress={() => router.push("/auth/login")}
             >
-              <Text className="text-white text-xl mr-2">{"<"}</Text>
-              <Text className="text-white text-xl font-light">Back</Text>
-            </Pressable>
-          </View>
-
-          {/* Title */}
-          <View className="items-center mb-10">
-            <Text className="text-white text-6xl font-light tracking-wider">
-              Sign up
+              Sign in
             </Text>
-          </View>
-
-          {/* Inputs */}
-          <View className="mt-4">
-            <View className="flex-row justify-between">
-              <View className="w-[48%]">
-                <Text className="text-white text-2xl font-light mb-2">
-                  First Name
-                </Text>
-                <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                  <TextInput
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    className="text-white text-lg"
-                    returnKeyType="next"
-                    onSubmitEditing={() => surnameInputRef.current?.focus()}
-                  />
-                </View>
-                <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-1" />
-              </View>
-
-              <View className="w-[48%]">
-                <Text className="text-white text-2xl font-light mb-2">
-                  Surname
-                </Text>
-                <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                  <TextInput
-                    ref={surnameInputRef}
-                    value={surname}
-                    onChangeText={setSurname}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    className="text-white text-lg"
-                    returnKeyType="next"
-                    onSubmitEditing={() => phoneInputRef.current?.focus()}
-                  />
-                </View>
-                <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-1" />
-              </View>
-            </View>
-
-            <View className="mt-8">
-              <Text className="text-white text-2xl font-light mb-2">
-                Phone Number
-              </Text>
-              <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                <TextInput
-                  ref={phoneInputRef}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="text-white text-lg"
-                  returnKeyType="next"
-                  onSubmitEditing={() => nicInputRef.current?.focus()}
-                />
-              </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
-            </View>
-
-            <View className="mt-8">
-              <Text className="text-white text-2xl font-light mb-2">
-                NIC Number
-              </Text>
-              <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                <TextInput
-                  ref={nicInputRef}
-                  value={nicNumber}
-                  onChangeText={setNicNumber}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  className="text-white text-lg"
-                  returnKeyType="done"
-                  onSubmitEditing={handleNext}
-                />
-              </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
-            </View>
-          </View>
-
-          {/* Next Button */}
-          <View className="flex-1 justify-end pb-10 mt-10">
-            <Pressable
-              onPress={handleNext}
-              className="self-end bg-black/40 border border-white/10 rounded-2xl px-12 py-3"
-            >
-              <Text className="text-white text-2xl font-light">Next</Text>
-            </Pressable>
-            <View className="items-center mt-8">
-              <Pressable
-                onPress={() => router.push("/auth/login")}
-                accessibilityRole="button"
-              >
-                <Text className="text-secondary text-lg">
-                  Already have an account?{" "}
-                  <Text className="underline text-accent">Sign in.</Text>
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      }
+    >
+      <View style={authStyles.formGrid}>
+        <View style={authStyles.formRow}>
+          <AuthField
+            containerStyle={authStyles.halfField}
+            value={firstName}
+            onChangeText={setFirstName}
+            label="First Name"
+            placeholder="Amara"
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => surnameInputRef.current?.focus()}
+          />
+          <AuthField
+            ref={surnameInputRef}
+            containerStyle={authStyles.halfField}
+            value={surname}
+            onChangeText={setSurname}
+            label="Surname"
+            placeholder="Perera"
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => phoneInputRef.current?.focus()}
+          />
+        </View>
+        <AuthField
+          ref={phoneInputRef}
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          label="Phone Number"
+          placeholder="+94 77 123 4567"
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+          onSubmitEditing={() => nicInputRef.current?.focus()}
+        />
+        <AuthField
+          ref={nicInputRef}
+          value={nicNumber}
+          onChangeText={setNicNumber}
+          label="NIC Number"
+          placeholder="200012345678"
+          autoCapitalize="characters"
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={handleNext}
+        />
+        <Pressable
+          onPress={handleNext}
+          style={({ pressed }) => [
+            authStyles.primaryButton,
+            pressed && authStyles.pressed,
+          ]}
+        >
+          <Text style={authStyles.primaryButtonText}>Continue</Text>
+        </Pressable>
+      </View>
+    </AuthLayout>
   );
 }

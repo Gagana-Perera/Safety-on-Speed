@@ -3127,7 +3127,7 @@ export default function MapScreen() {
                                   {
                                     text: "Open",
                                     style: "default",
-                                    onPress: () => router.push("/(tabs)/extra"),
+                                    onPress: () => router.push("/extra"),
                                   },
                                 ],
                               );

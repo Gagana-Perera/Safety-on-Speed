@@ -1,12 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import {
+  isSupabaseConfigured,
+  supabase,
+  warnMissingSupabaseConfig,
+} from "@/lib/superbase";
 
-// Initialize Supabase client
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseKey =
-  process.env.EXPO_PUBLIC_SUPABASE_KEY ||
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const newsClient = supabase as any;
 
 // TypeScript interfaces
 export interface Post {
@@ -28,23 +26,39 @@ export type CreatePostInput = {
   postImage?: string;
 };
 
+function ensureNewsApiConfigured() {
+  if (isSupabaseConfigured) {
+    return true;
+  }
+
+  warnMissingSupabaseConfig("lib/newsApi.ts");
+  return false;
+}
+
 // Seed initial data (run once to populate database)
 export const seedPosts = async () => {
+  if (!ensureNewsApiConfigured()) {
+    return {
+      success: false,
+      error: new Error("Supabase is not configured."),
+    };
+  }
+
   // const dummyPosts = [
   //   { postId: "1", postTopic: "Safety Tip", postTime: "11.23", postDate: "9-2-2026", postBody: "Always stay aware of your surroundings", media: "default-img.png", likes: 0, bookmarks: 0},
   //   { postId: "2", postTopic: "Emergency", postTime: "18.56", postDate: "9-2-2026", postBody: "Report emergency incidents immediately", likes: 0, bookmarks: 0},
   //   { postId: "3", postTopic: "Safety Update", postTime: "05.34", postDate: "9-2-2026", postBody: "New safety features available", media: "default-img.png", likes: 0, bookmarks: 0},
   // ];
 
-  const { data, error } = await supabase
-    .from('posts')
-    .insert('*');
+  const { data, error } = await newsClient
+    .from("posts")
+    .insert("*");
 
-  console.log(data);   // check actual data
-  console.log(error);  // check for errors
+  console.log(data); // check actual data
+  console.log(error); // check for errors
 
   if (error) {
-    console.error('Error seeding posts:', error);
+    console.error("Error seeding posts:", error);
     return { success: false, error };
   }
 
@@ -53,32 +67,40 @@ export const seedPosts = async () => {
 
 // Fetch all posts
 export const fetchPosts = async (): Promise<Post[]> => {
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-    console.log(data);   // check actual data
-    console.log(error);  // check for errors
-
-  if (error) {
-    console.error('Error fetching posts:', error);
+  if (!ensureNewsApiConfigured()) {
     return [];
   }
 
-  return data || [];
+  const { data, error } = await newsClient
+    .from("posts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  console.log(data); // check actual data
+  console.log(error); // check for errors
+
+  if (error) {
+    console.error("Error fetching posts:", error);
+    return [];
+  }
+
+  return (data || []) as Post[];
 };
 
 // Create a new post
 export const createPost = async (post: CreatePostInput): Promise<Post | null> => {
-  const { data, error } = await supabase
-    .from('posts')
+  if (!ensureNewsApiConfigured()) {
+    return null;
+  }
+
+  const { data, error } = await newsClient
+    .from("posts")
     .insert([post])
     .select()
     .single();
 
   if (error) {
-    console.error('Error creating post:', error);
+    console.error("Error creating post:", error);
     return null;
   }
 

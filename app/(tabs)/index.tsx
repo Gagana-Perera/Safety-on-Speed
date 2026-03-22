@@ -28,7 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 
 
 import "@/lib/sosTask";
@@ -378,8 +378,7 @@ export default function Index() {
           </Text>
           <Text style={[globalStyles.homeTitle, { color: theme.text }]}>{t('sos_control')}</Text>
           <Text style={[globalStyles.homeSubtitle, { color: theme.icon }]}>
-            One tap starts a Quick SOS. Three fast taps starts the emergency
-            flow and prompts a 119 call.
+            {t('sos_control_desc')}
           </Text>
         </View>
 
@@ -468,8 +467,7 @@ export default function Index() {
               {formatGpsStatus(gpsStatus)}
             </Text>
             <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
-              Location access is required before the app can send your SMS
-              alert.
+              {t('gps_ready_desc')}
             </Text>
           </View>
 
@@ -486,8 +484,7 @@ export default function Index() {
               {formatInternetStatus(internetStatus)}
             </Text>
             <Text style={[globalStyles.homeStatusHint, { color: theme.icon }]}>
-              Automatic guardian alerts need a connected network and backend
-              endpoint.
+              {t('offline_desc')}
             </Text>
           </View>
         </View>
