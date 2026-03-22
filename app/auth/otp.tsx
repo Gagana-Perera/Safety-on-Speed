@@ -138,6 +138,40 @@ export default function SignUpOtp() {
     });
   };
 
+  const requestAlertNotificationPermission = async (userId: string) => {
+    return new Promise<void>((resolve) => {
+      Alert.alert(
+        'Safety Alerts',
+        'Allow Safety on Speed to send you nearby safety and incident alerts?',
+        [
+          {
+            text: 'Decline',
+            style: 'cancel',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ alert_notif: false } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('alert_notif_asked', 'true');
+              resolve();
+            }
+          },
+          {
+            text: 'Allow',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ alert_notif: true } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('alert_notif_asked', 'true');
+              resolve();
+            }
+          }
+        ]
+      );
+    });
+  };
+
   async function handleVerify() {
     if (verifying) return;
     if (otp.length !== OTP_LENGTH) {
@@ -187,10 +221,14 @@ export default function SignUpOtp() {
         // Don't stop flow?
       }
 
-      // 4. Ask data sharing permission ← add this
+      // 4. Ask data sharing permission
       await requestDataSharingPermission(user.id);
 
-      // 5. Redirect to Guardian Setup ← this was 4 before
+      // 5. Ask Alert notification
+
+      await requestAlertNotificationPermission(user.id);
+
+      // 6. Redirect to Guardian Setup
       clearSignupDraft();
       Alert.alert("Success", "Account created successfully!");
 
