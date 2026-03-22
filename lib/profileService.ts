@@ -32,7 +32,7 @@ export const getMergedProfileData = async () => {
       language: profileData?.language || "en",
       location: profileData?.location || null,
       pushNotif: profileData?.push_notif ?? true,
-      alertNotif: profileData?.alert_notif ?? true,
+      alertNotif: profileData?.alert_notif ?? false,
       personalDataAccess: profileData?.personal_data_access ?? false,
       cameraAccess: profileData?.camera_access ?? false,
       liveLocation: profileData?.live_location ?? false,

@@ -46,7 +46,7 @@ export default function Profile() {
 
   // Toggles
   const [pushNotif, setPushNotif] = useState(true);
-  const [AlertNotif, setAlertNotif] = useState(true);
+  const [AlertNotif, setAlertNotif] = useState(false);
   const [personalDataAccess, setPersonalDataAccess] = useState(false);
   const [cameraAccess, setCameraAccess] = useState(false);
   const [liveLocation, setLiveLocation] = useState(false);

@@ -324,11 +324,6 @@ export const notifyVerifiedGuardians = async (userId: string, liveLocationLink: 
       return;
     }
 
-    if (!profile?.alert_notif) {
-      console.log('Alert notifications disabled by user.');
-      return;
-    }
-
     const { data, error } = await supabase
       .from('guardians')
       .select('g1_name, g1_phone, g1_verified, g2_name, g2_phone, g2_verified, g3_name, g3_phone, g3_verified, g4_name, g4_phone, g4_verified, g5_name, g5_phone, g5_verified')
