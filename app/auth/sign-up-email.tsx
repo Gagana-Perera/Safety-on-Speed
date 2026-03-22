@@ -28,7 +28,14 @@ export default function SignUpEmail() {
     });
 
     // Per user design flow: "Finish" -> OTP Verification
-    router.push("/auth/otp");
+    router.push({
+      pathname: "/auth/otp",
+      params: {
+        // After OTP verification during signup, take the user to guardian setup.
+        // (Other OTP entry points can omit this and will default to /(tabs).)
+        next: "/auth/setup?flow=signup",
+      },
+    });
   }
 
   return (

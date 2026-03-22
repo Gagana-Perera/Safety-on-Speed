@@ -9,20 +9,43 @@ export default function SessionGate() {
 
   useEffect(() => {
     async function checkSession() {
-      const { data } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (data.session) {
-        setLoggedIn(true);
-        //TRUE
-      } else {
+      if (!session?.access_token) {
         setLoggedIn(false);
-        //FALSE
+        setLoading(false);
+        return;
+      }
+
+      const { error: refreshError, data: refreshedData } =
+        await supabase.auth.refreshSession();
+      const activeSession = refreshedData.session ?? session;
+
+      if (refreshError || !activeSession?.access_token) {
+        await supabase.auth.signOut().catch(() => undefined);
+        setLoggedIn(false);
+        setLoading(false);
+        return;
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser(activeSession.access_token);
+
+      if (userError || !user) {
+        await supabase.auth.signOut().catch(() => undefined);
+        setLoggedIn(false);
+      } else {
+        setLoggedIn(true);
       }
 
       setLoading(false);
     }
 
-    checkSession();
+    void checkSession();
   }, []);
 
   if (loading) {
@@ -34,7 +57,7 @@ export default function SessionGate() {
   }
 
   return loggedIn ? (
-    <Redirect href="/(tabs)/" />
+    <Redirect href="/(tabs)" />
   ) : (
     <Redirect href="/auth/login" />
   );

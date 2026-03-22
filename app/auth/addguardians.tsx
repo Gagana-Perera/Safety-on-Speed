@@ -2,7 +2,8 @@ import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 import { loadCachedGuardians, saveGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
-import { Stack, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -23,8 +24,11 @@ type Contact = {
   phone: string;
 };
 
+const LOCATION_PREPROMPT_PENDING_KEY = "location_preprompt_pending_v1";
+
 export default function GuardianSetup() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ flow?: string | string[] }>();
   const MAX_CONTACTS = 5;
   const [contacts, setContacts] = useState<Contact[]>([
     { name: "", phone: "" },
@@ -34,6 +38,8 @@ export default function GuardianSetup() {
   // Track whether we were opened from within the app (manage) or from signup
   // If a session already existed before this screen rendered, it's the manage flow
   const [isManageFlow, setIsManageFlow] = useState(false);
+  const flowParam = Array.isArray(params.flow) ? params.flow[0] : params.flow;
+  const isSignupFlow = flowParam === "signup";
 
   // ── Load existing guardians on mount ────────────────────────────────────
   useEffect(() => {
@@ -70,8 +76,11 @@ export default function GuardianSetup() {
         console.log("loadGuardians: data =", JSON.stringify(data));
 
         if (data) {
-          // We found an existing row → this is the manage flow
-          setIsManageFlow(true);
+          // Existing guardians should only switch this screen into "manage" mode
+          // when we were opened from inside the app, not from the signup flow.
+          if (!isSignupFlow) {
+            setIsManageFlow(true);
+          }
 
           // Build the contacts array from the flat columns
           const loaded: Contact[] = [];
@@ -95,7 +104,9 @@ export default function GuardianSetup() {
               "loadGuardians: loaded from cache",
               JSON.stringify(cached),
             );
-            setIsManageFlow(true);
+            if (!isSignupFlow) {
+              setIsManageFlow(true);
+            }
             setContacts(cached);
           }
         }
@@ -107,7 +118,7 @@ export default function GuardianSetup() {
     }
 
     loadGuardians();
-  }, []);
+  }, [isSignupFlow]);
 
   const handleContactChange = (
     index: number,
@@ -158,11 +169,17 @@ export default function GuardianSetup() {
 
       await saveGuardians(user.id, contacts);
 
+      if (isSignupFlow) {
+        await AsyncStorage.setItem(LOCATION_PREPROMPT_PENDING_KEY, "true");
+      }
+
       Alert.alert("Success", "Guardians saved successfully!", [
         {
           text: "OK",
           onPress: () => {
-            if (isManageFlow) {
+            if (isSignupFlow) {
+              router.replace("/(tabs)");
+            } else if (isManageFlow) {
               router.back();
             } else {
               router.replace("/(tabs)");
@@ -171,7 +188,7 @@ export default function GuardianSetup() {
         },
       ]);
     } catch (error: any) {
-      console.error("Error in handleConfirm:", error);
+      console.error(`[Guardian Setup Error] Failed to save guardian list. Context: Action=handleConfirm | Error:`, error);
       Alert.alert("Error", `Failed to save: ${error.message}`);
     } finally {
       setSaving(false);
@@ -211,7 +228,7 @@ export default function GuardianSetup() {
             contentContainerStyle={{ paddingBottom: 10 }}
           >
             {/* Back button for manage flow */}
-            {isManageFlow && (
+            {isManageFlow && !isSignupFlow && (
               <View className="px-6 mt-2">
                 <Pressable
                   onPress={() => router.back()}
@@ -224,7 +241,7 @@ export default function GuardianSetup() {
             )}
 
             <Text className="text-[#D9F5FF] text-[40px] font-normal px-8 mt-4">
-              {isManageFlow ? "Manage Guardians" : "Add Guardian"}
+              {isManageFlow && !isSignupFlow ? "Manage Guardians" : "Add Guardian"}
             </Text>
             <Text className="text-[#D9F5FF] text-base mt-8 px-8">
               Add up to 5 contacts that will be notified if you are in danger.

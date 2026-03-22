@@ -1,20 +1,57 @@
+import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
+import "@/lib/sosTask";
+import Constants from 'expo-constants';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack } from "expo-router";
-import { ThemeProvider, useTheme } from "./themeContext";
 import { StatusBar } from "expo-status-bar";
-import "./global.css";
+import { useEffect } from "react";
+import { supabase } from '../lib/superbase';
+import "./global";
 
-// 1. Create a component specifically to hold the logic that needs the Theme
 function RootLayoutNav() {
-  // Now this works because this component is INSIDE the ThemeProvider
-  const { isDark } = useTheme(); 
+  const { isDark } = useTheme();
+
+  const registerPushToken = async () => {
+    try {
+      const Notifications = await import('expo-notifications');
+      const { data: token } = await Notifications.getExpoPushTokenAsync();
+      console.log('Push token:', token);
+
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session) return;
+
+      await supabase
+        .from('profiles')
+        .update({ push_token: token } as any)
+        .eq('id', session.user.id);
+
+    } catch (error) {
+      console.log('Push token error:', error);
+    }
+  };
+
+  useEffect(() => {
+    const requestAllPermissions = async () => {
+      await ImagePicker.requestCameraPermissionsAsync();
+
+      if (Constants.executionEnvironment !== 'storeClient') {
+        try {
+          const Notifications = await import('expo-notifications');
+          await Notifications.requestPermissionsAsync();
+          await registerPushToken();
+        } catch (error) {
+          console.log('Notifications error:', error);
+        }
+      }
+    };
+    requestAllPermissions();
+  }, []);
 
   return (
     <>
-      {/* Dynamic Status Bar */}
       <StatusBar style={isDark ? "light" : "dark"} />
-
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Your Screens */}
         <Stack.Screen name="index" />
         <Stack.Screen name="session" />
         <Stack.Screen name="auth/login" />
@@ -28,13 +65,18 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/change-password" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editProfile" />
-        <Stack.Screen name="report" options={{ presentation: 'transparentModal', animation: 'fade' }} />
+        <Stack.Screen name="sos/loading" />
+        <Stack.Screen name="sos/active" />
+        <Stack.Screen name="sos/[token]" />
+        <Stack.Screen
+          name="report"
+          options={{ presentation: "transparentModal", animation: "fade" }}
+        />
       </Stack>
     </>
   );
 }
 
-// 2. The Main Export just sets up the Provider
 export default function RootLayout() {
   return (
     <ThemeProvider>

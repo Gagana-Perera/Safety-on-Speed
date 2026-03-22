@@ -54,6 +54,7 @@ export default function ChangePassword() {
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error: any) {
+      console.error(`[Change Password Error] Failed to update password. Context: Action=updateUser | Error:`, error);
       Alert.alert(
         "Failed to update",
         error?.message ?? "Something went wrong. Please try again.",

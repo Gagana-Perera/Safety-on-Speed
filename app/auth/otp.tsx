@@ -1,22 +1,24 @@
 import { clearSignupDraft, getSignupDraft } from "@/lib/signup-draft";
 import { supabase } from "@/lib/superbase";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 const OTP_LENGTH = 8;
 
 export default function SignUpOtp() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ next?: string }>();
   const otpInputRef = useRef<TextInput>(null);
 
   const [otp, setOtp] = useState("");
@@ -44,6 +46,21 @@ export default function SignUpOtp() {
   // Note: The design has boxes for OTP. I'll stick to a simple input for now or standard text input.
 
   const draft = getSignupDraft();
+
+  function sanitizeNextRoute(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    // Only allow internal app routes.
+    // - Must start with '/'
+    // - Disallow protocols and path traversal
+    if (!trimmed.startsWith("/")) return null;
+    if (trimmed.includes("://")) return null;
+    if (trimmed.includes("..")) return null;
+
+    return trimmed;
+  }
 
   useEffect(() => {
     // Trigger send OTP to email on mount if not already sent?
@@ -87,6 +104,40 @@ export default function SignUpOtp() {
     }
   }
 
+  const requestDataSharingPermission = async (userId: string) => {
+    return new Promise<void>((resolve) => {
+      Alert.alert(
+        'Data Sharing',
+        'Allow Safety on Speed to share anonymous usage data to help improve the app?',
+        [
+          {
+            text: 'Decline',
+            style: 'cancel',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: false } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+              resolve();
+            }
+          },
+          {
+            text: 'Allow',
+            onPress: async () => {
+              await supabase
+                .from('profiles')
+                .update({ personal_data_access: true } as any)
+                .eq('id', userId);
+              await AsyncStorage.setItem('data_sharing_asked', 'true');
+              resolve();
+            }
+          }
+        ]
+      );
+    });
+  };
+
   async function handleVerify() {
     if (verifying) return;
     if (otp.length !== OTP_LENGTH) {
@@ -121,11 +172,13 @@ export default function SignUpOtp() {
       }
 
       // 3. Save Profile
-      const { error: profileError } = await supabase.from("profiles").insert({
+      // Use UPSERT to avoid 23505 (duplicate key) if the profile row already exists.
+      const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         full_name: `${draft.firstName || ""} ${draft.surname || ""}`.trim(),
         phone_number: draft.phoneNumber,
         email: draft.email,
+        updated_at: new Date().toISOString(),
       } as any);
 
       if (profileError) {
@@ -134,11 +187,24 @@ export default function SignUpOtp() {
         // Don't stop flow?
       }
 
-      // 4. Redirect to Guardian Setup
+      // 4. Ask data sharing permission ← add this
+      await requestDataSharingPermission(user.id);
+
+      // 5. Redirect to Guardian Setup ← this was 4 before
       clearSignupDraft();
       Alert.alert("Success", "Account created successfully!");
-      router.replace("/auth/setup");
+
+      const nextRoute =
+        sanitizeNextRoute(params.next) ||
+        // Default: after OTP verification, land inside the app.
+        "/(tabs)";
+
+      router.replace(nextRoute as any);
     } catch (error: any) {
+      console.error(
+        `[Signup OTP Error] Verification process failed. Context: email=${draft.email} | Error:`,
+        error,
+      );
       Alert.alert("Verification Failed", error.message);
     } finally {
       setVerifying(false);

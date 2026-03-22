@@ -1,11 +1,11 @@
 import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
-import { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { getCurrentUser } from './../lib/auth'
-import { saveReport } from './../lib/report'
-import BackButton from './backButton'
-import { useTheme } from './themeContext'
+import { getCurrentUser } from '../lib/auth'
+import { saveReport } from '../lib/report'
+import BackButton from '../components/backButton'
+import { useTheme } from '@/components/theme/ThemeContext'
 
 const report = () => {
   const { theme } = useTheme();
