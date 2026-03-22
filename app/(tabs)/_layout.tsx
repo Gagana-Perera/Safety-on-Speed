@@ -127,13 +127,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="map.web"
-        options={{
-          href: null,
-          headerShown: false,
-        }}
-      />
-      <Tabs.Screen
         name="map"
         options={{
           title: "Map",

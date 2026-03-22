@@ -12,7 +12,7 @@
  * - Uses lightweight caching (placeId + phone) so repeat taps feel instant.
  * - Prefetches in the background once GPS becomes available.
  */
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 import { useTheme } from "@/components/theme/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,12 +26,12 @@ import {
   AppState,
   Linking,
   Platform,
-  SafeAreaView,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BackButton from "../../components/backButton";
 
 import {
@@ -779,7 +779,7 @@ export default function EmergencyServices() {
     // Fast path: if already cached, go straight to the place.
     if (cachedPlaceId && !mustRefreshNearest) {
       router.push({
-        pathname: "/(tabs)/map",
+        pathname: "/map",
         params: { placeId: cachedPlaceId, t: Date.now().toString() },
       });
       return;
@@ -801,14 +801,14 @@ export default function EmergencyServices() {
 
     if (!quick.done) {
       router.push({
-        pathname: "/(tabs)/map",
+        pathname: "/map",
         params: { poi: keyword, t: Date.now().toString() },
       });
       void (async () => {
         const placeId = await placeIdPromise;
         if (!placeId) return;
         router.replace({
-          pathname: "/(tabs)/map",
+          pathname: "/map",
           params: { placeId, t: Date.now().toString() },
         });
 
@@ -828,7 +828,7 @@ export default function EmergencyServices() {
     }
 
     router.push({
-      pathname: "/(tabs)/map",
+      pathname: "/map",
       params: { placeId, t: Date.now().toString() },
     });
 

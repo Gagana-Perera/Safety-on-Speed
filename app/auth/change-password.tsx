@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/superbase";
+import { assertSupabaseConfigured, supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -42,6 +42,10 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
+      assertSupabaseConfigured(
+        "app/auth/change-password.tsx handleChangePassword",
+      );
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });

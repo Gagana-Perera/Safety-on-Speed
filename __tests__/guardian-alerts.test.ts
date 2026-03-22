@@ -7,10 +7,10 @@ describe("guardian alert helpers", () => {
   it("prefers verified guardians when they exist", () => {
     const recipients = extractGuardianRecipients({
       g1_name: "Primary",
-      g1_phone: "+94 712345678",
+      g1_phone: "94712345678",
       g1_verified: true,
       g2_name: "Backup",
-      g2_phone: "+94 771234567",
+      g2_phone: "94771234567",
       g2_verified: false,
       g3_name: null,
       g3_phone: null,
@@ -25,6 +25,7 @@ describe("guardian alert helpers", () => {
 
     expect(recipients).toHaveLength(1);
     expect(recipients[0].name).toBe("Primary");
+    expect(recipients[0].phone).toBe("+94712345678");
   });
 
   it("builds an emergency SOS message with the link and sender name", () => {

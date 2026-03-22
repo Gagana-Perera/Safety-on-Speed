@@ -1,12 +1,13 @@
-import { setSignupDraft } from "@/lib/signup-draft";
+import AuthLayout, {
+  AuthField,
+  authStyles,
+} from "@/components/auth/AuthLayout";
+import { getSignupDraft, setSignupDraft } from "@/lib/signup-draft";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
     Alert,
-    KeyboardAvoidingView,
-    Platform,
     Pressable,
-    ScrollView,
     Text,
     TextInput,
     View,
@@ -14,10 +15,11 @@ import {
 
 export default function SignUpPassword() {
   const router = useRouter();
+  const draft = getSignupDraft();
   const confirmPasswordInputRef = useRef<TextInput>(null);
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [password, setPassword] = useState(draft.password ?? "");
+  const [confirmPassword, setConfirmPassword] = useState(draft.password ?? "");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -45,126 +47,71 @@ export default function SignUpPassword() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-primary"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View className="flex-1 px-6 pt-12">
-          {/* Header */}
-          <View className="flex-row items-center mb-8">
-            <Pressable
-              onPress={() => router.back()}
-              className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-4 py-2"
-            >
-              <Text className="text-white text-xl mr-2">{"<"}</Text>
-              <Text className="text-white text-xl font-light">Back</Text>
-            </Pressable>
-          </View>
-
-          {/* Title */}
-          <View className="items-center mb-10">
-            <Text className="text-white text-6xl font-light tracking-wider">
-              Sign up
-            </Text>
-          </View>
-
-          {/* Password */}
-          <View className="mt-8">
-            <Text className="text-white text-2xl font-light mb-2">
-              Password
-            </Text>
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <View className="flex-row items-center">
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  textContentType="newPassword"
-                  className="flex-1 text-white text-lg"
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() =>
-                    confirmPasswordInputRef.current?.focus()
-                  }
-                />
-                <Pressable
-                  onPress={() => setShowPassword((prev) => !prev)}
-                  className="px-2 py-2"
-                >
-                  <Text className="text-secondary text-lg">
-                    {showPassword ? "Hide" : "Show"}
-                  </Text>
-                </Pressable>
-              </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
-            </View>
-          </View>
-
-          {/* Confirm Password */}
-          <View className="mt-8">
-            <Text className="text-white text-2xl font-light mb-2">
-              Confirm Password
-            </Text>
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-5 pt-3 pb-4">
-              <View className="flex-row items-center">
-                <TextInput
-                  ref={confirmPasswordInputRef}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm password"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  textContentType="password"
-                  className="flex-1 text-white text-lg"
-                  returnKeyType="done"
-                  onSubmitEditing={handleNext}
-                />
-                <Pressable
-                  onPress={() => setShowConfirmPassword((prev) => !prev)}
-                  className="px-2 py-2"
-                >
-                  <Text className="text-secondary text-lg">
-                    {showConfirmPassword ? "Hide" : "Show"}
-                  </Text>
-                </Pressable>
-              </View>
-              <View className="h-[2px] bg-white/30 rounded-full mt-2" />
-            </View>
-          </View>
-
-          {/* Bottom */}
-          <View className="flex-1 justify-end pb-10 mt-10">
-            <Pressable
-              onPress={handleNext}
-              className="self-center bg-black/40 border border-white/10 rounded-2xl px-12 py-3"
-            >
-              <Text className="text-white text-2xl font-light">Next</Text>
-            </Pressable>
-            <View className="items-center mt-8">
-              <Pressable
-                onPress={() => router.push("/auth/login")}
-                accessibilityRole="button"
-              >
-                <Text className="text-secondary text-lg">
-                  Already have an account?{" "}
-                  <Text className="underline text-accent">Sign in.</Text>
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+    <AuthLayout
+      eyebrow="Step 2 of 4"
+      title="Choose a password"
+      subtitle="Use a strong password so quick access stays private to you."
+      showBack
+      footer={
+        <View style={authStyles.footerBlock}>
+          <Text style={authStyles.supportingText}>
+            At least 8 characters. A mix of letters, numbers, and symbols is
+            best.
+          </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      }
+    >
+      <View style={authStyles.formGrid}>
+        <AuthField
+          value={password}
+          onChangeText={setPassword}
+          label="Password"
+          placeholder="Create a password"
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          textContentType="newPassword"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+          suffix={
+            <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+              <Text style={authStyles.toggleText}>
+                {showPassword ? "Hide" : "Show"}
+              </Text>
+            </Pressable>
+          }
+        />
+        <AuthField
+          ref={confirmPasswordInputRef}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          label="Confirm Password"
+          placeholder="Repeat your password"
+          secureTextEntry={!showConfirmPassword}
+          autoCapitalize="none"
+          textContentType="password"
+          returnKeyType="done"
+          onSubmitEditing={handleNext}
+          suffix={
+            <Pressable
+              onPress={() => setShowConfirmPassword((prev) => !prev)}
+            >
+              <Text style={authStyles.toggleText}>
+                {showConfirmPassword ? "Hide" : "Show"}
+              </Text>
+            </Pressable>
+          }
+        />
+        <Pressable
+          onPress={handleNext}
+          style={({ pressed }) => [
+            authStyles.primaryButton,
+            pressed && authStyles.pressed,
+          ]}
+        >
+          <Text style={authStyles.primaryButtonText}>Continue</Text>
+        </Pressable>
+      </View>
+    </AuthLayout>
   );
 }
