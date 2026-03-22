@@ -58,7 +58,7 @@ export default function TabsLayout() {
     const sosTimeStr = await AsyncStorage.getItem('sos_triggered_at');
     if (sosTimeStr) {
       const sosTime = parseInt(sosTimeStr, 10);
-      const twoHoursInMs = 2 * 60 * 60 * 1000;
+      const twoHoursInMs =  60 * 1000;
       
       // has it been 2 hours?
       if (Date.now() - sosTime >= twoHoursInMs) {
