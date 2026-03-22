@@ -2,7 +2,6 @@ import { Linking, Share, Alert } from "react-native";
 import type { Tables } from "@/database.types";
 import { loadCachedGuardians } from "@/lib/saveguardians";
 import { supabase, supabaseKey, supabaseUrl } from "@/lib/superbase";
-import * as Location from "expo-location";
 import { sendSOSWhatsAppAlert } from "@/services/sendSOSWhatsAppAlert";
 
 export type SOSMode = "quick" | "emergency";
@@ -229,29 +228,13 @@ export async function dispatchGuardianAlert({
   }
 
   try {
-    await supabase.auth.refreshSession();
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      throw new Error("Your session has expired. Please sign in again.");
-    }
-
-    // Fetch Profile & Location for background alerts
-    const [profileRes, locationRes] = await Promise.all([
-      supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
-    ]);
-
-    const userName = profileRes.data?.full_name || "A user";
-    const latitude = locationRes?.coords.latitude;
-    const longitude = locationRes?.coords.longitude;
-
+    // The Supabase client manages session tokens automatically, so we don't
+    // need to call refreshSession/getSession here. The caller already passes
+    // the user's name, coordinates, and live link — skip the second GPS
+    // request entirely so we alert guardians without any extra delay.
     const data = await sendSOSWhatsAppAlert(
       guardians.map((g) => g.phone),
-      userName,
+      senderName,
       latitude,
       longitude
     );
@@ -341,15 +324,19 @@ export const notifyVerifiedGuardians = async (userId: string, liveLocationLink: 
       return;
     }
 
-    for (const guardian of guardians) {
-      await supabase.functions.invoke('send-sos-sms', {
-        body: {
-          phone: guardian.phone,
-          message: `SOS Alert! Someone needs help! Track live location: ${liveLocationLink}`
-        }
-      });
-      console.log(`SMS sent to ${guardian.name} (${guardian.phone})`);
-    }
+    // Fire all edge-function calls at the same time so guardian count doesn't
+    // multiply the wait time.
+    await Promise.all(
+      guardians.map(async (guardian) => {
+        await supabase.functions.invoke('send-sos-sms', {
+          body: {
+            phone: guardian.phone,
+            message: `SOS Alert! Someone needs help! Track live location: ${liveLocationLink}`
+          }
+        });
+        console.log(`SMS sent to ${guardian.name} (${guardian.phone})`);
+      })
+    );
 
     Alert.alert('Guardians Notified', `Sent alert to ${guardians.length} verified guardians.`);
 

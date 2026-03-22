@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { globalStyles } from "@/app/global";
 import {
   ScrollView,
   Text,
