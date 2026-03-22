@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { createPost, type CreatePostInput } from '@/lib/newsApi';
 import { useTheme } from '@/components/theme/ThemeContext';
 import { useRouter } from "expo-router";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 
 interface CreatePostProps {
   visible?: boolean;

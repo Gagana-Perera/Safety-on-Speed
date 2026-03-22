@@ -1,22 +1,24 @@
-import { icons } from "@/constants/icons";
-import { officialdoc } from "@/constants/officialdoc";
+import AuthLayout, { authStyles } from "@/components/auth/AuthLayout";
+import {
+  GUARDIAN_PHONE_EXAMPLE,
+  isValidGuardianPhone,
+  normalizeGuardianPhone,
+  sanitizeGuardianPhoneInput,
+} from "@/lib/guardianPhone";
 import { loadCachedGuardians, saveGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
+import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type Contact = {
@@ -30,35 +32,32 @@ export default function GuardianSetup() {
   const router = useRouter();
   const params = useLocalSearchParams<{ flow?: string | string[] }>();
   const MAX_CONTACTS = 5;
-  const [contacts, setContacts] = useState<Contact[]>([
-    { name: "", phone: "" },
-  ]);
+  const [contacts, setContacts] = useState<Contact[]>([{ name: "", phone: "" }]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Track whether we were opened from within the app (manage) or from signup
-  // If a session already existed before this screen rendered, it's the manage flow
   const [isManageFlow, setIsManageFlow] = useState(false);
+
   const flowParam = Array.isArray(params.flow) ? params.flow[0] : params.flow;
   const isSignupFlow = flowParam === "signup";
+  const title = isManageFlow && !isSignupFlow ? "Manage Guardians" : "Add Guardians";
+  const eyebrow = isSignupFlow ? "Final Step" : "Safety Contacts";
+  const footerHint = isSignupFlow
+    ? "You can update these contacts later from your profile."
+    : "These contacts will receive future SOS alerts.";
 
-  // ── Load existing guardians on mount ────────────────────────────────────
   useEffect(() => {
     async function loadGuardians() {
       try {
-        // Use getSession() — reads from local SecureStore, no network call needed
         const {
           data: { session },
         } = await supabase.auth.getSession();
         const user = session?.user;
+
         if (!user) {
-          console.log("loadGuardians: no session found");
           setLoading(false);
           return;
         }
 
-        console.log("loadGuardians: fetching for user", user.id);
-
-        // Check if existing guardians row exists
         const { data, error } = await supabase
           .from("guardians")
           .select(
@@ -73,84 +72,82 @@ export default function GuardianSetup() {
           return;
         }
 
-        console.log("loadGuardians: data =", JSON.stringify(data));
-
         if (data) {
-          // Existing guardians should only switch this screen into "manage" mode
-          // when we were opened from inside the app, not from the signup flow.
           if (!isSignupFlow) {
             setIsManageFlow(true);
           }
 
-          // Build the contacts array from the flat columns
           const loaded: Contact[] = [];
           for (let i = 1; i <= 5; i++) {
             const name = (data as any)[`g${i}_name`];
             const phone = (data as any)[`g${i}_phone`];
             if (name || phone) {
-              loaded.push({ name: name ?? "", phone: phone ?? "" });
+              loaded.push({
+                name: name ?? "",
+                phone: normalizeGuardianPhone(phone ?? ""),
+              });
             }
           }
+
           if (loaded.length > 0) {
             setContacts(loaded);
           }
         } else {
-          // DB returned null — likely no SELECT RLS policy on remote DB.
-          // Fall back to the local AsyncStorage cache written by saveGuardians.
-          console.log("loadGuardians: DB returned null, trying local cache...");
           const cached = await loadCachedGuardians(user.id);
           if (cached && cached.length > 0) {
-            console.log(
-              "loadGuardians: loaded from cache",
-              JSON.stringify(cached),
-            );
             if (!isSignupFlow) {
               setIsManageFlow(true);
             }
-            setContacts(cached);
+            setContacts(
+              cached.map((contact) => ({
+                name: contact.name,
+                phone: normalizeGuardianPhone(contact.phone),
+              })),
+            );
           }
         }
-      } catch (e) {
-        console.error("loadGuardians error:", e);
+      } catch (error) {
+        console.error("loadGuardians error:", error);
       } finally {
         setLoading(false);
       }
     }
 
-    loadGuardians();
+    void loadGuardians();
   }, [isSignupFlow]);
 
-  const handleContactChange = (
+  function handleContactChange(
     index: number,
     field: keyof Contact,
     value: string,
-  ) => {
+  ) {
     const updated = [...contacts];
-    updated[index][field] = value;
+    updated[index][field] =
+      field === "phone" ? sanitizeGuardianPhoneInput(value) : value;
     setContacts(updated);
-  };
+  }
 
-  const handleDeleteContact = (index: number) => {
+  function handleDeleteContact(index: number) {
     setContacts(contacts.filter((_, i) => i !== index));
-  };
+  }
 
-  const handleAddContact = () => {
+  function handleAddContact() {
     if (contacts.length < MAX_CONTACTS) {
       setContacts([...contacts, { name: "", phone: "" }]);
     }
-  };
+  }
 
-  const isContactValid = (c: Contact) =>
-    c.name.trim().length > 0 && c.phone.trim().length >= 9;
+  const isContactValid = (contact: Contact) =>
+    contact.name.trim().length > 0 && isValidGuardianPhone(contact.phone);
 
   const isAllContactsValid =
     contacts.length > 0 && contacts.every(isContactValid);
 
-  const handleConfirm = async () => {
+  async function handleConfirm() {
     if (!isAllContactsValid) {
       Alert.alert(
         "Invalid Contacts",
-        "Please ensure all contacts have a name and a valid phone number.",
+        `Please enter each guardian phone number in ${GUARDIAN_PHONE_EXAMPLE} format.`,
       );
       return;
     }
@@ -188,20 +185,31 @@ export default function GuardianSetup() {
         },
       ]);
     } catch (error: any) {
-      console.error(`[Guardian Setup Error] Failed to save guardian list. Context: Action=handleConfirm | Error:`, error);
+      console.error(
+        `[Guardian Setup Error] Failed to save guardian list. Context: Action=handleConfirm | Error:`,
+        error,
+      );
       Alert.alert("Error", `Failed to save: ${error.message}`);
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   if (loading) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <View className="flex-1 bg-[#002747] items-center justify-center">
-          <ActivityIndicator size="large" color="#D9F5FF" />
-        </View>
+        <AuthLayout
+          eyebrow={eyebrow}
+          title={title}
+          subtitle="Loading your guardian contacts."
+          showBack={!isSignupFlow}
+        >
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#74D7FF" />
+            <Text style={styles.loadingText}>Preparing your contacts...</Text>
+          </View>
+        </AuthLayout>
       </>
     );
   }
@@ -209,123 +217,208 @@ export default function GuardianSetup() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View className="flex-1 bg-[#002747] pt-14">
-        <ImageBackground
-          source={officialdoc.bgImage}
-          className="absolute inset-0 mt-20"
-          resizeMode="cover"
-          imageStyle={{ opacity: 0.1 }}
-        />
-
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
-        >
-          <ScrollView
-            className="flex-1"
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 10 }}
-          >
-            {/* Back button for manage flow */}
-            {isManageFlow && !isSignupFlow && (
-              <View className="px-6 mt-2">
-                <Pressable
-                  onPress={() => router.back()}
-                  className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-4 py-2 self-start"
-                >
-                  <Text className="text-white text-xl mr-2">{"<"}</Text>
-                  <Text className="text-white text-xl font-light">Back</Text>
-                </Pressable>
-              </View>
-            )}
-
-            <Text className="text-[#D9F5FF] text-[40px] font-normal px-8 mt-4">
-              {isManageFlow && !isSignupFlow ? "Manage Guardians" : "Add Guardian"}
-            </Text>
-            <Text className="text-[#D9F5FF] text-base mt-8 px-8">
-              Add up to 5 contacts that will be notified if you are in danger.
-            </Text>
-
-            {contacts.map((contact, index) => (
-              <View
-                key={index}
-                className="bg-black/20 rounded-2xl mx-4 mt-6 pb-8"
-              >
-                <View className="flex-row justify-between items-center px-8">
-                  <Text className="text-[#D9F5FF] text-xl mt-8">
-                    Contact {index + 1}
-                  </Text>
-                  {contacts.length > 1 && (
-                    <Pressable onPress={() => handleDeleteContact(index)}>
-                      <Image
-                        source={icons.deleteButton}
-                        className="w-6 h-6 pt-1"
-                      />
-                    </Pressable>
-                  )}
+      <AuthLayout
+        eyebrow={eyebrow}
+        title={title}
+        subtitle={`Add up to 5 contacts that will be notified if you are in danger. Use ${GUARDIAN_PHONE_EXAMPLE} for phone numbers.`}
+        showBack={!isSignupFlow}
+        footer={
+          <View style={[authStyles.footerBlock, styles.footerBlock]}>
+            <Pressable
+              onPress={handleConfirm}
+              disabled={saving}
+              style={({ pressed }) => [
+                authStyles.primaryButton,
+                styles.confirmButton,
+                saving && authStyles.primaryButtonDisabled,
+                pressed && authStyles.pressed,
+              ]}
+            >
+              <Text style={authStyles.primaryButtonText}>
+                {saving ? "Saving..." : "Confirm All Contacts"}
+              </Text>
+            </Pressable>
+            <Text style={authStyles.supportingText}>{footerHint}</Text>
+          </View>
+        }
+      >
+        <View style={styles.cardsStack}>
+          {contacts.map((contact, index) => (
+            <View key={index} style={styles.contactPanel}>
+              <View style={styles.panelHeader}>
+                <View>
+                  <Text style={styles.panelEyebrow}>Guardian</Text>
+                  <Text style={styles.panelTitle}>Contact {index + 1}</Text>
                 </View>
 
-                <Text className="text-[#D9F5FF] text-base mt-5 px-8">Name</Text>
-                <TextInput
-                  value={contact.name}
-                  onChangeText={(text) =>
-                    handleContactChange(index, "name", text)
-                  }
-                  placeholder={`Guardian ${index + 1} Name`}
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  className="bg-white/5 p-3 my-2 rounded-md text-white px-3 mx-8"
-                />
+                {contacts.length > 1 ? (
+                  <Pressable
+                    onPress={() => handleDeleteContact(index)}
+                    style={({ pressed }) => [
+                      styles.deleteButton,
+                      pressed && authStyles.pressed,
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="delete-outline"
+                      size={18}
+                      color="#DDEEFF"
+                    />
+                    <Text style={styles.deleteButtonText}>Remove</Text>
+                  </Pressable>
+                ) : null}
+              </View>
 
-                <Text className="text-[#D9F5FF] text-base mt-5 px-8">
-                  Phone Number
-                </Text>
-                <View className="flex-row mx-8 gap-2">
-                  <View className="bg-white/5 p-3 my-2 rounded-md justify-center">
-                    <Text className="text-[#D9F5FF]">+ 94 |</Text>
+              <View style={authStyles.formGrid}>
+                <View style={authStyles.fieldGroup}>
+                  <Text style={authStyles.fieldLabel}>Name</Text>
+                  <View style={authStyles.fieldShell}>
+                    <TextInput
+                      value={contact.name}
+                      onChangeText={(text) =>
+                        handleContactChange(index, "name", text)
+                      }
+                      placeholder={`Guardian ${index + 1} Name`}
+                      placeholderTextColor="rgba(214, 236, 255, 0.42)"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      style={authStyles.fieldInput}
+                    />
                   </View>
-                  <TextInput
-                    value={contact.phone}
-                    onChangeText={(text) =>
-                      handleContactChange(index, "phone", text)
-                    }
-                    placeholder={`Guardian ${index + 1} Phone Number`}
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    keyboardType="phone-pad"
-                    className="bg-white/5 p-3 my-2 rounded-md text-white px-3 flex-1"
-                  />
+                </View>
+
+                <View style={authStyles.fieldGroup}>
+                  <Text style={authStyles.fieldLabel}>Phone Number</Text>
+                  <View style={authStyles.fieldShell}>
+                    <TextInput
+                      value={contact.phone}
+                      onChangeText={(text) =>
+                        handleContactChange(index, "phone", text)
+                      }
+                      placeholder={GUARDIAN_PHONE_EXAMPLE}
+                      placeholderTextColor="rgba(214, 236, 255, 0.42)"
+                      keyboardType="phone-pad"
+                      maxLength={11}
+                      style={authStyles.fieldInput}
+                    />
+                  </View>
                 </View>
               </View>
-            ))}
+            </View>
+          ))}
 
-            {contacts.length < MAX_CONTACTS && (
-              <Pressable
-                className="my-2 font-bold items-center flex-row mx-8 self-start mt-6"
-                onPress={handleAddContact}
-              >
-                <Image source={icons.addButton} />
-                <Text className="text-white text-center py-1 font-bold p-2">
-                  Add Contact
-                </Text>
-              </Pressable>
-            )}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+          {contacts.length < MAX_CONTACTS ? (
+            <Pressable
+              onPress={handleAddContact}
+              style={({ pressed }) => [
+                styles.addContactButton,
+                pressed && authStyles.pressed,
+              ]}
+            >
+              <MaterialIcons
+                name="add-circle-outline"
+                size={20}
+                color="#74D7FF"
+              />
+              <Text style={styles.addContactText}>Add Contact</Text>
+            </Pressable>
+          ) : null}
 
-      <View className="bg-[#002747] pb-10">
-        <Pressable
-          className={`px-4 rounded-md items-center p-3 border border-[#DCDDE0] mx-8 my-3 ${
-            saving ? "opacity-50" : ""
-          } bg-[#011C33]`}
-          onPress={handleConfirm}
-          disabled={saving}
-        >
-          <Text className="text-[#DCDDE0] text-lg font-semibold">
-            {saving ? "Saving..." : "Confirm All Contacts"}
+          <Text style={styles.helperText}>
+            Add at least one trusted contact before you start using SOS. Phone
+            numbers should be entered as {GUARDIAN_PHONE_EXAMPLE}.
           </Text>
-        </Pressable>
-      </View>
+        </View>
+      </AuthLayout>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  addContactButton: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(116, 215, 255, 0.08)",
+    borderColor: "rgba(116, 215, 255, 0.25)",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 22,
+    width: "100%",
+  },
+  addContactText: {
+    color: "#74D7FF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  cardsStack: {
+    gap: 16,
+  },
+  confirmButton: {
+    width: "100%",
+  },
+  contactPanel: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 16,
+  },
+  deleteButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  deleteButtonText: {
+    color: "#DDEEFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  footerBlock: {
+    width: "100%",
+  },
+  helperText: {
+    color: "rgba(214, 236, 255, 0.72)",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  loadingState: {
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 18,
+  },
+  loadingText: {
+    color: "#DDEEFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  panelEyebrow: {
+    color: "#74D7FF",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.4,
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  panelHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  panelTitle: {
+    color: "#F5FBFF",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+});

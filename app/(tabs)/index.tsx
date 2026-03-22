@@ -28,7 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 
 
 import "@/lib/sosTask";

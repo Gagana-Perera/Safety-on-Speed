@@ -10,17 +10,17 @@ import {
   Alert,
   Image,
   Modal,
-  SafeAreaView,
   ScrollView,
   Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/superbase";
 import { getMergedProfileData } from '../../lib/profileService';
 import { useTheme } from "@/components/theme/ThemeContext";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 
 const SRI_LANKAN_DISTRICTS = [
   "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", 

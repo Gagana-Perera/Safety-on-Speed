@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { supabase } from '../lib/superbase';
-import "./global";
+import "./global.css";
 
 function RootLayoutNav() {
   const { isDark } = useTheme();

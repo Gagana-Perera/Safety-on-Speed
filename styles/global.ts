@@ -716,3 +716,7 @@ export const globalStyles = StyleSheet.create({
 		textTransform: "uppercase",
 	},
 });
+
+export default function GlobalStylesRoute() {
+	return null;
+}

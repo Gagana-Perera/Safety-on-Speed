@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 import {
   ScrollView,
   Text,
@@ -8,11 +8,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { Feather } from "@expo/vector-icons";
-import CreatePost from "@/app/createpost";
+import CreatePost from "@/components/news/CreatePostModal";
 import { useTheme } from "@/components/theme/ThemeContext";
 import { fetchPosts, type Post } from "@/lib/newsApi";
 import { MaterialIcons } from "@expo/vector-icons";
-import { globalStyles } from "../global";
 
 // this part controls the post card
 
@@ -150,4 +149,3 @@ export default function News() {
     </SafeAreaView>
   );
 }
-

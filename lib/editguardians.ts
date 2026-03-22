@@ -1,5 +1,6 @@
 import { loadCachedGuardians } from "@/lib/saveguardians";
 import { supabase } from "@/lib/superbase";
+import { normalizeGuardianPhone } from "@/lib/guardianPhone";
 
 type GuardiansRow = {
   g1_name: string | null;
@@ -46,7 +47,12 @@ export async function bringGuardians(userId: string) {
     }
 
     const cached = await loadCachedGuardians(userId);
-    if (cached && cached.length > 0) return cached;
+    if (cached && cached.length > 0) {
+      return cached.map((guardian) => ({
+        name: guardian.name,
+        phone: normalizeGuardianPhone(guardian.phone),
+      }));
+    }
     return [];
   }
 
@@ -55,7 +61,12 @@ export async function bringGuardians(userId: string) {
 
   if (!data) {
     const cached = await loadCachedGuardians(userId);
-    if (cached && cached.length > 0) return cached;
+    if (cached && cached.length > 0) {
+      return cached.map((guardian) => ({
+        name: guardian.name,
+        phone: normalizeGuardianPhone(guardian.phone),
+      }));
+    }
     return guardians;
   }
 
@@ -68,7 +79,7 @@ export async function bringGuardians(userId: string) {
     const phone = row[phoneKey];
 
     if (name && phone) {
-      guardians.push({ name, phone });
+      guardians.push({ name, phone: normalizeGuardianPhone(phone) });
     }
   }
 

@@ -1,14 +1,13 @@
 import { loginUser } from "@/lib/auth";
-import { globalStyles } from "../global";
+import AuthLayout, {
+  AuthField,
+  authStyles,
+} from "@/components/auth/AuthLayout";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Alert,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -17,11 +16,11 @@ import {
 export default function Login() {
   const router = useRouter();
   const passwordInputRef = useRef<TextInput>(null);
-  const keyboardEnabled = Platform.OS === "ios";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin() {
     if (loading) {
@@ -50,114 +49,77 @@ export default function Login() {
   }
 
   return (
-    <View style={globalStyles.loginScreenRoot}>
-      <ImageBackground
-        source={require("../../assets/oc/bgImage.png")}
-        style={globalStyles.loginBackdrop}
-        imageStyle={globalStyles.loginBackdropImage}
-        resizeMode="cover"
-      >
-        <View style={globalStyles.loginBackdropTint} />
-      </ImageBackground>
-
-      <KeyboardAvoidingView
-        style={globalStyles.loginForegroundLayer}
-        behavior="padding"
-        enabled={keyboardEnabled}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
-      >
-        <ScrollView
-          style={globalStyles.loginForegroundLayer}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={globalStyles.loginScrollContent}
+    <AuthLayout
+      eyebrow="Welcome Back"
+      title="Sign in"
+      subtitle="Jump back into your safety dashboard, alerts, and trusted contacts."
+      titleAlign="center"
+      footer={
+        <View style={authStyles.footerBlock}>
+          <Text style={authStyles.secondaryText}>
+            New here?{" "}
+            <Text
+              style={authStyles.footerLink}
+              onPress={() => router.push("/auth/sign-up")}
+            >
+              Create an account
+            </Text>
+          </Text>
+          <Text
+            style={authStyles.footerMutedLink}
+            onPress={() => router.push("/auth/forgot-password")}
+          >
+            Forgot your password?
+          </Text>
+        </View>
+      }
+    >
+      <View style={authStyles.formGrid}>
+        <AuthField
+          value={email}
+          onChangeText={setEmail}
+          label="Email"
+          placeholder="you@example.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => passwordInputRef.current?.focus()}
+          textContentType="username"
+        />
+        <AuthField
+          ref={passwordInputRef}
+          value={password}
+          onChangeText={setPassword}
+          label="Password"
+          placeholder="Enter your password"
+          secureTextEntry={!showPassword}
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
+          textContentType="password"
+          suffix={
+            <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+              <Text style={authStyles.toggleText}>
+                {showPassword ? "Hide" : "Show"}
+              </Text>
+            </Pressable>
+          }
+        />
+        <Pressable
+          onPress={handleLogin}
+          disabled={loading}
+          style={({ pressed }) => [
+            authStyles.primaryButton,
+            loading && authStyles.primaryButtonDisabled,
+            pressed && authStyles.pressed,
+          ]}
         >
-          <View style={globalStyles.loginContent}>
-            <View style={globalStyles.loginHeader}>
-              <Text style={globalStyles.loginTitle}>Sign in</Text>
-              <Text style={globalStyles.loginSubtitle}>Welcome, user.</Text>
-            </View>
-
-            <View style={globalStyles.loginForm}>
-              <View style={globalStyles.loginFieldGroup}>
-                <Text style={globalStyles.loginFieldLabel}>User Name</Text>
-                <View style={globalStyles.loginInputFrame}>
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder=""
-                    placeholderTextColor="rgba(234, 246, 255, 0.45)"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoCorrect={false}
-                    style={globalStyles.loginInput}
-                    returnKeyType="next"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => passwordInputRef.current?.focus()}
-                  />
-                  <View style={globalStyles.loginInputUnderline} />
-                </View>
-              </View>
-
-              <View style={globalStyles.loginFieldGroup}>
-                <Text style={globalStyles.loginFieldLabel}>Password</Text>
-                <View style={globalStyles.loginInputFrame}>
-                  <TextInput
-                    ref={passwordInputRef}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder=""
-                    placeholderTextColor="rgba(234, 246, 255, 0.45)"
-                    secureTextEntry
-                    style={globalStyles.loginInput}
-                    returnKeyType="done"
-                    onSubmitEditing={handleLogin}
-                  />
-                  <View style={globalStyles.loginInputUnderline} />
-                </View>
-              </View>
-            </View>
-
-            <View style={globalStyles.loginBottomArea}>
-              <Pressable
-                onPress={handleLogin}
-                disabled={loading}
-                style={({ pressed }) => [
-                  globalStyles.loginSubmitButton,
-                  loading && globalStyles.loginSubmitButtonDisabled,
-                  pressed && { opacity: 0.85 },
-                ]}
-              >
-                <Text style={globalStyles.loginSubmitButtonText}>
-                  {loading ? "Signing in..." : "Sign in"}
-                </Text>
-              </Pressable>
-
-              <View style={globalStyles.loginLinks}>
-                <Pressable
-                  onPress={() => router.push("/auth/sign-up")}
-                  accessibilityRole="button"
-                >
-                  <Text style={globalStyles.loginLinkText}>
-                    Don't have an account?{" "}
-                    <Text style={globalStyles.loginLinkUnderline}>Sign up.</Text>
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => router.push("/auth/forgot-password")}
-                  accessibilityRole="button"
-                >
-                  <Text style={globalStyles.loginLinkText}>
-                    Forgot Password ?{" "}
-                    <Text style={globalStyles.loginLinkUnderline}>Try another way</Text>
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+          <Text style={authStyles.primaryButtonText}>
+            {loading ? "Signing in..." : "Sign in"}
+          </Text>
+        </Pressable>
+      </View>
+    </AuthLayout>
   );
 }

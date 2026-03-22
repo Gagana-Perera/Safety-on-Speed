@@ -1,28 +1,10 @@
 import { supabase } from "@/lib/superbase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { normalizeGuardianPhone } from "@/lib/guardianPhone";
 
 const CACHE_KEY = (userId: string) => `guardians_cache_${userId}`;
 
 export type Guardian = { name: string; phone: string };
-
-function normalizeSriLankanPhone(phone: string) {
-  const digitsOnly = phone.trim().replace(/\D/g, "");
-  if (!digitsOnly) return "";
-
-  if (digitsOnly.startsWith("94") && digitsOnly.length >= 11) {
-    return `+${digitsOnly}`;
-  }
-
-  if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
-    return `+94${digitsOnly.slice(1)}`;
-  }
-
-  if (digitsOnly.length === 9) {
-    return `+94${digitsOnly}`;
-  }
-
-  return phone.trim();
-}
 
 /** Persist guardian contacts locally so we can display them
  *  even when the remote SELECT RLS policy is missing. */
@@ -49,6 +31,11 @@ export async function loadCachedGuardians(
 }
 
 export async function saveGuardians(userId: string, contacts: Guardian[]) {
+  const normalizedContacts = contacts.map((contact) => ({
+    name: contact.name.trim(),
+    phone: normalizeGuardianPhone(contact.phone),
+  }));
+
   // Build the flat row matching the remote DB schema
   const row: Record<string, string | null | boolean> = {
     user_id: userId,
@@ -60,10 +47,10 @@ export async function saveGuardians(userId: string, contacts: Guardian[]) {
   };
 
   for (let i = 1; i <= 5; i++) {
-    const contact = contacts[i - 1];
+    const contact = normalizedContacts[i - 1];
     if (contact) {
-      row[`g${i}_name`] = contact.name.trim();
-      row[`g${i}_phone`] = normalizeSriLankanPhone(contact.phone);
+      row[`g${i}_name`] = contact.name;
+      row[`g${i}_phone`] = contact.phone;
     } else {
       row[`g${i}_name`] = null;
       row[`g${i}_phone`] = null;
@@ -77,7 +64,7 @@ export async function saveGuardians(userId: string, contacts: Guardian[]) {
 
   if (!insertError) {
     console.log("Guardians saved via INSERT.");
-    await cacheGuardians(userId, contacts);
+    await cacheGuardians(userId, normalizedContacts);
     return;
   }
 
@@ -95,7 +82,7 @@ export async function saveGuardians(userId: string, contacts: Guardian[]) {
       throw updateError;
     }
     console.log("Guardians saved via UPDATE.");
-    await cacheGuardians(userId, contacts);
+    await cacheGuardians(userId, normalizedContacts);
     return;
   }
 
