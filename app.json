@@ -37,9 +37,9 @@
           "image": "./assets/oc/logo.jpg",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#002747",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#002747"
           }
         }
       ],

@@ -23,6 +23,7 @@ const IconC = ({
   // The home logo is a normal image source.
   if (icon === officialdoc.logo) {
     return (
+      <View>
       <Image
         source={icon}
         style={{
@@ -31,7 +32,7 @@ const IconC = ({
           borderRadius: (size + 10) / 2,
         }}
         resizeMode="cover"
-      />
+      /></View>
     );
   }
 
