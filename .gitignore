@@ -45,3 +45,6 @@ app-example
 # IDE / Editor files
 .idea/
 .vscode/
+
+# project evidence document
+PROJECT_EVIDENCE_DOCUMENT.md
