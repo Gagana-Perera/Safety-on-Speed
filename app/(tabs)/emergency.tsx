@@ -322,9 +322,10 @@ export default function EmergencyServices() {
   const delay = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-  // Map navigation “quick jump” threshold.
-  // If we can’t get a placeId quickly, we still navigate to Map with a POI term
-  // so the UI responds immediately.
+  //Try to get the exact nearest placeId quickly.
+  //Wait up to 75 ms.
+  //If placeId is not ready by then, navigate immediately to the map using a broader POI keyword so the UI feels instant.
+  //When placeId arrives later, replace the map route with the exact place.
   const MAP_QUICK_NAV_MS = 75;
 
   // Cache nearest placeId/phone for "place" cards so buttons feel instant.

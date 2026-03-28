@@ -72,51 +72,16 @@ describe("Home location preprompt buttons", () => {
     });
   });
 
-  it("Allow Once triggers OS permission request", async () => {
+  it("Allow triggers OS permission request", async () => {
     jest.useFakeTimers();
 
     render(<Index />);
 
     await waitFor(() => {
-      expect(screen.getByText("Allow Once")).toBeTruthy();
+      expect(screen.getByText("Allow")).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText("Allow Once"));
-
-    act(() => {
-      jest.advanceTimersByTime(300);
-    });
-
-    await waitFor(() => {
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
-        "location_preprompt_choice_v3",
-      );
-    });
-
-    await waitFor(() => {
-      expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(
-        1,
-      );
-    });
-
-    // It closes immediately before the OS prompt.
-    await waitFor(() => {
-      expect(screen.queryByText("Allow Once")).toBeNull();
-    });
-
-    jest.useRealTimers();
-  });
-
-  it("Allow While Using App triggers OS permission request", async () => {
-    jest.useFakeTimers();
-
-    render(<Index />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Allow While Using App")).toBeTruthy();
-    });
-
-    fireEvent.press(screen.getByText("Allow While Using App"));
+    fireEvent.press(screen.getByText("Allow"));
 
     act(() => {
       jest.advanceTimersByTime(300);
@@ -137,8 +102,13 @@ describe("Home location preprompt buttons", () => {
     await waitFor(() => {
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         "location_preprompt_choice_v3",
-        "allow_while",
+        "allow",
       );
+    });
+
+    // It closes immediately before the OS prompt.
+    await waitFor(() => {
+      expect(screen.queryByText("Allow")).toBeNull();
     });
 
     jest.useRealTimers();
