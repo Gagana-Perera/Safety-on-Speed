@@ -146,9 +146,9 @@ export default function Index() {
       // If they explicitly denied, we respect that and don't show it again this launch.
       if (previousChoice === "deny") return false;
 
-      // If they chose "allow_while", we check why it's not granted yet. 
-      // If it's not granted, it means they might have revoked it or it's a new session.
-      if (previousChoice === "allow_while") return true;
+      // If they previously opted in but permission is not granted now,
+      // prompt again so they can re-enable access.
+      if (previousChoice === "allow") return true;
 
       // Outside the signup onboarding flow, don't force the popup on every launch.
       return false;
@@ -268,9 +268,7 @@ export default function Index() {
     };
   }, [getShouldShowLocationPreprompt]);
 
-  const requestForegroundLocationWithChoice = async (
-    choice: "once" | "while",
-  ) => {
+  const requestForegroundLocationPermission = async () => {
     if (locationPrepromptBusy) return;
     setLocationPrepromptBusy(true);
 
@@ -287,12 +285,9 @@ export default function Index() {
 
       const res = await Location.requestForegroundPermissionsAsync();
 
-      if (choice === "while" && res.status === "granted") {
+      if (res.status === "granted") {
         try {
-          await AsyncStorage.setItem(
-            LOCATION_PREPROMPT_CHOICE_KEY,
-            "allow_while",
-          );
+          await AsyncStorage.setItem(LOCATION_PREPROMPT_CHOICE_KEY, "allow");
         } catch {
           // ignore
         }
@@ -578,30 +573,13 @@ export default function Index() {
                     { borderTopColor: theme.border },
                   ]}
                   onPress={() => {
-                    void requestForegroundLocationWithChoice("once");
+                    void requestForegroundLocationPermission();
                   }}
                 >
                   <Text
                     style={[styles.locationActionText, { color: "#007AFF" }]}
                   >
-                    Allow Once
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  disabled={locationPrepromptBusy}
-                  style={[
-                    styles.locationActionBtn,
-                    { borderTopColor: theme.border },
-                  ]}
-                  onPress={() => {
-                    void requestForegroundLocationWithChoice("while");
-                  }}
-                >
-                  <Text
-                    style={[styles.locationActionText, { color: "#007AFF" }]}
-                  >
-                    Allow While Using App
+                    Allow
                   </Text>
                 </Pressable>
 
