@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Switch, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "@/components/theme/ThemeContext";
 import {
@@ -23,16 +23,34 @@ export default function Heatmap() {
   const [towns, setTowns] = useState<SosTownAggregate[]>([]);
 
   useEffect(() => {
-    // NOTE: Currently backed by dummy data.
-    // Replace `dummySosAlerts` with DB rows later (same shape).
+    //  Currently backed by dummy data.
+
     setTowns(aggregateSosAlertsByTown(dummySosAlerts));
   }, []);
+
+  /*
+
+  how   the colour giving is  at least count should be 1.
+  */
 
   const circles = useMemo(() => {
     // Build a small visual scale based on counts.
     return towns.map((t) => {
       const count = Math.max(1, t.count);
+      //we use the custome saclling formule todecide the radius of the circle after getting the count of reports.
+      //radius = 350 + Math.min(6, count) * 220
+      /*
+          ex-
+          count 1 -> 570m
+          count 3 -> 1010m
+          count 6+ -> 1670m (max)
+
+
+          
+       */
+      //here we  decide the radius of the circle according to the no of counts of reports byb using a formulae.
       const radius = 350 + Math.min(6, count) * 220; // meters
+      //give the colour according to the no of report count.
       const fillColor =
         count >= 5
           ? "rgba(178,24,43,0.35)"

@@ -1,3 +1,5 @@
+// Data models used by the heatmap pipeline.
+//defines the structure of the data.
 export type SosAlert = {
   latitude: number;
   longitude: number;
@@ -7,6 +9,9 @@ export type SosAlert = {
   time: string;
 };
 
+/*
+One final record per town (for example, one for Colombo, one for Kandy).
+*/
 export type SosTownAggregate = {
   town: string;
   latitude: number;
@@ -16,15 +21,21 @@ export type SosTownAggregate = {
   lastTime: string;
 };
 
+/*
+“ReportHeatmapPoint defines coordinate-only report input for clustering when town data is missing, 
+with optional timestamp support.”
+*/
+
 export type ReportHeatmapPoint = {
   latitude: number;
   longitude: number;
   /** Optional ISO-8601 datetime string from reports.created_at. */
   time?: string;
 };
-//the dummy data till the database is properly set up
+
+// Temporary sample dataset used until live DB-backed alerts are wired in.
 export const dummySosAlerts: SosAlert[] = [
-    // High density cluster
+  // High density cluster
   {
     latitude: 6.933,
     longitude: 79.85,
@@ -149,19 +160,41 @@ export const dummySosAlerts: SosAlert[] = [
     town: "Trincomalee",
     type: "1990",
     time: "2026-03-19T13:12:00.000Z",
-  }
+  },
 ];
 
+// Shared helpers for key normalization, coordinate validation, and distance math.
+/*
+Avoid duplicates like:
+"Colombo"
+" colombo "
+"COLOMBO"
+
+👉 All become → "colombo"
+*/
 const safeTownKey = (town: unknown) =>
   String(town ?? "")
     .trim()
     .toLowerCase();
+
+/*
+    Latitude ≤ 90
+    Longitude ≤ 180
+
+    */
 
 const isValidCoordinate = (lat: number, lng: number) =>
   Number.isFinite(lat) &&
   Number.isFinite(lng) &&
   Math.abs(lat) <= 90 &&
   Math.abs(lng) <= 180;
+
+//degree to readians.
+/*
+  We convert degrees to radians because trigonometric functions for Haversine distance 
+  require radians for accurate geographic distance.
+  
+  */
 
 const toRadians = (deg: number) => (deg * Math.PI) / 180;
 
@@ -186,6 +219,7 @@ function distanceKm(
 }
 
 /**
+ * Pipeline A (town-based):
  * Aggregates SOS alerts by town and returns a single representative lat/lng per town
  * (mean coordinate) plus the total count.
  */
@@ -242,6 +276,7 @@ export function aggregateSosAlertsByTown(
 }
 
 /**
+ * Pipeline B (proximity-based):
  * Clusters report points by geographic proximity and returns centroid averages.
  * Useful when you only have lat/lng and do not want town reverse-geocoding.
  */
@@ -274,7 +309,12 @@ export function aggregateReportsByProximity(
       const cluster = clusters[i];
       const centerLat = cluster.sumLat / cluster.count;
       const centerLng = cluster.sumLng / cluster.count;
-      const d = distanceKm(report.latitude, report.longitude, centerLat, centerLng);
+      const d = distanceKm(
+        report.latitude,
+        report.longitude,
+        centerLat,
+        centerLng,
+      );
 
       if (d <= radiusKm && d < bestDistance) {
         bestDistance = d;
