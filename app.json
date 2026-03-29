@@ -46,6 +46,11 @@
       "expo-secure-store",
       "expo-font"
     ],
+    "extra": {
+      "eas": {
+        "projectId": "5a24bb15-d08b-4715-bf30-d365af1d6c77"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
