@@ -1,12 +1,10 @@
 import { supabase } from "@/lib/superbase";
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, View } from "react-native";
+import { ActivityIndicator, AppState, Image, View } from "react-native";
 import { useTheme } from "@/components/theme/ThemeContext";
-import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
@@ -59,7 +57,7 @@ export default function TabsLayout() {
     const sosTimeStr = await AsyncStorage.getItem('sos_triggered_at');
     if (sosTimeStr) {
       const sosTime = parseInt(sosTimeStr, 10);
-      const twoHoursInMs =  60 * 1000;
+      const twoHoursInMs =  2 * 60 * 60 * 1000;
       
       // has it been 2 hours?
       if (Date.now() - sosTime >= twoHoursInMs) {
@@ -82,7 +80,7 @@ export default function TabsLayout() {
   return () => {
     subscription.remove();
   };
-}, []);
+}, [router]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -143,7 +141,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="extra"
+        name="emergency"
         options={{
           title: "Extra",
           tabBarShowLabel: false,

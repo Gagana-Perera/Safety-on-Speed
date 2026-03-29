@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react-native";
 import { Alert, Linking } from "react-native";
 
-import EmergencyServices from "../app/(tabs)/extra";
+import EmergencyServices from "../app/(tabs)/emergency";
 
 const mockGetNearbyPlaces = jest.fn();
 const mockGetPlaceMobileNumber = jest.fn();

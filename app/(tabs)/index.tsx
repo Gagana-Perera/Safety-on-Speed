@@ -11,16 +11,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import * as TaskManager from "expo-task-manager";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,7 +25,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 import "@/lib/sosTask";
 
 const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
@@ -485,7 +482,7 @@ export default function Index() {
 
         <View style={globalStyles.homeActionRow}>
           <TouchableOpacity
-            onPress={() => router.push("/extra")}
+            onPress={() => router.push("/emergency")}
             style={[globalStyles.homeActionButton, { backgroundColor: theme.card }]}
           >
             <Text style={[globalStyles.homeActionTitle, { color: theme.text }]}>

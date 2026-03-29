@@ -4,7 +4,7 @@
     "slug": "SOS",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/oc/logo.jpg",
+    "icon": "./assets/oc/logo.png",
     "scheme": "safetyonspeed",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -34,7 +34,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/oc/logo.jpg",
+          "image": "./assets/oc/logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#002747",

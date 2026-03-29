@@ -6,7 +6,7 @@ module.exports = ({ config }) => ({
   slug: "SOS",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/oc/logo.jpg",
+  icon: "./assets/oc/logo.png",
   scheme: "safetyonspeed",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
@@ -60,7 +60,7 @@ module.exports = ({ config }) => ({
     [
       "expo-splash-screen",
       {
-        image: "./assets/oc/logo.jpg",
+        image: "./assets/oc/logo.png",
         imageWidth: 200,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
@@ -83,7 +83,7 @@ module.exports = ({ config }) => ({
       process.env.EXPO_PUBLIC_SOS_ALERT_WEBHOOK_URL,
     EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL:
       process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL,
-    EXPO_PUBLIC_SUPABASE_KEY: process.env.EXPO_PUBLIC_SUPABASE_KEY,
     EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SOS_BASE_URL: process.env.EXPO_PUBLIC_SOS_BASE_URL,
   },
 });

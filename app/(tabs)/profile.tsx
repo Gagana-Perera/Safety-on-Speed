@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import i18n from "../../lib/i18n";
 import { useTranslation } from "react-i18next";
 import {
@@ -63,7 +63,10 @@ export default function Profile() {
 
       const fetchProfileData = async () => {
         try {
-          if (isActive) setLoading(true);
+          // Only show loading spinner on initial load if we have no data
+          if (isActive && !fullName && !email) {
+            setLoading(true);
+          }
 
           const data = await getMergedProfileData();
 
@@ -108,20 +111,25 @@ export default function Profile() {
 
       fetchProfileData();
 
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user && isActive) {
-          setEmail(session.user.email || t('no_email'));
-        }
-      });
-
-      return () => {
-        isActive = false;
-        subscription.unsubscribe();
-      };
-    }, []),
+    }, [router, t, fullName, email]),
   );
+
+  // --- AUTH STATUS LISTENER (ON MOUNT) ---
+  useEffect(() => {
+    let isActive = true;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && isActive) {
+        setEmail(session.user.email || t('no_email'));
+      }
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [t]);
 
   // --- LOCATION LOGIC ---
   const updateLocationInDB = async (newLoc: string) => {

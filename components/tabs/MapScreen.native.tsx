@@ -210,7 +210,6 @@ export default function MapScreen() {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [autoLoading, setAutoLoading] = useState(false);
   const [placeLoading, setPlaceLoading] = useState(false);
-  const [directionsLoading, setDirectionsLoading] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -295,7 +294,6 @@ export default function MapScreen() {
   const attemptedWheelchairRef = useRef<Set<string>>(new Set());
   const [wheelchairHydrating, setWheelchairHydrating] = useState(false);
 
-  const [nearbySheetExpanded, setNearbySheetExpanded] = useState(false);
   const [nearbySheetChipsOnly, setNearbySheetChipsOnly] = useState(false);
 
   const [meMarkerTracksViewChanges, setMeMarkerTracksViewChanges] =
@@ -678,7 +676,6 @@ export default function MapScreen() {
 
       if (nearbySheetExpandedRef.current !== isExpanded) {
         nearbySheetExpandedRef.current = isExpanded;
-        setNearbySheetExpanded(isExpanded);
       }
 
       if (nearbySheetChipsOnlyRef.current !== isChipsOnly) {
@@ -882,7 +879,6 @@ export default function MapScreen() {
       // Default to collapsed (same feel as before); user can drag up to expand.
       nearbySheetTranslateY.setValue(nearbySheetCollapsedTranslate);
       nearbySheetTranslateYRef.current = nearbySheetCollapsedTranslate;
-      setNearbySheetExpanded(false);
       setNearbySheetChipsOnly(false);
       nearbySheetExpandedRef.current = false;
       nearbySheetChipsOnlyRef.current = false;
@@ -922,7 +918,7 @@ export default function MapScreen() {
     wasSelectedSheetVisibleRef.current = visible;
   }, [selectedPlace, selectedSheetTranslateY, selectedSheetCollapsedTranslate]);
 
-  const [trafficEnabled, setTrafficEnabled] = useState(false);
+  const [trafficEnabled] = useState(false);
   const [followUser, setFollowUser] = useState(false);
   const followUserRef = useRef(followUser);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
@@ -940,17 +936,17 @@ export default function MapScreen() {
   // Search History State
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [searchHistory, setSearchHistory] = useState<
-    Array<{
+    {
       query: string;
       timestamp: number;
       placeId?: string;
       address?: string;
       isOpen?: boolean;
-    }>
+    }[]
   >([]);
 
   // Voice Search State
-  const [isListening, setIsListening] = useState(false);
+
 
   const getPoiKeyForPlace = (p: NearbyPlace): string | null => {
     const types = Array.isArray(p.types) ? p.types : [];
@@ -1069,14 +1065,7 @@ export default function MapScreen() {
     }
   };
 
-  const clearSearchHistory = async () => {
-    try {
-      setSearchHistory([]);
-      await AsyncStorage.removeItem("mapSearchHistory");
-    } catch (error) {
-      console.error("Error clearing search history:", error);
-    }
-  };
+
 
   const categorizeSearchHistory = () => {
     const now = Date.now();
@@ -1109,40 +1098,7 @@ export default function MapScreen() {
   };
 
   // Voice Search Handler
-  const handleVoiceSearch = async () => {
-    if (Platform.OS === "web") {
-      // Web Speech API implementation
-      const SpeechRecognition =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
 
-      if (!SpeechRecognition) {
-        Alert.alert(
-          "Not Supported",
-          "Voice search is not supported in this browser. Please use Chrome, Edge, or Safari.",
-        );
-        return;
-      }
-
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "en-US";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        recognition.start();
-      } catch (error) {
-        console.error("Error starting voice recognition:", error);
-        setIsListening(false);
-      }
-    } else {
-      // Mobile voice search - requires native rebuild
-      Alert.alert(
-        "Voice Search",
-        "Voice search is currently available on web only. Mobile voice search requires the app to be rebuilt with native modules.",
-        [{ text: "OK" }],
-      );
-    }
-  };
 
   useEffect(() => {
     void loadSearchHistory();
@@ -1427,7 +1383,7 @@ export default function MapScreen() {
     }, 250);
 
     return () => clearTimeout(handle);
-  }, [query, mapRegion.latitude, mapRegion.longitude]);
+  }, [query, mapRegion.latitude, mapRegion.longitude, inputFocused]);
 
   const recenter = async () => {
     // Recenter should not leave the search UI focused (which can feel like the
@@ -1520,18 +1476,9 @@ export default function MapScreen() {
     }
   };
 
-  const openAddReview = async (placeId: string) => {
-    const url = `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
-      placeId,
-    )}`;
-    try {
-      await Linking.openURL(url);
-    } catch (e) {
-      console.error("[Add review] openURL failed", url, e);
-    }
-  };
 
-  const selectPlaceById = async (
+
+  const selectPlaceById = useCallback(async (
     placeId: string,
     fallback?: PlaceDetails,
   ): Promise<PlaceDetails | null> => {
@@ -1571,9 +1518,9 @@ export default function MapScreen() {
     } finally {
       setPlaceLoading(false);
     }
-  };
+  }, []);
 
-  const moveToPlace = (p: { latitude: number; longitude: number }) => {
+  const moveToPlace = useCallback((p: { latitude: number; longitude: number }) => {
     console.log("[moveToPlace] Moving map to:", p.latitude, p.longitude);
     const nextRegion: Region = {
       latitude: p.latitude,
@@ -1583,7 +1530,7 @@ export default function MapScreen() {
     };
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 450);
-  };
+  }, []);
 
   const distanceMeters = (a: Coords, b: Coords) => {
     const R = 6371000;
@@ -1878,95 +1825,9 @@ export default function MapScreen() {
     mapRegion,
   ]);
 
-  const decodePolyline = (encoded: string): LatLng[] => {
-    let index = 0;
-    let lat = 0;
-    let lng = 0;
-    const coordinates: LatLng[] = [];
 
-    while (index < encoded.length) {
-      let b: number;
-      let shift = 0;
-      let result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = result & 1 ? ~(result >> 1) : result >> 1;
-      lat += dlat;
 
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = result & 1 ? ~(result >> 1) : result >> 1;
-      lng += dlng;
 
-      coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
-    }
-
-    return coordinates;
-  };
-
-  const fetchDirections = async (destination: Coords) => {
-    const apiKey = ensureGoogleApiKey();
-    if (!apiKey) return;
-
-    if (!hasLocation) {
-      Alert.alert("Location required", "Enable location to get directions.");
-      return;
-    }
-
-    setDirectionsLoading(true);
-    try {
-      const origin = `${coords.latitude},${coords.longitude}`;
-      const dest = `${destination.latitude},${destination.longitude}`;
-
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
-        origin,
-      )}&destination=${encodeURIComponent(dest)}&mode=driving&key=${encodeURIComponent(
-        apiKey,
-      )}`;
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (!data || data.status !== "OK" || !Array.isArray(data.routes)) {
-        console.error("[Directions]", data?.status, data?.error_message);
-        Alert.alert("Directions unavailable", "Could not fetch a route.");
-        return;
-      }
-
-      const firstRoute = data.routes[0];
-      const encoded: string | undefined = firstRoute?.overview_polyline?.points;
-      const leg = Array.isArray(firstRoute?.legs) ? firstRoute.legs[0] : null;
-
-      const polyline = encoded ? decodePolyline(encoded) : [];
-
-      setRoute({
-        polyline,
-        distanceText: leg?.distance?.text || "",
-        durationText: leg?.duration?.text || "",
-        destination,
-      });
-
-      if (polyline.length) {
-        mapRef.current?.fitToCoordinates(polyline, {
-          edgePadding: { top: 160, right: 40, bottom: 240, left: 40 },
-          animated: true,
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      Alert.alert("Error", "Could not fetch directions.");
-    } finally {
-      setDirectionsLoading(false);
-    }
-  };
 
   const POI_CATEGORIES = [
     {
@@ -2183,7 +2044,7 @@ export default function MapScreen() {
         );
       }
     })();
-  }, [params?.placeId, params?.t]);
+  }, [params?.placeId, params?.t, selectPlaceById, moveToPlace]);
 
   useEffect(() => {
     const rawPoi = params?.poi;
@@ -2278,7 +2139,7 @@ export default function MapScreen() {
             if (!apiKey) return;
             const c = e?.nativeEvent?.coordinate;
             if (!c) return;
-            if (placeLoading || directionsLoading) return;
+            if (placeLoading) return;
 
             void (async () => {
               const nearest = await findNearestPlaceAt(
@@ -2937,7 +2798,7 @@ export default function MapScreen() {
                       }
                     }}
                   >
-                    {(placeLoading || directionsLoading) && (
+                    {placeLoading && (
                       <View style={styles.sheetLoadingRow}>
                         <ActivityIndicator size="small" color="#2F6FED" />
                         <Text
@@ -3127,7 +2988,7 @@ export default function MapScreen() {
                                   {
                                     text: "Open",
                                     style: "default",
-                                    onPress: () => router.push("/extra"),
+                                    onPress: () => router.push("/emergency"),
                                   },
                                 ],
                               );

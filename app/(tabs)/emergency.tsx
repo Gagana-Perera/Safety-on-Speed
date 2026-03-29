@@ -704,8 +704,6 @@ export default function EmergencyServices() {
     // Cached values are kept for responsiveness, but on tap we force-refresh the nearest place.
     // (We still keep these variables around for debugging and possible future optimizations.)
     // Debug-friendly snapshots (not used for branch decisions right now).
-    const cachedPlaceId = placeCacheRef.current[item.id]?.placeId || null;
-    const cachedPhone = placeCacheRef.current[item.id]?.phone || null;
     const shouldShowLoading = true;
 
     console.log(
