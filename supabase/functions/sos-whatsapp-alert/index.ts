@@ -181,79 +181,76 @@ Deno.serve(async (req: Request) => {
     const recordedTime = formatSriLankaTime(new Date());
     const metaApiUrl = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}/messages`;
 
-    const results: GuardianSendResult[] = [];
-    let sentCount = 0;
+    const results: GuardianSendResult[] = await Promise.all(
+      guardians.map(async (guardian) => {
+        const normalizedNumber = normalizePhoneNumber(guardian);
 
-    for (const guardian of guardians) {
-      const normalizedNumber = normalizePhoneNumber(guardian);
+        if (!normalizedNumber) {
+          return {
+            error: "Invalid guardian phone number.",
+            ok: false,
+            to: guardian,
+          };
+        }
 
-      if (!normalizedNumber) {
-        results.push({
-          error:
-            "Invalid guardian phone number. Use full WhatsApp international format.",
-          ok: false,
-          to: guardian,
-        });
-        continue;
-      }
+        try {
+          const payload = buildTemplatePayload(
+            normalizedNumber,
+            userName,
+            locationLink,
+            recordedTime,
+          );
 
-      try {
-        const payload = buildTemplatePayload(
-          normalizedNumber,
-          userName,
-          locationLink,
-          recordedTime,
-        );
+          const response = await fetch(metaApiUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${whatsappToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
 
-        const response = await fetch(metaApiUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${whatsappToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+          const responseData = (await response.json().catch(() => ({}))) as
+            | MetaSuccessResponse
+            | MetaErrorResponse;
 
-        const responseData = (await response.json().catch(() => ({}))) as
-          | MetaSuccessResponse
-          | MetaErrorResponse;
+          if (response.ok) {
+            return {
+              messageId:
+                "messages" in responseData
+                  ? responseData.messages?.[0]?.id
+                  : undefined,
+              ok: true,
+              response: responseData,
+              status: response.status,
+              to: normalizedNumber,
+            };
+          }
 
-        if (response.ok) {
-          sentCount += 1;
-          results.push({
-            messageId:
-              "messages" in responseData
-                ? responseData.messages?.[0]?.id
-                : undefined,
-            ok: true,
+          return {
+            error:
+              "error" in responseData
+                ? responseData.error?.message || "Meta WhatsApp API error."
+                : "Meta WhatsApp API error.",
+            ok: false,
             response: responseData,
             status: response.status,
             to: normalizedNumber,
-          });
-          continue;
+          };
+        } catch (error) {
+          return {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unexpected error while sending WhatsApp message.",
+            ok: false,
+            to: normalizedNumber,
+          };
         }
+      })
+    );
 
-        results.push({
-          error:
-            "error" in responseData
-              ? responseData.error?.message || "Meta WhatsApp API error."
-              : "Meta WhatsApp API error.",
-          ok: false,
-          response: responseData,
-          status: response.status,
-          to: normalizedNumber,
-        });
-      } catch (error) {
-        results.push({
-          error:
-            error instanceof Error
-              ? error.message
-              : "Unexpected error while sending WhatsApp message.",
-          ok: false,
-          to: normalizedNumber,
-        });
-      }
-    }
+    const sentCount = results.filter((r) => r.ok).length;
 
     const failedCount = results.length - sentCount;
 
