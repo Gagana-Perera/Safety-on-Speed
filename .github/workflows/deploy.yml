@@ -118,6 +118,11 @@ jobs:
           eas-version: latest
           token: ${{secrets.EXPO_TOKEN}} # Same expo authentication as the build job
 
+      - name: Publish the OTA update
+        run: eas update --branch main --message "Deply from CI"
+        # This command publishes an Over-The-Air (OTA) update to the 'main' branch.
+        # It bundles the JavaScript code and assets and sends them to Expo's servers.
+        # Users with the app on the 'main' channel will receive this update automatically.
 
 
 
