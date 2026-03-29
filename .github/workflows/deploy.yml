@@ -1,11 +1,21 @@
+
+# 1. The Name
 name: CI/CD - Safety On Speed Expo App
 # the name shows up in Github's Actions tab.
 
-# the triggers. 
+# 2. The Triggers - to run this pipeline. 
 on:
   push:
     branches: [main] # when you push to main or develop, it will run the workflow.
 
   pull_request:
     branches: [main] # when someone opens a pull request targeting the main branch.
-    # runs a CI check before the code is merged.
+    # runs a CI check before the code is merged. 
+
+# 3. the Jobs - the tests
+jobs: 
+  #CI 
+  test:
+    name: Lint and Test # name will be displayed in  Github UI
+    runs-on: ubuntu-latest # this test will run on Github's free Ubuntu machine
+    
