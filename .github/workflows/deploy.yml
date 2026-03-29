@@ -41,7 +41,10 @@ jobs:
        - name: Lint
          run: npm run lint # linter is the one that catches errors. 
          #our linter is ESLint. it is configured in the eslint.config.js file
-
-         
+      
+      # Command step
+       - name: Run tests
+         run: npm test --passWithNoTests # runs the Jest tests
+         # passWithNoTests is used to pass the tests even if there are no tests
 
     
