@@ -1,1 +1,11 @@
 name: CI/CD - Safety On Speed Expo App
+# the name shows up in Github's Actions tab.
+
+# the triggers. 
+on:
+  push:
+    branches: [main] # when you push to main or develop, it will run the workflow.
+
+  pull_request:
+    branches: [main] # when someone opens a pull request targeting the main branch.
+    # runs a CI check before the code is merged.
