@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/superbase";
+import { assertSupabaseConfigured, supabase } from "@/lib/superbase";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -45,6 +45,8 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
+      assertSupabaseConfigured("app/auth/forgot-password.tsx handleSendOtp");
+
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmedEmail,
         options: { shouldCreateUser: false },
@@ -103,6 +105,10 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
+      assertSupabaseConfigured(
+        "app/auth/forgot-password.tsx handleVerifyAndReset",
+      );
+
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: trimmedEmail,
         token: otp,

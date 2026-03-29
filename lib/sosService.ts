@@ -382,8 +382,11 @@ async function createSOSSessionRecord({
 }
 
 async function getBestAvailableLocation() {
+  // Balanced accuracy gets a fix in ~2 s instead of the 10-15 s that High
+  // accuracy requires. Precision is more than good enough for the initial
+  // alert link; the ongoing tracking task still uses High accuracy.
   const currentLocation = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.High,
+    accuracy: Location.Accuracy.Balanced,
   }).catch(() => null);
 
   if (currentLocation) {
@@ -668,11 +671,8 @@ export async function startSOS({
     });
     emitStartProgress(onProgress, "capturing_location");
 
-    const refreshedSession =
-      (await getSOSSessionById(createdSession.id)) ?? createdSession;
-    storedSession = mapSOSSessionRowToStoredSession(refreshedSession);
-    await saveStoredActiveSOSSession(storedSession);
-
+    // The session row from createSOSSessionRecord already has all the fields
+    // we need — skip the extra DB read and go straight to alerting guardians.
     onProgress?.({
       done: false,
       key: "alerting_guardians",
@@ -705,9 +705,15 @@ export async function startSOS({
       sessionId: createdSession.id,
     });
 
-    const alertStateSession =
-      (await getSOSSessionById(createdSession.id)) ?? refreshedSession;
-    storedSession = mapSOSSessionRowToStoredSession(alertStateSession);
+    // Update local state only — avoid a redundant DB read now that the
+    // alert has been sent and we already know all the relevant values.
+    storedSession = {
+      ...storedSession,
+      alertDeliveryMethod:
+        alertResult.method === "none" ? null : alertResult.method,
+      alertDeliveryStatus: alertResult.status,
+      guardianCount: alertResult.guardianCount,
+    };
     await saveStoredActiveSOSSession(storedSession);
 
     onProgress?.({

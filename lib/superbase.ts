@@ -7,7 +7,43 @@ import { Database } from "../database.types";
 // AsyncStorage has no 2048-byte limit (unlike SecureStore),
 // so large JWTs (Supabase session tokens) are stored correctly.
 export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
-export const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY || "";
+export const supabaseKey =
+  process.env.EXPO_PUBLIC_SUPABASE_KEY ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  "";
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+export const supabaseConfigErrorMessage =
+  "Supabase is not configured. Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY.";
+
+const FALLBACK_SUPABASE_URL = "https://placeholder.supabase.co";
+const FALLBACK_SUPABASE_KEY = "placeholder-anon-key";
+
+let hasWarnedMissingSupabaseConfig = false;
+
+export function warnMissingSupabaseConfig(context?: string) {
+  if (hasWarnedMissingSupabaseConfig) return;
+
+  hasWarnedMissingSupabaseConfig = true;
+  const contextLabel = context ? ` (${context})` : "";
+  console.warn(
+    `[supabase] Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_KEY${contextLabel}. ` +
+      "Using a placeholder client so the app can boot. Copy .env.example to .env and set real values.",
+  );
+}
+
+export function createSupabaseConfigError(context?: string) {
+  warnMissingSupabaseConfig(context);
+  return new Error(supabaseConfigErrorMessage);
+}
+
+export function assertSupabaseConfigured(context?: string) {
+  if (isSupabaseConfigured) {
+    return;
+  }
+
+  throw createSupabaseConfigError(context);
+}
+
 const isServer = typeof window === "undefined";
 
 const webStorage = {
@@ -37,11 +73,19 @@ const authStorage = isServer
     ? webStorage
     : AsyncStorage;
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+export const supabase = createClient<Database>(
+  isSupabaseConfigured ? supabaseUrl : FALLBACK_SUPABASE_URL,
+  isSupabaseConfigured ? supabaseKey : FALLBACK_SUPABASE_KEY,
+  {
   auth: {
     storage: authStorage,
     autoRefreshToken: !isServer,
     persistSession: !isServer,
     detectSessionInUrl: false,
   },
-});
+  },
+);
+
+if (!isSupabaseConfigured) {
+  warnMissingSupabaseConfig("lib/superbase.ts");
+}

@@ -1,20 +1,21 @@
-import { setSignupDraft } from "@/lib/signup-draft";
+import AuthLayout, {
+  AuthField,
+  authStyles,
+} from "@/components/auth/AuthLayout";
+import { getSignupDraft, setSignupDraft } from "@/lib/signup-draft";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 export default function SignUpEmail() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const draft = getSignupDraft();
+  const [email, setEmail] = useState(draft.email ?? "");
 
   function handleFinish() {
     const trimmedEmail = email.trim();
@@ -39,69 +40,42 @@ export default function SignUpEmail() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-primary"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View className="flex-1 px-6 pt-12">
-          {/* Header */}
-          <View className="flex-row items-center mb-8">
-            <Pressable
-              onPress={() => router.back()}
-              className="flex-row items-center bg-white/10 border border-white/10 rounded-2xl px-4 py-2"
-            >
-              <Text className="text-white text-xl mr-2">{"<"}</Text>
-              <Text className="text-white text-xl font-light">Back</Text>
-            </Pressable>
-          </View>
-
-          {/* Title */}
-          <View className="mt-8">
-            <Text className="text-white text-6xl font-light tracking-wide leading-tight">
-              Almost{"\n"}there!
-            </Text>
-            <Text className="text-white/80 text-xl mt-6 leading-7">
-              To keep you posted on new updates and as a recovery option when
-              resetting password please enter you Email.
-            </Text>
-          </View>
-
-          {/* Inputs */}
-          <View className="mt-12">
-            <Text className="text-white text-2xl font-light mb-2">E-mail</Text>
-            <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                className="text-white text-lg"
-                returnKeyType="done"
-                onSubmitEditing={handleFinish}
-              />
-            </View>
-            <View className="h-[2px] bg-white/30 rounded-full mt-2 mx-2" />
-          </View>
-
-          {/* Finish Button */}
-          <View className="flex-1 justify-end pb-24 mt-10">
-            <Pressable
-              onPress={handleFinish}
-              className="self-center bg-black/40 border border-white/10 rounded-2xl px-16 py-3"
-            >
-              <Text className="text-white text-2xl font-light">Finish</Text>
-            </Pressable>
-          </View>
+    <AuthLayout
+      eyebrow="Step 3 of 4"
+      title="Add your email"
+      subtitle="We use this to send your verification code and help you recover access later."
+      showBack
+      footer={
+        <View style={authStyles.footerBlock}>
+          <Text style={authStyles.supportingText}>
+            We will send a one-time verification code to this address next.
+          </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      }
+    >
+      <View style={authStyles.formGrid}>
+        <AuthField
+          value={email}
+          onChangeText={setEmail}
+          label="Email"
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+          returnKeyType="done"
+          onSubmitEditing={handleFinish}
+        />
+        <Pressable
+          onPress={handleFinish}
+          style={({ pressed }) => [
+            authStyles.primaryButton,
+            pressed && authStyles.pressed,
+          ]}
+        >
+          <Text style={authStyles.primaryButtonText}>Send Code</Text>
+        </Pressable>
+      </View>
+    </AuthLayout>
   );
 }

@@ -7,21 +7,21 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    SafeAreaView,
     ScrollView,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
     getMergedProfileData
 } from "../lib/profileService";
 import { supabase } from "../lib/superbase";
-import BackButton from "./backButton";
+import BackButton from "@/components/backButton";
 import { useTheme } from "@/components/theme/ThemeContext";
-import { globalStyles } from "@/app/global";
+import { globalStyles } from "@/styles/global";
 export default function EditProfile() {
   const router = useRouter();
   const { theme } = useTheme();

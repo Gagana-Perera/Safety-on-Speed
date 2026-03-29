@@ -1,4 +1,8 @@
-import { supabase } from "./superbase";
+import {
+  assertSupabaseConfigured,
+  isSupabaseConfigured,
+  supabase,
+} from "./superbase";
 
 /**
  * LOGIN FUNCTION
@@ -12,6 +16,8 @@ let _currentUser: import("@supabase/supabase-js").User | null = null;
  * This sends email + password to Supabase backend
  */
 export async function loginUser(email: string, password: string) {
+  assertSupabaseConfigured("lib/auth.ts loginUser");
+
   // Call Supabase Auth backend
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email,
@@ -38,6 +44,8 @@ export async function getCurrentUser() {
     return _currentUser;
   }
 
+  assertSupabaseConfigured("lib/auth.ts getCurrentUser");
+
   const { data, error } = await supabase.auth.getUser();
   if (error) {
     throw error;
@@ -58,6 +66,11 @@ export function setCurrentUser(user: import("@supabase/supabase-js").User | null
  * This signs out the current user from Supabase.
  */
 export async function logoutUser() {
+  if (!isSupabaseConfigured) {
+    _currentUser = null;
+    return;
+  }
+
   const { error } = await supabase.auth.signOut();
 
   if (error) {

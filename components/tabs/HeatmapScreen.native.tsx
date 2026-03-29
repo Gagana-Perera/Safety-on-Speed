@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, StyleSheet, Switch, Text, View } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 import { useTheme } from "@/components/theme/ThemeContext";

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/superbase";
+import { isSupabaseConfigured, supabase } from "@/lib/superbase";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -9,6 +9,12 @@ export default function SessionGate() {
 
   useEffect(() => {
     async function checkSession() {
+      if (!isSupabaseConfigured) {
+        setLoggedIn(false);
+        setLoading(false);
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
