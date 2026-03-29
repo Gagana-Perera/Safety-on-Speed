@@ -1,12 +1,13 @@
-import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
-import "@/lib/sosTask";
-import Constants from 'expo-constants';
-import * as ImagePicker from 'expo-image-picker';
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { supabase } from '../lib/superbase';
 import "./global.css";
+import "@/lib/sosTask";
+import { ThemeProvider, useTheme } from "@/components/theme/ThemeContext";
+import { useEffect } from "react";
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { supabase } from '../lib/superbase';
+import Constants from 'expo-constants';
 
 function RootLayoutNav() {
   const { isDark } = useTheme();
@@ -33,12 +34,41 @@ function RootLayoutNav() {
 
   useEffect(() => {
     const requestAllPermissions = async () => {
-      await ImagePicker.requestCameraPermissionsAsync();
 
+      // 1. Request camera and location permissions
+      const camera = await ImagePicker.requestCameraPermissionsAsync();
+      const location = await Location.requestForegroundPermissionsAsync();
+
+      // 2. Save camera and location results to DB
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+
+      if (session) {
+        await supabase
+          .from('profiles')
+          .update({
+            camera_access: camera.status === 'granted',
+            live_location: location.status === 'granted',
+          } as any)
+          .eq('id', session.user.id);
+      }
+
+      // 3. Push notifications (real builds only)
       if (Constants.executionEnvironment !== 'storeClient') {
         try {
           const Notifications = await import('expo-notifications');
-          await Notifications.requestPermissionsAsync();
+          const notif = await Notifications.requestPermissionsAsync();
+
+          // Save push notification result to DB
+          if (session) {
+            await supabase
+              .from('profiles')
+              .update({
+                push_notif: notif.status === 'granted',
+              } as any)
+              .eq('id', session.user.id);
+          }
+
           await registerPushToken();
         } catch (error) {
           console.log('Notifications error:', error);
