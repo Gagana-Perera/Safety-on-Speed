@@ -2,6 +2,7 @@
   "expo": {
     "name": "Safety On Speed",
     "slug": "SOS",
+    "owner": "gagana_perera",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/oc/logo.png",
