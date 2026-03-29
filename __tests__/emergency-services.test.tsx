@@ -142,7 +142,7 @@ describe("EmergencyServices (Emergency Services page)", () => {
       const expoRouter = require("expo-router");
       expect(expoRouter.__router.push).toHaveBeenCalledWith(
         expect.objectContaining({
-          pathname: "/(tabs)/map",
+          pathname: "/map",
           params: expect.objectContaining({
             placeId: "place-hospital-123",
           }),
@@ -167,7 +167,7 @@ describe("EmergencyServices (Emergency Services page)", () => {
       const expoRouter = require("expo-router");
       expect(expoRouter.__router.push).toHaveBeenCalledWith(
         expect.objectContaining({
-          pathname: "/(tabs)/map",
+          pathname: "/map",
           params: expect.objectContaining({
             placeId: "place-police-456",
           }),
