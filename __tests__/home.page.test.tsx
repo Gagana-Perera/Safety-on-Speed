@@ -131,7 +131,7 @@ describe("Home page", () => {
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const expoRouter = require("expo-router");
-    expect(expoRouter.__router.push).toHaveBeenCalledWith("/extra");
+    expect(expoRouter.__router.push).toHaveBeenCalledWith("/emergency");
     expect(expoRouter.__router.push).toHaveBeenCalledWith("/auth/addguardians");
   });
 

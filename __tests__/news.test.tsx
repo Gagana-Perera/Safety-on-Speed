@@ -7,7 +7,7 @@ import { useTheme } from '@/components/theme/ThemeContext';
 // Mock dependencies
 jest.mock('@/lib/newsApi');
 jest.mock('@/components/theme/ThemeContext');
-jest.mock('@/app/createpost', () => ({
+jest.mock('@/components/news/CreatePostModal', () => ({
   __esModule: true,
   default: ({ visible, onClose, onSuccess }: any) => (
     <></> // Mock component - no rendering needed in tests
