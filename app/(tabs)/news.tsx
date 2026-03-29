@@ -115,7 +115,7 @@ export default function News() {
     >
       {/* <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Image 
-          source={require('@/assets/oc/logo.jpg')} 
+          source={require('@/assets/oc/logo.png')} 
           style={styles.headerLogo}
           resizeMode="contain"
         />

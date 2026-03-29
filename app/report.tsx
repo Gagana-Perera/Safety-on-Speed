@@ -1,13 +1,12 @@
 import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState } from 'react'
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { getCurrentUser } from '../lib/auth'
 import { saveReport } from '../lib/report'
 import BackButton from '../components/backButton'
 import { useTheme } from '@/components/theme/ThemeContext'
 
-const report = () => {
+const Report = () => {
   const { theme } = useTheme();
   const router = useRouter();
 
@@ -43,7 +42,6 @@ const report = () => {
 
     try {
       setLoading(true);
-      const user = await getCurrentUser().catch(() => null);
 
       await saveReport({
         verification: verification? true : false,
@@ -277,7 +275,7 @@ const report = () => {
   )
 }
 
-export default report
+export default Report
 
 const styles = StyleSheet.create({
   modalOverlay: {

@@ -2,7 +2,7 @@ import { clearSignupDraft, getSignupDraft } from "@/lib/signup-draft";
 import { assertSupabaseConfigured, supabase } from "@/lib/superbase";
 import AuthLayout, { authStyles } from "@/components/auth/AuthLayout";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
@@ -41,27 +41,7 @@ export default function SignUpOtp() {
     return trimmed;
   }
 
-  useEffect(() => {
-    // Trigger send OTP to email on mount if not already sent?
-    // Or wait for user?
-    // Let's autosend for flow smoothness.
-    if (!sent && draft.email && !sending) {
-      handleSendOtp();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (sent) {
-      otpInputRef.current?.focus();
-    }
-  }, [sent]);
-
-  function handleOtpChange(value: string) {
-    const digitsOnly = value.replace(/[^0-9]/g, "");
-    setOtp(digitsOnly.slice(0, OTP_LENGTH));
-  }
-
-  async function handleSendOtp() {
+  const handleSendOtp = useCallback(async () => {
     if (sending) return;
     if (!draft.email) {
       Alert.alert("Error", "No email found in draft.");
@@ -89,7 +69,29 @@ export default function SignUpOtp() {
     } finally {
       setSending(false);
     }
+  }, [sending, draft.email]);
+
+  useEffect(() => {
+    // Trigger send OTP to email on mount if not already sent?
+    // Or wait for user?
+    // Let's autosend for flow smoothness.
+    if (!sent && draft.email && !sending) {
+      handleSendOtp();
+    }
+  }, [draft.email, handleSendOtp, sending, sent]);
+
+  useEffect(() => {
+    if (sent) {
+      otpInputRef.current?.focus();
+    }
+  }, [sent]);
+
+  function handleOtpChange(value: string) {
+    const digitsOnly = value.replace(/[^0-9]/g, "");
+    setOtp(digitsOnly.slice(0, OTP_LENGTH));
   }
+
+
 
   const requestDataSharingPermission = async (userId: string) => {
     return new Promise<void>((resolve) => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
-import CreatePost from '@/app/createpost';
+import CreatePost from '@/components/news/CreatePostModal';
 import * as newsApi from '@/lib/newsApi';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/components/theme/ThemeContext';

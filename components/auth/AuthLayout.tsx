@@ -136,7 +136,7 @@ export default function AuthLayout({
 
                 <View style={authStyles.brandPill}>
                   <Image
-                    source={require("../../assets/oc/logo.jpg")}
+                    source={require("../../assets/oc/logo.png")}
                     style={authStyles.brandLogo}
                   />
                   <Text style={authStyles.brandText}>Safety on Speed</Text>
