@@ -28,9 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { globalStyles } from "@/styles/global";
-
-
+import { globalStyles } from "@/app/global";
 import "@/lib/sosTask";
 
 const LOCATION_PREPROMPT_CHOICE_KEY = "location_preprompt_choice_v3";
@@ -316,6 +314,7 @@ export default function Index() {
         params: { mode },
         pathname: "/sos/loading",
       });
+      await AsyncStorage.setItem('sos_triggered_at', Date.now().toString());
 
       // Reset local tap state
       setLaunchMode(null);

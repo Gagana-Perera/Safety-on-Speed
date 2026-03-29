@@ -5,7 +5,7 @@ import { Platform, useColorScheme } from "react-native";
 
 const LightTheme = {
   mode: "light",
-  background: "#FFFFFF",
+  background: "#BDEBFF",
   text: "#000000",
   card: "#F0F0F0",
   border: "#E0E0E0",

@@ -4,7 +4,9 @@ import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
 import { useTheme } from "@/components/theme/ThemeContext";
-
+import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { icons } from "@/constants/icons";
 import { officialdoc } from "@/constants/officialdoc";
 
@@ -21,6 +23,7 @@ const IconC = ({
   // The home logo is a normal image source.
   if (icon === officialdoc.logo) {
     return (
+      <View>
       <Image
         source={icon}
         style={{
@@ -29,7 +32,7 @@ const IconC = ({
           borderRadius: (size + 10) / 2,
         }}
         resizeMode="cover"
-      />
+      /></View>
     );
   }
 
@@ -49,6 +52,37 @@ export default function TabsLayout() {
   const { theme } = useTheme();
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+  const checkReportTimeout = async () => {
+    const sosTimeStr = await AsyncStorage.getItem('sos_triggered_at');
+    if (sosTimeStr) {
+      const sosTime = parseInt(sosTimeStr, 10);
+      const twoHoursInMs =  60 * 1000;
+      
+      // has it been 2 hours?
+      if (Date.now() - sosTime >= twoHoursInMs) {
+        // Clear the storage so we don't trigger it again
+        await AsyncStorage.removeItem('sos_triggered_at'); 
+        
+        // Force them to the report screen
+        router.push('/report');
+      }
+    }
+  };
+  // 1. Check when the app initially loads
+  checkReportTimeout();
+  // 2. Check every time the app comes back from the background
+  const subscription = AppState.addEventListener('change', nextAppState => {
+    if (nextAppState === 'active') {
+      checkReportTimeout();
+    }
+  });
+  return () => {
+    subscription.remove();
+  };
+}, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

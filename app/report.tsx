@@ -1,24 +1,23 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated } from 'react-native'
-import React, { useState, useRef, useEffect } from 'react'
-import BackButton from '../components/backButton'
-import { useTheme } from '@/components/theme/ThemeContext'
 import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
-import { saveReport } from '../lib/report'
+import React, { useRef, useState, useEffect } from 'react'
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { getCurrentUser } from '../lib/auth'
-
+import { saveReport } from '../lib/report'
+import BackButton from '../components/backButton'
+import { useTheme } from '@/components/theme/ThemeContext'
 
 const report = () => {
   const { theme } = useTheme();
   const router = useRouter();
-  
+
   const [step, setStep] = useState<'VERIFY' | 'DETAILS' | 'SAFETY_CHECK' | 'RESOLUTION'>('VERIFY');
-  const [verification, setVerification] = useState<string | null>(null);
+  const [verification, setVerification] = useState<boolean   | null>(null);
   const [incidentType, setIncidentType] = useState<string | null>(null);
   const [isSafe, setIsSafe] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
 
-  
+
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const transitionTo = (nextStep: 'VERIFY' | 'DETAILS' | 'SAFETY_CHECK' | 'RESOLUTION') => {
@@ -45,14 +44,14 @@ const report = () => {
     try {
       setLoading(true);
       const user = await getCurrentUser().catch(() => null);
-      
+
       await saveReport({
-        verification: verification || "Real Incident",
-        incident_details: incidentType || "None",
-        safety_check: isSafe ? "Safe" : "Not Safe",
-        user_id: user?.id
+        verification: verification? true : false,
+        incident_type: incidentType || "None",
+        safety_check: isSafe ? true : false,
+        //user_id: user?.id
       });
-      
+
       handleClose();
     } catch (error) {
       console.error("Failed to save report:", error);
@@ -88,11 +87,11 @@ const report = () => {
   return (
     <View style={styles.modalOverlay}>
       <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFill} />
-      
+
       <Animated.View style={[
-        styles.modalContent, 
-        { 
-          backgroundColor: 'rgba(5, 5, 5, 0.86)', 
+        styles.modalContent,
+        {
+          backgroundColor: 'rgba(5, 5, 5, 0.86)',
           borderColor: theme.border,
           opacity: fadeAnim,
           transform: [{
@@ -103,16 +102,16 @@ const report = () => {
           }]
         }
       ]}>
-        
+
         {/* Header */}
         <View style={styles.header}>
 
-             <BackButton color={theme.text} onPress={getBackButtonAction()} />
-          
+          <BackButton color={theme.text} onPress={getBackButtonAction()} />
+
           <Text style={[styles.title, { color: theme.text }]}>
-            {step === 'VERIFY' ? 'Verify Incident' : 
-             step === 'DETAILS' ? 'Incident Details' : 
-             step === 'SAFETY_CHECK' ? 'Safety Check' : 'Resolution'}
+            {step === 'VERIFY' ? 'Verify Incident' :
+              step === 'DETAILS' ? 'Incident Details' :
+                step === 'SAFETY_CHECK' ? 'Safety Check' : 'Resolution'}
           </Text>
         </View>
 
@@ -122,11 +121,11 @@ const report = () => {
               <Text style={[styles.questionText, { color: theme.text }]}>
                 Was this a real incident or a mistake?
               </Text>
-              
-              <TouchableOpacity 
-                style={[styles.primaryButton, { backgroundColor: '#FF4444' }]} 
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#FF4444' }]}
                 onPress={() => {
-                  setVerification('Real Incident');
+                  setVerification(true);
                   transitionTo('DETAILS');
                 }}
               >
@@ -134,8 +133,8 @@ const report = () => {
 
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.secondaryButton, { borderColor: theme.border }]} 
+              <TouchableOpacity
+                style={[styles.secondaryButton, { borderColor: theme.border }]}
                 onPress={handleClose}
               >
                 <Text style={[styles.secondaryButtonText, { color: theme.text }]}>It was a mistake</Text>
@@ -148,21 +147,21 @@ const report = () => {
               <Text style={[styles.questionText, { color: theme.text }]}>
                 What kind of harassment did you face?
               </Text>
-              
+
               {incidentOptions.map((option) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={option}
                   style={[
-                    styles.optionButton, 
-                    { 
+                    styles.optionButton,
+                    {
                       borderColor: incidentType === option ? '#FF4444' : theme.border,
                       backgroundColor: incidentType === option ? 'rgba(255, 68, 68, 0.1)' : 'transparent'
                     }
-                  ]} 
+                  ]}
                   onPress={() => setIncidentType(option)}
                 >
                   <Text style={[
-                    styles.optionText, 
+                    styles.optionText,
                     { color: incidentType === option ? '#FF4444' : theme.text }
                   ]}>
                     {option}
@@ -170,14 +169,14 @@ const report = () => {
                 </TouchableOpacity>
               ))}
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
-                  styles.primaryButton, 
-                  { 
+                  styles.primaryButton,
+                  {
                     backgroundColor: incidentType ? '#FF4444' : '#555',
-                    marginTop: 20 
+                    marginTop: 20
                   }
-                ]} 
+                ]}
                 disabled={!incidentType}
                 onPress={() => transitionTo('SAFETY_CHECK')}
               >
@@ -194,9 +193,9 @@ const report = () => {
               <Text style={[styles.subText, { color: theme.text, opacity: 0.7 }]}>
                 And are you relieved from the distressing situation?
               </Text>
-              
-              <TouchableOpacity 
-                style={[styles.primaryButton, { backgroundColor: '#28A745' }]} 
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#28A745' }]}
                 onPress={() => {
                   setIsSafe(true);
                   transitionTo('RESOLUTION');
@@ -205,8 +204,8 @@ const report = () => {
                 <Text style={styles.buttonText}>Yes, I am Safe</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.primaryButton, { backgroundColor: '#FF4444' }]} 
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#FF4444' }]}
                 onPress={() => {
                   setIsSafe(false);
                   transitionTo('RESOLUTION');
@@ -230,15 +229,15 @@ const report = () => {
                   <Text style={[styles.subText, { color: theme.text, textAlign: 'center' }]}>
                     Please use the emergency button immediately to seek help to call 911.
                   </Text>
-                  <TouchableOpacity 
-                    style={[styles.primaryButton, { backgroundColor: '#FF0000', marginTop: 10 }]} 
+                  <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: '#FF0000', marginTop: 10 }]}
                   >
                     <Text style={[styles.buttonText, { fontSize: 18 }]}>EMERGENCY</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  
+
                   <Text style={[styles.questionText, { color: theme.text, textAlign: 'center' }]}>
                     Recommended Legal Actions
                   </Text>
@@ -252,15 +251,15 @@ const report = () => {
                   </View>
                 </>
               )}
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[
-                  styles.primaryButton, 
-                  { 
-                    backgroundColor: loading ? '#555' : '#007AFF', 
-                    marginTop: 20 
+                  styles.primaryButton,
+                  {
+                    backgroundColor: loading ? '#555' : '#007AFF',
+                    marginTop: 20
                   }
-                ]} 
+                ]}
                 onPress={handleFinishReport}
                 disabled={loading}
               >
@@ -272,7 +271,7 @@ const report = () => {
             </View>
           )}
         </ScrollView>
-        
+
       </Animated.View>
     </View>
   )
@@ -288,9 +287,9 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    minHeight:'60%',
+    minHeight: '60%',
     maxHeight: '80%',
-    justifyContent:'center',
+    justifyContent: 'center',
     borderRadius: 10,
     padding: 25,
     borderWidth: 1,
