@@ -1,4 +1,4 @@
-const { withProjectBuildGradle } = require("@expo/config-plugins");
+const { withProjectBuildGradle, withAppBuildGradle } = require("@expo/config-plugins");
 
 /**
  * Expo Config Plugin to resolve AndroidX/Support library conflicts.
@@ -7,12 +7,23 @@ const { withProjectBuildGradle } = require("@expo/config-plugins");
  * modern androidx libraries in Expo 50+.
  */
 module.exports = function withAndroidXFix(config) {
-  return withProjectBuildGradle(config, (config) => {
+  // Fix project-level resolution strategy
+  config = withProjectBuildGradle(config, (config) => {
     if (config.modResults.language === "groovy") {
       config.modResults.contents = addExclusionRules(config.modResults.contents);
     }
     return config;
   });
+
+  // Fix app-level packaging options for duplicate META-INF files
+  config = withAppBuildGradle(config, (config) => {
+    if (config.modResults.language === "groovy") {
+      config.modResults.contents = addPackagingOptions(config.modResults.contents);
+    }
+    return config;
+  });
+
+  return config;
 };
 
 function addExclusionRules(src) {
@@ -28,12 +39,28 @@ allprojects {
         // Exclude the legacy support library group entirely to prevent duplicates
         exclude group: "com.android.support", module: "support-compat"
         exclude group: "com.android.support", module: "versionedparcelable"
+        exclude group: "com.android.support", module: "localbroadcastmanager"
     }
 }
 `;
-  // Append to the end of the file if not already present
   if (!src.includes("androidx.core:core")) {
     return src + exclusionRules;
+  }
+  return src;
+}
+
+function addPackagingOptions(src) {
+  const packagingRules = `
+    packagingOptions {
+        pickFirst 'META-INF/androidx.localbroadcastmanager_localbroadcastmanager.version'
+        pickFirst 'META-INF/androidx.*'
+        pickFirst 'META-INF/android.*'
+    }
+`;
+  
+  // Find the android { ... } block and insert packagingOptions
+  if (!src.includes("packagingOptions") && src.includes("android {")) {
+    return src.replace("android {", `android {${packagingRules}`);
   }
   return src;
 }

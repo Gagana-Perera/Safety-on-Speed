@@ -44,8 +44,8 @@ module.exports = ({ config }) => ({
     output: "static",
   },
   plugins: [
-    "./plugins/withAndroidXFix",
     "expo-router",
+    "./plugins/withAndroidXFix",
     [
       "expo-location",
       {
@@ -85,6 +85,10 @@ module.exports = ({ config }) => ({
     EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL:
       process.env.EXPO_PUBLIC_SOS_CONFERENCE_WEBHOOK_URL,
     EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_KEY: process.env.EXPO_PUBLIC_SUPABASE_KEY,
     EXPO_PUBLIC_SOS_BASE_URL: process.env.EXPO_PUBLIC_SOS_BASE_URL,
+    EXPO_PUBLIC_CONNECTIVITY_CHECK_URL: process.env.EXPO_PUBLIC_CONNECTIVITY_CHECK_URL,
+    EXPO_PUBLIC_REVERSE_GEOCODING_API_URL: process.env.EXPO_PUBLIC_REVERSE_GEOCODING_API_URL,
+    EXPO_PUBLIC_REVERSE_GEOCODING_API_KEY: process.env.EXPO_PUBLIC_REVERSE_GEOCODING_API_KEY,
   },
 });

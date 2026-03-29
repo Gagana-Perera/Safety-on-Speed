@@ -3,12 +3,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import { WebView } from "react-native-webview";
 
 import {
   buildSOSShareUrl,
@@ -171,12 +174,18 @@ export default function SOSActiveScreen() {
   async function handleShareLink() {
     if (!shareUrl) return;
 
-    if (
-      typeof navigator !== "undefined" &&
-      navigator.clipboard &&
-      typeof navigator.clipboard.writeText === "function"
-    ) {
-      await navigator.clipboard.writeText(shareUrl);
+    if (Platform.OS === "web") {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === "function"
+      ) {
+        await navigator.clipboard.writeText(shareUrl);
+        Alert.alert("Copied", "The live SOS link has been copied.");
+        return;
+      }
+    } else {
+      await Clipboard.setStringAsync(shareUrl);
       Alert.alert("Copied", "The live SOS link has been copied.");
       return;
     }
@@ -232,15 +241,26 @@ export default function SOSActiveScreen() {
 
       {iframeSrc ? (
         <>
-          <iframe
-            title="sos-active-map"
-            src={iframeSrc}
-            loading="lazy"
-            onLoad={() => setIframeLoaded(true)}
-            style={styles.iframe}
-            referrerPolicy="no-referrer-when-downgrade"
-            allowFullScreen
-          />
+          {Platform.OS === "web" ? (
+            <iframe
+              title="sos-active-map"
+              src={iframeSrc}
+              loading="lazy"
+              onLoad={() => setIframeLoaded(true)}
+              style={styles.iframe}
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          ) : (
+            <WebView
+              style={styles.webview}
+              source={{ uri: iframeSrc }}
+              onLoadEnd={() => setIframeLoaded(true)}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              startInLoadingState={true}
+            />
+          )}
           {!iframeLoaded && (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="small" color="#E53935" />
@@ -368,6 +388,9 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
   } as any,
+  webview: {
+    flex: 1,
+  },
   loadingOverlay: {
     alignSelf: "center",
     backgroundColor: "rgba(255,255,255,0.9)",
