@@ -45,6 +45,7 @@ module.exports = ({ config }) => ({
   },
   plugins: [
     "expo-router",
+    "./plugins/withAndroidXFix",
     [
       "expo-location",
       {
