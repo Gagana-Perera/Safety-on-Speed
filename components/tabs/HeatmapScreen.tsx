@@ -1,12 +1,16 @@
+// Imports: React, native UI primitives, and app theme context.
 import React from "react";
 import { StyleSheet, Switch, Text, View } from "react-native";
 
 import { useTheme } from "@/components/theme/ThemeContext";
 
+// Component: web-safe fallback heatmap screen with an ON/OFF toggle.
 export default function HeatmapScreen() {
+  // State: theme colors and local toggle state.
   const { theme } = useTheme();
   const [heatmapEnabled, setHeatmapEnabled] = React.useState(true);
 
+  // UI layout: centered card with toggle, title, and status description.
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View
@@ -28,6 +32,8 @@ export default function HeatmapScreen() {
         </View>
 
         <Text style={[styles.title, { color: theme.text }]}>Heatmap</Text>
+
+        {/* Conditional rendering: detailed message when ON, short message when OFF. */}
         {heatmapEnabled ? (
           <Text style={[styles.body, { color: theme.icon }]}>
             The interactive heatmap uses native maps on iOS and Android. This
@@ -44,6 +50,7 @@ export default function HeatmapScreen() {
   );
 }
 
+// Styles: card-based layout, centered container, and readable typography.
 const styles = StyleSheet.create({
   body: {
     fontSize: 15,
