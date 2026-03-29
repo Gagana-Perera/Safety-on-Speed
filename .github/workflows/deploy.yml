@@ -14,8 +14,19 @@ on:
 
 # 3. the Jobs - the tests
 jobs: 
-  #CI 
+  #CI tests
   test:
+
     name: Lint and Test # name will be displayed in  Github UI
     runs-on: ubuntu-latest # this test will run on Github's free Ubuntu machine
+
+    steps: # is the command or action of the job
+       - uses: actions/checkout@v4 # downloads the app source code onto Ubuntu
+
+       - name: Setup Node.js
+         uses: actions/setup-node@v4
+         with:
+           node-version: 10.8.2 # installs Node version 10.8.2
+           cache: npm       # the npm modules will be held as cache
+
     
