@@ -142,31 +142,40 @@ export default function Profile() {
   };
 
   const fetchGPSLocation = async () => {
-    try {
-      setLocationRegion("Locating...");
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t('permission_denied'), t('location_permission_msg'));
-        setLocationRegion("Choose");
-        return;
-      }
+  try {
+    setLocationRegion("Locating...");
 
-      let loc = await Location.getCurrentPositionAsync({});
-      let reverse = await Location.reverseGeocodeAsync({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
-
-      if (reverse.length > 0) {
-        const city = reverse[0].city || reverse[0].subregion || "Colombo";
-        updateLocationInDB(city);
-      }
-    } catch (e) {
-      console.log(e);
-      Alert.alert(t('error'), t('gps_error_msg'));
-      setLocationRegion("Choose");
+    // Check current status first
+    let { status } = await Location.getForegroundPermissionsAsync();
+    
+    // Only request if not already granted
+    if (status !== 'granted') {
+      const result = await Location.requestForegroundPermissionsAsync();
+      status = result.status;
     }
-  };
+
+    if (status !== 'granted') {
+      Alert.alert(t('permission_denied'), t('location_permission_msg'));
+      setLocationRegion("Choose");
+      return;
+    }
+
+    let loc = await Location.getCurrentPositionAsync({});
+    let reverse = await Location.reverseGeocodeAsync({
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    });
+
+    if (reverse.length > 0) {
+      const city = reverse[0].city || reverse[0].subregion || "Colombo";
+      updateLocationInDB(city);
+    }
+  } catch (e) {
+    console.log(e);
+    Alert.alert(t('error'), t('gps_error_msg'));
+    setLocationRegion("Choose");
+  }
+};
 
   const showLocationPicker = () => {
     Alert.alert(t('location_settings'), t('choose_option'), [
