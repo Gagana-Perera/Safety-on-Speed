@@ -20,13 +20,28 @@ jobs:
     name: Lint and Test # name will be displayed in  Github UI
     runs-on: ubuntu-latest # this test will run on Github's free Ubuntu machine
 
-    steps: # is the command or action of the job
-       - uses: actions/checkout@v4 # downloads the app source code onto Ubuntu
+    steps: # is the commands and actions of the job
+
+      # Action step - runs a prebuilt tool
+       - uses: actions/checkout@v4 # downloads the app source code (our repo) onto Ubuntu
 
        - name: Setup Node.js
-         uses: actions/setup-node@v4
+         uses: actions/setup-node@v4 # installs Node.JS
          with:
-           node-version: 10.8.2 # installs Node version 10.8.2
+           node-version: 20 # installs Node version 20
            cache: npm       # the npm modules will be held as cache
+
+        
+          # Command step  - executes terminal commands
+       - name: Install dependencies
+         run: npm ci #installs dependencie packages from package-lock.json.
+       #better than  "npm install"
+
+       # Command step 
+       - name: Lint
+         run: npm run lint # linter is the one that catches errors. 
+         #our linter is ESLint. it is configured in the eslint.config.js file
+
+         
 
     
